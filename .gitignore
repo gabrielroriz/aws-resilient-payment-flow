@@ -1,0 +1,29 @@
+# Downloaded providers and modules
+**/.terraform/*
+
+# State files can contain secrets
+*.tfstate
+*.tfstate.*
+
+# Local variable values can contain secrets
+*.tfvars
+*.tfvars.json
+
+# Saved plans (use these extensions when saving plans)
+*.tfplan
+*.tfplan.*
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Local CLI configuration
+.terraformrc
+terraform.rc
+
+# Node.js dependencies and Lambda build output
+node_modules/
+/dist/
+
+# Local Lambda invocation output
+/response.json
