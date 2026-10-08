@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "tsc"
+    "build": "tsc --noEmit && node build/index.mjs",
+    "deploy": "bash scripts/deploy.sh",
+    "test": "node --test tests/*.test.mjs"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
   }
 }

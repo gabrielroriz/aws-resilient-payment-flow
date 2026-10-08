@@ -44,14 +44,3 @@ resource "aws_iam_role" "ts_lambda_role" {
     ]
   })
 }
-
-resource "aws_lambda_function" "ts_lambda" {
-  filename         = "${path.module}/../dist/lambda_function_${var.lambdasVersion}.zip"
-  source_code_hash = filebase64sha256("${path.module}/../dist/lambda_function_${var.lambdasVersion}.zip")
-  function_name    = "ts_lambda"
-  role             = aws_iam_role.ts_lambda_role.arn
-  handler          = "index.handler"
-  runtime          = "nodejs24.x"
-  memory_size      = 1024
-  timeout          = 300
-}

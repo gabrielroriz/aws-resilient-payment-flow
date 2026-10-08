@@ -1,4 +1,4 @@
 variable "lambdasVersion" {
   type        = string
-  description = "version of the lambdas zip on S3"
+  description = "Version suffix of the local Lambda ZIP archive"
 }
