@@ -23,6 +23,9 @@ npm test
 
 Each registered Lambda builds to `dist/bundles/<function-name>/index.js`.
 
+To run the HTTP endpoints locally, complete the
+[SAM and Docker setup](docs/development.md#run-locally), then run `npm run dev`.
+
 To deploy, follow the [AWS and Terraform setup](docs/deployment.md), then run:
 
 ```bash

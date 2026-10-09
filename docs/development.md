@@ -3,6 +3,52 @@
 Use Node.js 24 and npm. Install dependencies with `npm ci`, build with
 `npm run build`, and run the bundling tests with `npm test` from the repository root.
 
+## Run locally
+
+Install [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html),
+Docker, Terraform, Bash, and `zip`, in addition to Node.js 24 and npm. Use a recent
+SAM CLI with Node.js 24 support and ensure the Docker daemon is running.
+This workflow was verified with SAM CLI 1.167.0. Run `npm ci` once to install the
+project's build tools.
+
+SAM's Terraform hook initializes and plans the existing configuration. Configure
+AWS credentials with access to the S3 backend and the deployed resources, as for
+[deployment](deployment.md#prerequisites). This workflow requires network access
+and is not an entirely offline environment.
+
+```bash
+npm run dev
+```
+
+The script builds the registered functions, packages `dist/<function-name>_local.zip`,
+and runs `sam local start-api --hook-name terraform` from `terraform/` with
+`TF_VAR_lambdasVersion=local`. SAM discovers functions and routes from Terraform;
+there is no manually maintained SAM template or second route registry. Its
+generated metadata is ignored under `.aws-sam-iacs/` (or `.aws-sam/`, depending on
+SAM version). The local workflow does not run `terraform apply` or deploy the
+ZIPs to AWS.
+
+In another terminal, call the current GET routes:
+
+```bash
+curl --fail-with-body http://127.0.0.1:3000/ts_lambda
+curl --fail-with-body http://127.0.0.1:3000/ts_lambda_2
+```
+
+Expect JSON strings `"Hello World from Lambda 1!"` and `"Hello World from Lambda 2!"`.
+SAM pulls the runtime container image on first invocation, which can take longer.
+Stop with Ctrl+C. After changing code or the registry, stop and rerun `npm run dev`
+to rebuild the ZIPs and regenerate the Terraform metadata. Run one local server
+per checkout. Additional SAM options can be passed through, for example
+`npm run dev -- --port 3001`.
+
+The hook has limitations resolving resource relationships, especially for new,
+undeployed resources. If SAM reports unresolved attributes, inspect its output
+and a Terraform plan before deciding whether to deploy those changes. Local
+execution does not verify AWS IAM permissions or emulate other AWS services;
+SDK calls made by handlers can still reach AWS. See
+[SAM's Terraform integration and limitations](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/using-samcli-terraform.html).
+
 ## Add a Lambda
 
 Create a TypeScript file under `src/` that exports `handler`. Add an entry to the
@@ -25,7 +71,7 @@ there is no second list to update. A source file alone does not register a Lambd
 `http_method` controls the client-facing route. Use an uppercase method such as
 `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, or `OPTIONS`, or `ANY` to accept all
 methods. It defaults to `ANY` when omitted. Both example functions explicitly
-use `POST`. The backend `integration_method` stays fixed at `POST` for Lambda
+use `GET`. The backend `integration_method` stays fixed at `POST` for Lambda
 invocation, independently of the route's method.
 
 `path` sets the public route path independently of the function name. Include a

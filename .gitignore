@@ -27,3 +27,7 @@ node_modules/
 
 # Local Lambda invocation output
 /response.json
+
+# SAM's generated Terraform metadata and extracted local artifacts
+**/.aws-sam/
+**/.aws-sam-iacs/

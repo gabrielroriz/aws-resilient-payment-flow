@@ -59,13 +59,13 @@ After deployment, inspect the endpoint outputs and invoke the example functions:
 ```bash
 terraform -chdir=terraform output lambda_endpoints
 API_URL="$(terraform -chdir=terraform output -raw api_endpoint)"
-curl --fail-with-body -X POST "$API_URL/ts_lambda"
-curl --fail-with-body -X POST "$API_URL/ts_lambda_2"
+curl --fail-with-body "$API_URL/ts_lambda"
+curl --fail-with-body "$API_URL/ts_lambda_2"
 ```
 
 The responses are HTTP 200 with JSON strings `"Hello World from Lambda 1!"` and
 `"Hello World from Lambda 2!"`, respectively. Both example routes accept only
-POST. Requests with unmatched methods or paths return HTTP 404.
+GET. Requests with unmatched methods or paths return HTTP 404.
 
 The HTTP integration waits up to 30 seconds even though a Lambda's configured
 timeout may be longer. Handlers should respond within that window; longer work
