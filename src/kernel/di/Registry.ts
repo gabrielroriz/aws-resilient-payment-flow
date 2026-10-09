@@ -47,10 +47,13 @@ export class Registry {
 
   resolve<T>(token: Token<T>): T {
     const target = this.bindings.get(token) ?? token;
+
+    // If it has cached instance, return it.
     if (this.instances.has(target)) {
       return this.instances.get(target) as T;
     }
 
+    // Otherwise, build the graph recursively and cache the instance.
     const provider = this.providers.get(target);
     if (!provider) {
       throw new Error(
