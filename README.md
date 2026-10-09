@@ -8,6 +8,10 @@
 
 An AWS project for reliable payment and subscription event processing. The [requirements](docs/REQUIREMENTS.md) set the context and constraints for the payment flow under development. The current setup builds the TypeScript Lambdas registered in `lambdas.json` and deploys them behind an API Gateway HTTP API.
 
+## Architecture
+
+The Lambdas follow a hexagonal (ports and adapters) architecture with dependency injection. Business logic in `src/application` depends only on the ports it defines, while adapters in `src/infra` and `src/main` connect it to AWS services and the Lambda runtime. Each function's entry file binds ports to adapters, and a small registry builds and shares the object graph. See [Architecture](docs/architecture.md) for the layers, import rules, and wiring conventions.
+
 ## Get started
 
 Use Node.js 24 and npm. From the repository root:
