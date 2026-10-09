@@ -3,15 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "tsc --noEmit && node build/index.mjs",
+    "build": "tsc --noEmit && tsc -p build && node build/index.mts",
     "dev": "bash scripts/dev.sh",
     "deploy": "bash scripts/deploy.sh",
-    "test": "node --test 'build/**/*.test.mjs' 'src/**/*.test.mjs'"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.164",
     "@types/node": "^24.19.1",
     "esbuild": "^0.28.2",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "5.0.3"
   }
 }

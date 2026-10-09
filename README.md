@@ -3,8 +3,12 @@
 [![Terraform](https://img.shields.io/badge/Terraform-844FBA?style=flat&logo=terraform&logoColor=white)](https://developer.hashicorp.com/terraform)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![esbuild](https://img.shields.io/badge/esbuild-FFCF00?style=flat&logo=esbuild&logoColor=black)](https://esbuild.github.io/)
+[![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=flat&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![AWS Lambda](https://img.shields.io/badge/AWS_Lambda-FF9900?style=flat)](https://aws.amazon.com/lambda/)
 [![Amazon API Gateway](https://img.shields.io/badge/Amazon_API_Gateway-FF4F8B?style=flat)](https://aws.amazon.com/api-gateway/)
+[![AWS SAM](https://img.shields.io/badge/AWS_SAM-FF9900?style=flat)](https://aws.amazon.com/serverless/sam/)
+[![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/gabrielroriz/aws-resilient-payment-flow/actions/workflows/ci.yml)
 
 An AWS project for reliable payment and subscription event processing. The [requirements](docs/REQUIREMENTS.md) set the context and constraints for the payment flow under development. The current setup builds the TypeScript Lambdas registered in `lambdas.json` and deploys them behind an API Gateway HTTP API.
 

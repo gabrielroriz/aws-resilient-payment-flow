@@ -11,6 +11,7 @@ Add concise, plain-English comments where they help humans and AI understand pur
 ## Documentation
 
 - Keep README focused on project purpose, getting started, and links to detailed guides in `docs/`.
+- When adding a new technology to the project, add its badge to the README badge list in the same style as the existing badges.
 - Give each guide one clear responsibility. Separate local development, deployment, testing, and adding new functions.
 - For workflow guides, organize content into requirements, setup, how it works, and usage, as relevant.
 - Prefer concise tables for requirements, commands, configuration fields, and artifacts.

@@ -11,6 +11,7 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
-      # Type-checks and bundles, catching @Injectable lists that do not match their constructors.
+      # Type-checks the Lambda code and build tooling, catching @Injectable lists that do not match
+      # their constructors, then bundles.
       - run: npm run build
       - run: npm test
