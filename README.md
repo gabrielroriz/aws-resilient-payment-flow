@@ -33,11 +33,13 @@ npm run deploy
 ```
 
 This command automatically applies the Terraform plan and outputs each Lambda's
-HTTP endpoint. See [Calling the API](docs/deployment.md#calling-the-api) for examples.
+HTTP endpoint. See [Calling the API](docs/deployment.md#calling-the-api) for endpoint details.
 
 ## Documentation
 
-- [Development](docs/development.md): local builds, tests, and adding a Lambda.
-- [Deployment](docs/deployment.md): prerequisites, packaging, and Terraform behavior.
+- [Development](docs/development.md): local setup and builds.
+- [Testing](docs/testing.md): running tests and current coverage.
+- [Adding a Lambda](docs/adding-a-lambda.md): handler registration and route configuration.
+- [Deployment](docs/deployment.md): requirements, setup, and the AWS deployment workflow.
 - [Requirements](docs/REQUIREMENTS.md): project scope and acceptance criteria.
 - [TODO](TODO.md): deferred work.

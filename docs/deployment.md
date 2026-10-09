@@ -1,73 +1,85 @@
 # Deployment
 
-## Prerequisites
+Build and deploy all registered Lambdas and their HTTP API to AWS. See [Development](development.md) for local execution and [Testing](testing.md) for automated checks.
 
-Install Node.js 24, npm, Bash, `zip`, and Terraform matching the version constraint
-in [`terraform/terraform.tf`](../terraform/terraform.tf). Configure AWS credentials
-for the target account with access to the backend and the resources Terraform manages.
+## Requirements
 
-Review the account-specific S3 backend, region, and resource names in that file
-before deploying. The backend bucket must already exist before `terraform init`.
-The configuration also manages that bucket as a resource; for an existing bucket,
-ensure it is tracked in this Terraform state before applying.
+| Requirement | Used for |
+|---|---|
+| Node.js 24 and npm | Installing build tools and compiling handlers |
+| Bash and `zip` | Running the deployment script and packaging functions |
+| Terraform matching [the project constraint](../terraform/terraform.tf) | Planning and applying infrastructure changes |
+| AWS credentials and network access | Accessing the state backend and managing AWS resources |
+| Existing S3 backend bucket | Storing Terraform state |
+
+## Setup
+
+1. Install the tools above and configure credentials for the target AWS account.
+2. Review the backend bucket, state key, provider region, and resource names in [`terraform/terraform.tf`](../terraform/terraform.tf).
+3. Ensure the backend bucket exists before initialization. The configuration also manages this bucket, so an existing bucket must be tracked in this Terraform state before applying.
+
+## How deployment works
+
+[`scripts/deploy.sh`](../scripts/deploy.sh) builds in a temporary directory and uses [`lambdas.json`](../lambdas.json) to select the functions.
+
+```mermaid
+flowchart TD
+    Source["Source + lambdas.json"] --> Build["Temporary workspace: npm ci + build"]
+    Build --> ZIP["Versioned Lambda ZIPs in dist/"]
+    ZIP --> Plan["Terraform init + plan"]
+    Config["terraform/ configuration"] --> Plan
+    Plan --> Saved["Saved plan"]
+    Saved --> Apply["Automatic apply"]
+    Apply --> AWS["AWS Lambdas + HTTP API"]
+    Apply --> Outputs["Function details + endpoint URLs"]
+```
+
+**The script automatically applies the entire saved plan**, including infrastructure changes beyond Lambda code. It does not pause for review or run the test suite.
+
+| Artifact | Behavior |
+|---|---|
+| `dist/<name>_<version>.zip` | One archive per function containing `index.js`; retained after deployment |
+| Version suffix | UTC timestamp plus a unique suffix, passed as `lambdasVersion` |
+| Temporary workspace and saved plan | Removed when the script exits, including on failure |
+| Existing local dependencies and bundles | Preserved |
 
 ## Deploy
 
-From the repository root:
+Run the [automated checks](testing.md), then deploy from the repository root:
 
 ```bash
 npm run deploy
 ```
 
-You can also invoke `scripts/deploy.sh` using its absolute path from any directory.
-The script:
+The script can also be run through Bash using its absolute path from any directory. It stops on failure; inspect a fresh Terraform plan before retrying a failed infrastructure change.
 
-1. Installs locked dependencies and builds all registered functions in a temporary directory.
-2. Creates `dist/<function-name>_<version>.zip` for each function, containing only `index.js`.
-3. Runs Terraform init and plan, passing the archive version as `lambdasVersion`.
-4. Automatically applies the saved plan, including all infrastructure changes it contains.
+## Deployed resources
 
-The version is a UTC timestamp with a unique suffix. The script stops on failure
-and removes its temporary build directory and saved plan on exit. ZIPs remain in
-`dist/`; local build output and installed dependencies are preserved.
+| Configuration | Manages |
+|---|---|
+| [`lambdas.tf`](../terraform/lambdas.tf) | One Node.js 24 Lambda per registry entry, `index.handler`, and a shared execution role |
+| [`api_gateway.tf`](../terraform/api_gateway.tf) | HTTP API, automatically deployed `$default` stage, routes, proxy integrations, and invocation permissions |
+| [`terraform.tf`](../terraform/terraform.tf) | Provider, state backend configuration, and backend bucket resource |
 
-## Terraform behavior
-
-[`terraform/lambdas.tf`](../terraform/lambdas.tf) reads the same registry used by
-the builder and manages one AWS Lambda per entry. Each function references its own
-ZIP and content hash, uses Node.js 24, and runs `index.handler`. Terraform uploads
-the archives directly to Lambda and outputs each function's name, ARN, and handler.
-
-See [Development](development.md#add-a-lambda) for registry fields and the effects
-of adding, renaming, or removing entries. Functions currently share the existing
-execution role. Event triggers and service-specific permissions require separate
-configuration, except for the HTTP API integration described below.
+Terraform uploads each ZIP directly to Lambda and tracks its content hash. See [Adding a Lambda](adding-a-lambda.md) for registry fields and function lifecycle behavior.
 
 ## Calling the API
 
-[`terraform/api_gateway.tf`](../terraform/api_gateway.tf) creates one API Gateway
-HTTP API with an automatically deployed `$default` stage. Each registered Lambda
-gets a `<http_method> <path>` route from `lambdas.json`, a Lambda proxy integration
-using payload format `2.0`, and permission scoped to its path in this API's default
-stage. The method defaults to `ANY` and the path to `/<function-name>` when omitted.
-The `lambda_endpoints` output reflects each configured path.
-There is no stage prefix in the URL. These example endpoints are public and have
-no authentication; payment-provider authenticity checks are not implemented yet.
-
-After deployment, inspect the endpoint outputs and invoke the example functions:
+Inspect deployed URLs and function details:
 
 ```bash
 terraform -chdir=terraform output lambda_endpoints
-API_URL="$(terraform -chdir=terraform output -raw api_endpoint)"
-curl --fail-with-body "$API_URL/ts_lambda"
-curl --fail-with-body "$API_URL/ts_lambda_2"
+terraform -chdir=terraform output lambda_functions
+terraform -chdir=terraform output -raw api_endpoint
 ```
 
-The responses are HTTP 200 with JSON strings `"Hello World from Lambda 1!"` and
-`"Hello World from Lambda 2!"`, respectively. Both example routes accept only
-GET. Requests with unmatched methods or paths return HTTP 404.
+Use the method and path configured in `lambdas.json` when calling an endpoint; substitute any path parameters. URLs have no stage prefix.
 
-The HTTP integration waits up to 30 seconds even though a Lambda's configured
-timeout may be longer. Handlers should respond within that window; longer work
-needs asynchronous processing. See the AWS documentation for
-[HTTP API Lambda integrations](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html).
+| API behavior | Current configuration |
+|---|---|
+| Authentication | Public routes; provider authenticity checks are not implemented |
+| Lambda event format | API Gateway payload `2.0` |
+| Integration timeout | 30 seconds, even if the Lambda timeout is longer |
+| Unmatched route | HTTP 404 |
+
+Handlers must respond within the integration timeout; longer work needs asynchronous processing. Other event triggers and service-specific permissions require additional configuration.
