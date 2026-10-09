@@ -21,7 +21,7 @@ resource "aws_iam_role" "ts_lambda_role" {
     ]
   })
 }
-resource "aws_lambda_function" "ts_lambda" {
+resource "aws_lambda_function" "all_lambdas" {
   for_each = local.lambdas
 
   filename         = local.lambda_archives[each.key]
@@ -37,7 +37,7 @@ resource "aws_lambda_function" "ts_lambda" {
 output "lambda_functions" {
   description = "Deployed Lambda names, ARNs, and handlers, keyed by function name"
   value = {
-    for name, function in aws_lambda_function.ts_lambda : name => {
+    for name, function in aws_lambda_function.all_lambdas : name => {
       name    = function.function_name
       arn     = function.arn
       handler = function.handler

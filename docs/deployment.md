@@ -41,4 +41,33 @@ the archives directly to Lambda and outputs each function's name, ARN, and handl
 See [Development](development.md#add-a-lambda) for registry fields and the effects
 of adding, renaming, or removing entries. Functions currently share the existing
 execution role. Event triggers and service-specific permissions require separate
-configuration.
+configuration, except for the HTTP API integration described below.
+
+## Calling the API
+
+[`terraform/api_gateway.tf`](../terraform/api_gateway.tf) creates one API Gateway
+HTTP API with an automatically deployed `$default` stage. Each registered Lambda
+gets a `<http_method> <path>` route from `lambdas.json`, a Lambda proxy integration
+using payload format `2.0`, and permission scoped to its path in this API's default
+stage. The method defaults to `ANY` and the path to `/<function-name>` when omitted.
+The `lambda_endpoints` output reflects each configured path.
+There is no stage prefix in the URL. These example endpoints are public and have
+no authentication; payment-provider authenticity checks are not implemented yet.
+
+After deployment, inspect the endpoint outputs and invoke the example functions:
+
+```bash
+terraform -chdir=terraform output lambda_endpoints
+API_URL="$(terraform -chdir=terraform output -raw api_endpoint)"
+curl --fail-with-body -X POST "$API_URL/ts_lambda"
+curl --fail-with-body -X POST "$API_URL/ts_lambda_2"
+```
+
+The responses are HTTP 200 with JSON strings `"Hello World from Lambda 1!"` and
+`"Hello World from Lambda 2!"`, respectively. Both example routes accept only
+POST. Requests with unmatched methods or paths return HTTP 404.
+
+The HTTP integration waits up to 30 seconds even though a Lambda's configured
+timeout may be longer. Handlers should respond within that window; longer work
+needs asynchronous processing. See the AWS documentation for
+[HTTP API Lambda integrations](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html).

@@ -1,5 +1,9 @@
 # TODO
 
+Deployment improvements:
+
+- [ ] Add a way to build and deploy a single Lambda selected by its registry name, without redeploying the other functions.
+
 Deferred build and deployment tests:
 
 - [ ] **Priority:** Verify invalid registry configuration fails before deleting existing bundles.

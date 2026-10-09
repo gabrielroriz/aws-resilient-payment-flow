@@ -1,8 +1,12 @@
 {
   "ts_lambda": {
-    "entry": "src/lambdas/lambda_1.ts"
+    "entry": "src/lambdas/lambda_1.ts",
+    "http_method": "POST",
+    "path": "/ts_lambda"
   },
   "ts_lambda_2": {
-    "entry": "src/lambdas/lambda_2.ts"
+    "entry": "src/lambdas/lambda_2.ts",
+    "http_method": "POST",
+    "path": "/ts_lambda_2"
   }
 }
