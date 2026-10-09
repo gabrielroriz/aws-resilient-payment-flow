@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 800" width="1100" height="800" role="img" aria-labelledby="title desc">
+  <title id="title">Hexagonal architecture of the payment flow Lambdas</title>
+  <desc id="desc">Three concentric hexagons. The center holds use cases. The middle ring holds ports: controllers as the driving port, and driven ports such as Clock. The outer ring holds adapters: lambdaHttpAdapter on the driving side, and driven adapters such as SystemClock. API Gateway, payment providers, the system clock, and AWS services sit outside.</desc>
+  <style>
+    .bg { fill: #ffffff; }
+    .edge { fill: none; stroke: #1f2328; stroke-width: 2; stroke-linejoin: round; }
+    .outer { fill: #eef8f0; }
+    .middle { fill: #edf3fb; }
+    .core { fill: #ffffff; }
+    text { font-family: Inter, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; text-anchor: middle; fill: #1f2328; }
+    .name { font-size: 15px; font-weight: 600; }
+    .role { font-size: 13px; }
+    .example { fill: #6e7781; font-style: italic; }
+    .path { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; fill: #6e7781; }
+    .ring { font-size: 22px; font-weight: 700; }
+    .core-label { fill: #cf222e; }
+    .ports-label { fill: #0969da; }
+    .adapters-label { fill: #1a7f37; }
+    .actor { font-size: 15px; font-weight: 600; }
+    .icon-ink { fill: none; stroke: #ffffff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .clock-face { fill: #ffffff; }
+    .clock-hand { stroke: #1f2328; stroke-width: 3; stroke-linecap: round; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; }
+      .edge { stroke: #c9d1d9; }
+      .outer { fill: #12261a; }
+      .middle { fill: #111d2e; }
+      .core { fill: #0d1117; }
+      text { fill: #e6edf3; }
+      .example, .path { fill: #8b949e; }
+      .core-label { fill: #ff7b72; }
+      .ports-label { fill: #58a6ff; }
+      .adapters-label { fill: #3fb950; }
+      .clock-face { fill: #0d1117; }
+      .clock-hand { stroke: #e6edf3; }
+    }
+  </style>
+
+  <rect class="bg" x="0" y="0" width="1100" height="800" rx="16"/>
+
+  <!-- Rings: adapters (outer), ports (middle), use cases (core). -->
+  <polygon class="outer" points="890,450 720,744.45 380,744.45 210,450 380,155.55 720,155.55"/>
+  <polygon class="middle" points="790,450 670,657.85 430,657.85 310,450 430,242.15 670,242.15"/>
+  <polygon class="core" points="700,450 625,579.9 475,579.9 400,450 475,320.1 625,320.1"/>
+
+  <g class="edge">
+    <polygon points="890,450 720,744.45 380,744.45 210,450 380,155.55 720,155.55"/>
+    <polygon points="790,450 670,657.85 430,657.85 310,450 430,242.15 670,242.15"/>
+    <polygon points="700,450 625,579.9 475,579.9 400,450 475,320.1 625,320.1"/>
+    <!-- Segment dividers from each core vertex to the matching outer vertex. -->
+    <line x1="700" y1="450" x2="890" y2="450"/>
+    <line x1="625" y1="579.9" x2="720" y2="744.45"/>
+    <line x1="475" y1="579.9" x2="380" y2="744.45"/>
+    <line x1="400" y1="450" x2="210" y2="450"/>
+    <line x1="475" y1="320.1" x2="380" y2="155.55"/>
+    <line x1="625" y1="320.1" x2="720" y2="155.55"/>
+  </g>
+
+  <!-- Core -->
+  <text class="ring core-label" x="550" y="433">Use cases</text>
+  <text class="name" x="550" y="459">GetHealthUseCase</text>
+  <text class="path" x="550" y="481">src/application/usecases</text>
+
+  <!-- Upper left: driving side -->
+  <g transform="translate(403.6 365.5) rotate(-60)">
+    <text class="name" y="-4">Controllers</text>
+    <text class="role" y="14">(driving port)</text>
+  </g>
+  <g transform="translate(332.5 324.4) rotate(-60)">
+    <text class="name" y="-4">lambdaHttpAdapter</text>
+    <text class="role" y="14">(driving adapter)</text>
+  </g>
+
+  <!-- Top: example provider port -->
+  <g transform="translate(550 281)">
+    <text class="name example" y="-4">Provider port</text>
+    <text class="role example" y="14">(driven port)</text>
+  </g>
+  <g transform="translate(550 199)">
+    <text class="name example" y="-4">Provider adapter</text>
+    <text class="role example" y="14">(driven adapter)</text>
+  </g>
+
+  <!-- Upper right: Clock -->
+  <g transform="translate(696.4 365.5) rotate(60)">
+    <text class="name" y="-4">Clock</text>
+    <text class="role" y="14">(driven port)</text>
+  </g>
+  <g transform="translate(767.5 324.4) rotate(60)">
+    <text class="name" y="-4">SystemClock</text>
+    <text class="role" y="14">(driven adapter)</text>
+  </g>
+
+  <!-- Lower right: example storage port -->
+  <g transform="translate(696.4 534.5) rotate(-60)">
+    <text class="name example" y="-4">Storage port</text>
+    <text class="role example" y="14">(driven port)</text>
+  </g>
+  <g transform="translate(767.5 575.6) rotate(-60)">
+    <text class="name example" y="-4">Storage adapter</text>
+    <text class="role example" y="14">(driven adapter)</text>
+  </g>
+
+  <!-- Bottom: ring labels -->
+  <text class="ring ports-label" x="550" y="615">Ports</text>
+  <text class="path" x="550" y="634">src/application</text>
+  <text class="ring adapters-label" x="550" y="697">Adapters</text>
+  <text class="path" x="550" y="716">src/main · src/infra</text>
+
+  <!-- Actors outside the hexagon -->
+  <g>
+    <rect x="122" y="196" width="56" height="56" rx="12" fill="#8250df"/>
+    <path class="icon-ink" d="M139 212 l-8 12 l8 12 M161 212 l8 12 l-8 12 M143 224 h14 M152 219 l5 5 l-5 5"/>
+    <text class="actor" x="150" y="278">API Gateway</text>
+  </g>
+
+  <g>
+    <rect x="518" y="50" width="64" height="44" rx="7" fill="#bf8700"/>
+    <rect x="518" y="60" width="64" height="9" fill="#7d4e00"/>
+    <rect x="528" y="77" width="16" height="10" rx="2" fill="#ffe8a3"/>
+    <text class="actor" x="550" y="120">Payment providers</text>
+  </g>
+
+  <g>
+    <circle cx="950" cy="224" r="28" fill="#218bff"/>
+    <circle class="clock-face" cx="950" cy="224" r="21"/>
+    <line class="clock-hand" x1="950" y1="224" x2="950" y2="210"/>
+    <line class="clock-hand" x1="950" y1="224" x2="960" y2="230"/>
+    <text class="actor" x="950" y="278">System clock</text>
+  </g>
+
+  <g>
+    <path d="M924 650 v38 a26 8 0 0 0 52 0 v-38 z" fill="#0969da"/>
+    <ellipse cx="950" cy="650" rx="26" ry="8" fill="#54aeff"/>
+    <path d="M924 669 a26 8 0 0 0 52 0" fill="none" stroke="#54aeff" stroke-width="2"/>
+    <text class="actor" x="950" y="724">AWS services</text>
+  </g>
+</svg>

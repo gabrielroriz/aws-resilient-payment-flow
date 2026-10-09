@@ -4,10 +4,10 @@ Each Lambda is an entry file that wires one controller into the HTTP adapter. Se
 
 ## Steps
 
-1. If the use case needs something external, define a port as an abstract class in `src/application/ports/` and implement it in `src/infra/<concern>/` with `@Injectable()`.
+1. If the use case needs something external, define a port as an abstract class in `src/application/ports/` and implement it in `src/infra/<concern>/` with `@Injectable()`. See [Ports and contracts](architecture.md#ports-and-contracts) for the rules.
 2. Add the use case in `src/application/usecases/<area>/`, decorated with `@Injectable(...)` listing its constructor dependencies.
 3. Add a controller in `src/application/controller/<area>/` that implements `Controller` and calls the use case.
-4. Add the entry in `src/main/functions/`: bind each port to its adapter, then export `handler = lambdaHttpAdapter(registry.resolve(YourController))`. Use [`health.ts`](../src/main/functions/health.ts) as the template.
+4. Add the entry in `src/main/functions/`: bind each port to its adapter, then export `handler = lambdaHttpAdapter(registry.resolve(YourController))`. Use [`health.ts`](../src/main/functions/health.ts) as the template, and see [Binding several ports](architecture.md#binding-several-ports) when the function needs more than one adapter.
 5. Register the entry in [`lambdas.json`](../lambdas.json).
 
 ## Registry fields

@@ -2,6 +2,41 @@
 
 Lambda code follows a hexagonal (ports and adapters) structure with dependency injection. Business logic depends only on ports it defines; AWS services, providers, and the Lambda runtime are adapters at the edges. See [Adding a Lambda](adding-a-lambda.md) for the step-by-step workflow.
 
+## Hexagonal model
+
+Driving adapters turn platform events into calls on the core. Whenever the core needs something from outside, it calls a port, and a driven adapter implements that port. Each function's entry file is its composition root: it decides which adapter backs each port.
+
+![Hexagonal architecture: use cases in the center, ports in the middle ring, adapters in the outer ring, and external systems outside](images/hexagonal-architecture.svg)
+
+The two inner rings live in `src/application`; the outer ring is split between `src/main/adapters` on the driving side and `src/infra` on the driven side. `lambdaHttpAdapter` calls controllers through the `Controller` contract, which makes that contract the driving port; the abstract classes in `application/ports/` are the driven ports. Gray italic segments are examples of port categories rather than existing classes.
+
+A request travels from the platform event through the core to the outside world:
+
+```mermaid
+flowchart TD
+    Event["API Gateway event"]
+    subgraph Driving["Driving side: src/main/adapters"]
+        HttpAdapter["lambdaHttpAdapter"]
+    end
+    subgraph Core["Application core: src/application"]
+        Controller["Controller"] --> UseCase["Use case"]
+        UseCase --> Port["Port"]
+    end
+    subgraph Driven["Driven side: src/infra"]
+        Adapter["Adapter"]
+    end
+    External["AWS services, providers, system clock"]
+    Entry["Composition root: src/main/functions"]
+
+    Event --> HttpAdapter
+    HttpAdapter --> Controller
+    Port -. implemented by .-> Adapter
+    Adapter --> External
+    Entry -. binds port to adapter .-> Adapter
+```
+
+The [health function](../src/main/functions/health.ts) is the reference example: `GetHealthController` calls `GetHealthUseCase`, which reads the time through the `Clock` port implemented by `SystemClock`.
+
 ## Layers
 
 | Directory | Contains | May import |
@@ -24,23 +59,50 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 | `main/adapters/` | Converts Lambda events into controller calls and maps results and errors to responses |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler` |
 
-## How a request flows
+## Dependency direction
+
+Calls flow outward at runtime, but source imports point inward: `infra` imports the ports it implements, and `application` never imports `infra`. This is the Dependency Inversion Principle.
 
 ```mermaid
 flowchart LR
-    Event["API Gateway event"] --> Adapter["main/adapters<br/>lambdaHttpAdapter"]
-    Adapter --> Controller["application/controller"]
-    Controller --> UseCase["application/usecases"]
-    UseCase --> Port["application/ports"]
-    Infra["infra adapter"] -. implements .-> Port
-    Entry["main/functions entry"] -. binds .-> Infra
+    subgraph Runtime["Runtime call"]
+        direction LR
+        UseCaseA["GetHealthUseCase"] -->|"clock.now()"| AdapterA["SystemClock"]
+    end
+    subgraph Imports["Source imports"]
+        direction LR
+        UseCaseB["GetHealthUseCase"] -->|imports| PortB["Clock"]
+        AdapterB["SystemClock"] -->|imports and implements| PortB
+    end
 ```
 
-The [health function](../src/main/functions/health.ts) is the reference example: `GetHealthController` calls `GetHealthUseCase`, which reads the time through the `Clock` port implemented by `SystemClock`.
+Classes never construct their own dependencies; the composition root and the registry build and supply them. This inversion of control is what lets an entry swap one adapter for another without touching the core.
+
+## Ports and contracts
+
+A driven port is a contract only: an abstract class with abstract members that describes what the core needs, in the core's terms. [`Clock`](../src/application/ports/Clock.ts) is the reference.
+
+| Rule | Reason |
+|---|---|
+| Use an abstract class, not an interface | Abstract members are erased, but the class remains at runtime as the DI token |
+| Declare only abstract members; put related types in a namespace of the same name | Adapters use `implements`, which inherits nothing, so concrete members would never reach them |
+| Name operations by what the core needs, such as `now()` | Vendor operations and SDK types tie the core to one provider |
+| Keep each port to one concern | Small ports are easier to fake in tests and to implement per provider |
+
+Use cases receive ports through their constructors, so a unit test can pass a fake directly, such as `new GetHealthUseCase(fixedClock)`, without the registry.
+
+`application/contracts/` holds a different kind of contract:
+
+| | `application/ports/` | `application/contracts/` |
+|---|---|---|
+| Describes | What the core needs from outside | Shapes shared across layers, such as `Controller` |
+| Form | Abstract class | Interface or type |
+| Implemented by | Adapters in `src/infra/` | Application code, such as controllers |
+| Used as a DI token | Yes, through a binding | No |
 
 ## Dependency injection
 
-Classes register themselves with `@Injectable`, listing their constructor dependencies in order. TypeScript rejects a list that does not match the constructor, so a mismatch fails `npm run build`. The list is explicit because esbuild does not emit TypeScript decorator metadata.
+Classes register themselves with `@Injectable`, listing their constructor dependencies in order. TypeScript rejects a list that does not match the constructor, so a mismatch fails `npm run build`. esbuild compiles the project's standard decorators but cannot emit constructor type metadata, so the explicit list replaces it.
 
 ```ts
 @Injectable(Clock)
@@ -49,7 +111,20 @@ export class GetHealthUseCase {
 }
 ```
 
-Ports are abstract classes rather than interfaces, so they exist at runtime and can serve as tokens. Each function's entry file is its composition root:
+### Concrete classes and ports
+
+A dependency is either a concrete class, which resolves directly, or a port, which needs a binding. Make a dependency a port when the core needs it from outside, or when it may change per provider, environment, or test.
+
+| Dependency | Example | Wiring |
+|---|---|---|
+| Core to core | `GetHealthController` → `GetHealthUseCase` | Concrete class; no binding |
+| Infra to infra | An adapter → a shared SDK client wrapper | Concrete class; no binding |
+| Core to outside | `GetHealthUseCase` → `Clock` | Port bound to an adapter in the entry file |
+| Core to infra adapter | A use case importing `SystemClock` | Not allowed; add a port |
+
+### Composition root
+
+Each function's entry file binds its ports, then resolves its controller:
 
 ```ts
 const registry = Registry.getInstance();
@@ -58,12 +133,46 @@ registry.bind(Clock, SystemClock);
 export const handler = lambdaHttpAdapter(registry.resolve(GetHealthController));
 ```
 
+`resolve` builds the graph depth first and caches every instance:
+
+```mermaid
+flowchart TD
+    Start["resolve(token)"] --> Target["Follow the port binding, if any"]
+    Target --> Cached{"Already built?"}
+    Cached -->|yes| Return["Return the cached instance"]
+    Cached -->|no| Registered{"Registered with @Injectable?"}
+    Registered -->|no| Fail["Throw: No provider for token"]
+    Registered -->|yes| Deps["Resolve each listed dependency (recursive)"]
+    Deps --> Build["Construct, cache, and return"]
+```
+
 | Behavior | Detail |
 |---|---|
 | When the graph is built | Once, when the module loads in a new execution environment |
-| Instance scope | One shared instance per class for the environment's lifetime; keep per-request state out of injected classes |
+| Instance scope | One shared instance per class for the environment's lifetime, so clients and their connections are reused across invocations; keep per-request state out of injected classes |
 | Binding location | In each function's entry, so its bundle includes only the adapters it uses |
 | Missing binding | `resolve` throws `No provider for <Port>` during initialization |
+| Circular import | `@Injectable` throws `<Class> dependency #<n> is undefined` when the module loads |
+
+### Binding several ports
+
+An entry binds one port per line, and only the ports its graph reaches, so its bindings list every external dependency of the function. When the same group repeats across functions, move it into a function under `src/main/` and call it from each entry, for example:
+
+```ts
+export function bindBillingStorage(registry: Registry): void {
+  registry.bind(PaymentRepository, DynamoPaymentRepository);
+  registry.bind(SubscriptionRepository, DynamoSubscriptionRepository);
+}
+```
+
+Keep each group to adapters that every caller uses; anything extra is bundled into functions that never call it.
+
+| Avoid | Why |
+|---|---|
+| One global bootstrap that binds every port | Every bundle includes every adapter and its SDK clients |
+| Adapters registering themselves as a port's default | Bindings depend on import order, and two adapters for one port overwrite each other silently |
+
+A missing binding fails only when the entry loads, so cover each entry with a test that loads it, as [`http.test.mjs`](../tests/http.test.mjs) does for the health function.
 
 ## Errors
 
