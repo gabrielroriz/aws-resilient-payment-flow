@@ -10,7 +10,7 @@ An AWS project for reliable payment and subscription event processing. The [requ
 
 ## Architecture
 
-The Lambdas follow a hexagonal (ports and adapters) architecture with dependency injection. Business logic in `src/application` depends only on the ports it defines, while adapters in `src/infra` and `src/main` connect it to AWS services and the Lambda runtime. Each function's entry file binds ports to adapters, and a small registry builds and shares the object graph. See [Architecture](docs/architecture.md) for the layers, import rules, and wiring conventions.
+The project follows a hexagonal (ports and adapters) architecture with dependency injection. See [Architecture](docs/architecture.md) for details.
 
 ## Get started
 
