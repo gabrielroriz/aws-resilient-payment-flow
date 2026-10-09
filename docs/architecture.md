@@ -57,6 +57,7 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 | `application/errors/` | Error codes and the base classes mapped to responses |
 | `infra/<concern>/` | Adapter classes implementing ports |
 | `main/adapters/` | Converts Lambda events into controller calls and maps results and errors to responses |
+| `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler` |
 
 ## Dependency direction
