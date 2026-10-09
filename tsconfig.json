@@ -5,7 +5,14 @@
     "rootDir": "src",
     "outDir": "dist",
     "strict": true,
-    "noEmitOnError": true
+    "noEmitOnError": true,
+    "types": ["node"],
+    "paths": {
+      "@application/*": ["./src/application/*"],
+      "@infra/*": ["./src/infra/*"],
+      "@kernel/*": ["./src/kernel/*"],
+      "@main/*": ["./src/main/*"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

@@ -9,6 +9,8 @@
     "test": "node --test tests/*.test.mjs"
   },
   "devDependencies": {
+    "@types/aws-lambda": "^8.10.164",
+    "@types/node": "^24.19.1",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
   }

@@ -36,7 +36,8 @@ HTTP endpoint. See [Calling the API](docs/deployment.md#calling-the-api) for end
 
 - [Development](docs/development.md): local setup and builds.
 - [Testing](docs/testing.md): running tests and current coverage.
-- [Adding a Lambda](docs/adding-a-lambda.md): handler registration and route configuration.
+- [Architecture](docs/architecture.md): hexagonal layers, dependency injection, and error handling.
+- [Adding a Lambda](docs/adding-a-lambda.md): creating a function and configuring its route.
 - [Deployment](docs/deployment.md): requirements, setup, and the AWS deployment workflow.
 - [Requirements](docs/REQUIREMENTS.md): project scope and acceptance criteria.
 - [TODO](TODO.md): deferred work.

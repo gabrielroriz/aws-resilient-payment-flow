@@ -2,6 +2,8 @@ export default {
   // Keep each deployment self-contained and small, with no separate source map.
   bundle: true,
   minify: true,
+  // Keep class names readable after minification so DI errors name the missing provider.
+  keepNames: true,
   sourcemap: false,
   // Match Terraform's runtime and expose handler through CommonJS exports.
   platform: 'node',

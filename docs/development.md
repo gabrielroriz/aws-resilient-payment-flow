@@ -70,8 +70,7 @@ Use one server per checkout. The first invocation downloads the runtime image.
 
 ## Build output
 
-TypeScript checks types; esbuild bundles each handler and its dependencies into
-one minified CommonJS file.
+TypeScript checks types; esbuild bundles each handler and its dependencies into one minified CommonJS file. esbuild resolves the `tsconfig.json` path aliases, compiles decorators, and keeps class names so dependency injection errors stay readable.
 
 | Artifact | Purpose |
 |---|---|

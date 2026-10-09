@@ -1,12 +1,7 @@
 {
-  "ts_lambda": {
-    "entry": "src/lambdas/lambda_1.ts",
+  "health": {
+    "entry": "src/main/functions/health.ts",
     "http_method": "GET",
-    "path": "/ts_lambda"
-  },
-  "ts_lambda_2": {
-    "entry": "src/lambdas/lambda_2.ts",
-    "http_method": "GET",
-    "path": "/ts_lambda_2"
+    "path": "/health"
   }
 }
