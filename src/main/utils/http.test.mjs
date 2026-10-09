@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { loadSource } from './support/bundle.mjs';
+import { loadSource } from '../../../testing/bundle.mjs';
 
 const loadHelpers = t => loadSource(t, 'export * from "@main/utils/http";');
 

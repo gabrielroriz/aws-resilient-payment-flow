@@ -4,9 +4,9 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import options from '../../build/esbuild.config.mjs';
+import options from '../build/esbuild.config.mjs';
 
-export const project = fileURLToPath(new URL('../../', import.meta.url));
+export const project = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
 
 // Bundle with the production esbuild settings and the project tsconfig, so tests run the

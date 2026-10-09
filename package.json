@@ -6,7 +6,7 @@
     "build": "tsc --noEmit && node build/index.mjs",
     "dev": "bash scripts/dev.sh",
     "deploy": "bash scripts/deploy.sh",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test 'build/**/*.test.mjs' 'src/**/*.test.mjs'"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.164",
