@@ -1,0 +1,17 @@
+{
+  // Build tooling runs directly on Node.js, which strips types without compiling, so this
+  // project only type-checks. The Lambda code has its own config in ../tsconfig.json.
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "NodeNext",
+    "strict": true,
+    "noEmit": true,
+    // Node.js runs relative imports as written, so they name the .mts file.
+    "allowImportingTsExtensions": true,
+    // Reject syntax that needs compiling, such as enums, and require `import type` for type-only imports.
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "types": ["node"]
+  },
+  "include": ["*.mts"]
+}

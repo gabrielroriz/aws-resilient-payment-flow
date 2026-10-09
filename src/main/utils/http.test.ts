@@ -1,57 +1,48 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
-import { loadSource } from '../../../testing/bundle.mjs';
+import { buildHttpResponse, parseHttpBody } from "@main/utils/http";
+import { expect, test } from "vitest";
 
-const loadHelpers = t => loadSource(t, 'export * from "@main/utils/http";');
-
-test('parseHttpBody returns undefined for a missing or empty body', async t => {
-  const { parseHttpBody } = await loadHelpers(t);
-
-  assert.equal(parseHttpBody(undefined), undefined);
-  assert.equal(parseHttpBody(''), undefined);
+test("parseHttpBody returns undefined for a missing or empty body", () => {
+  expect(parseHttpBody(undefined)).toBeUndefined();
+  expect(parseHttpBody("")).toBeUndefined();
 });
 
-test('parseHttpBody parses any JSON value', async t => {
-  const { parseHttpBody } = await loadHelpers(t);
-
-  assert.deepEqual(parseHttpBody('{"amount":100,"items":["a"]}'), { amount: 100, items: ['a'] });
-  assert.deepEqual(parseHttpBody('[1,2]'), [1, 2]);
-  assert.equal(parseHttpBody('42'), 42);
-  assert.equal(parseHttpBody('"text"'), 'text');
-  assert.equal(parseHttpBody('null'), null);
+test("parseHttpBody parses any JSON value", () => {
+  expect(parseHttpBody('{"amount":100,"items":["a"]}')).toEqual({ amount: 100, items: ["a"] });
+  expect(parseHttpBody("[1,2]")).toEqual([1, 2]);
+  expect(parseHttpBody("42")).toBe(42);
+  expect(parseHttpBody('"text"')).toBe("text");
+  expect(parseHttpBody("null")).toBeNull();
 });
 
-test('parseHttpBody rejects malformed JSON with a BadRequest', async t => {
-  const { parseHttpBody } = await loadHelpers(t);
-  const badRequest = { name: 'BadRequest', statusCode: 400, code: 'BAD_REQUEST', message: 'Malformed JSON body' };
+test("parseHttpBody rejects malformed JSON with a BadRequest", () => {
+  const badRequest = expect.objectContaining({
+    name: "BadRequest",
+    statusCode: 400,
+    code: "BAD_REQUEST",
+    message: "Malformed JSON body",
+  });
 
-  assert.throws(() => parseHttpBody('{not json'), badRequest);
-  assert.throws(() => parseHttpBody('{"amount":'), badRequest);
+  expect(() => parseHttpBody("{not json")).toThrow(badRequest);
+  expect(() => parseHttpBody('{"amount":')).toThrow(badRequest);
   // Whitespace is not an empty body, so it is parsed and rejected like any other invalid JSON.
-  assert.throws(() => parseHttpBody('   '), badRequest);
+  expect(() => parseHttpBody("   ")).toThrow(badRequest);
 });
 
-test('buildHttpResponse serializes the body with a JSON content type', async t => {
-  const { buildHttpResponse } = await loadHelpers(t);
-
-  assert.deepEqual(buildHttpResponse(201, { id: 'payment-1' }), {
+test("buildHttpResponse serializes the body with a JSON content type", () => {
+  expect(buildHttpResponse(201, { id: "payment-1" })).toEqual({
     statusCode: 201,
-    headers: { 'content-type': 'application/json' },
+    headers: { "content-type": "application/json" },
     body: '{"id":"payment-1"}',
   });
 });
 
-test('buildHttpResponse sends only the status code when the body is undefined', async t => {
-  const { buildHttpResponse } = await loadHelpers(t);
-
-  assert.deepEqual(buildHttpResponse(204, undefined), { statusCode: 204 });
+test("buildHttpResponse sends only the status code when the body is undefined", () => {
+  expect(buildHttpResponse(204, undefined)).toStrictEqual({ statusCode: 204 });
 });
 
-test('buildHttpResponse keeps falsy bodies other than undefined', async t => {
-  const { buildHttpResponse } = await loadHelpers(t);
-
+test("buildHttpResponse keeps falsy bodies other than undefined", () => {
   // Only undefined means "no body"; null, 0, false, and "" are valid JSON payloads.
-  for (const [value, body] of [[null, 'null'], [0, '0'], [false, 'false'], ['', '""']]) {
-    assert.equal(buildHttpResponse(200, value).body, body);
+  for (const [value, body] of [[null, "null"], [0, "0"], [false, "false"], ["", '""']]) {
+    expect(buildHttpResponse(200, value)).toMatchObject({ body });
   }
 });

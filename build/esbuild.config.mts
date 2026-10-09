@@ -1,3 +1,5 @@
+import type { BuildOptions } from 'esbuild';
+
 export default {
   // Keep each deployment self-contained and small, with no separate source map.
   bundle: true,
@@ -18,4 +20,4 @@ export default {
     'unsupported-require-call': 'error',
     'unsupported-dynamic-import': 'error',
   },
-};
+} as const satisfies BuildOptions;

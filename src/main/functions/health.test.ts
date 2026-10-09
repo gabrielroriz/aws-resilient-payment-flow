@@ -1,16 +1,14 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
-import { httpEvent, loadEntry } from '../../../testing/bundle.mjs';
+import { invokeHttp } from "@main/adapters/lambdaHttpAdapter.fixtures";
+import { handler } from "@main/functions/health";
+import { expect, test } from "vitest";
 
-test('the health function answers through every layer', async t => {
-  const { handler } = await loadEntry(t, 'src/main/functions/health.ts');
+test("the health function answers through every layer", async () => {
   const before = Date.now();
 
-  const response = await handler(httpEvent({ routeKey: 'GET /health', rawPath: '/health' }));
+  const response = await invokeHttp(handler, { routeKey: "GET /health", rawPath: "/health" });
 
-  assert.equal(response.statusCode, 200);
-  assert.equal(response.headers['content-type'], 'application/json');
-  const body = JSON.parse(response.body);
-  assert.equal(body.status, 'ok');
-  assert.ok(Date.parse(body.checkedAt) >= before - 1000);
+  expect(response.statusCode).toBe(200);
+  expect(response.headers?.["content-type"]).toBe("application/json");
+  expect(response.body.status).toBe("ok");
+  expect(Date.parse(response.body.checkedAt)).toBeGreaterThanOrEqual(before - 1000);
 });

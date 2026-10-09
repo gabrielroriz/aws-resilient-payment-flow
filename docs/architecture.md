@@ -173,7 +173,7 @@ Keep each group to adapters that every caller uses; anything extra is bundled in
 | One global bootstrap that binds every port | Every bundle includes every adapter and its SDK clients |
 | Adapters registering themselves as a port's default | Bindings depend on import order, and two adapters for one port overwrite each other silently |
 
-A missing binding fails only when the entry loads, so cover each entry with a test that loads it, as [`health.test.mjs`](../src/main/functions/health.test.mjs) does for the health function.
+A missing binding fails only when the entry loads. [`build/bundle.test.mts`](../build/bundle.test.mts) loads every registered entry from its production bundle, so `npm test` catches it.
 
 ## Errors
 

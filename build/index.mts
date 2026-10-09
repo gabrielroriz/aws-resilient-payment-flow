@@ -1,8 +1,8 @@
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { extractAndValidateLambdas } from './lambdas.mjs';
-import { bundleLambdas } from './bundle.mjs';
+import { extractAndValidateLambdas } from './lambdas.mts';
+import { bundleLambdas } from './bundle.mts';
 
 // Resolve paths from the project so local and temporary deployment builds behave alike.
 const root = fileURLToPath(new URL('../', import.meta.url));

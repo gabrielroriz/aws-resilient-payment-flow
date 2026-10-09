@@ -9,6 +9,7 @@ Each Lambda is an entry file that wires one controller into the HTTP adapter. Se
 3. Add a controller in `src/application/controller/<area>/` that implements `Controller` and calls the use case.
 4. Add the entry in `src/main/functions/`: bind each port to its adapter, then export `handler = lambdaHttpAdapter(registry.resolve(YourController))`. Use [`health.ts`](../src/main/functions/health.ts) as the template, and see [Binding several ports](architecture.md#binding-several-ports) when the function needs more than one adapter.
 5. Register the entry in [`lambdas.json`](../lambdas.json).
+6. Add tests next to the new files, such as a `.test.ts` file beside the use case that passes fake ports to its constructor. See [Test layout](testing.md#test-layout).
 
 ## Registry fields
 

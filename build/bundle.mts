@@ -2,9 +2,10 @@ import { build } from 'esbuild';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { isBuiltin } from 'node:module';
 import path from 'node:path';
-import options from './esbuild.config.mjs';
+import options from './esbuild.config.mts';
+import type { LambdaRegistry } from './lambdas.mts';
 
-export async function bundleLambdas(root, registry, outputRoot) {
+export async function bundleLambdas(root: string, registry: LambdaRegistry, outputRoot: string): Promise<void> {
   // Separate dependency graphs keep unrelated handlers out of each Lambda's package.
   for (const [name, config] of Object.entries(registry)) {
     // Every ZIP uses index.handler, regardless of the original source filename.

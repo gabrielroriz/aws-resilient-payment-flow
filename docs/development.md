@@ -79,8 +79,10 @@ TypeScript checks types; esbuild bundles each handler and its dependencies into 
 | `dist/<name>_<version>.zip` | Deployment archive; preserved by local builds |
 | `terraform/.aws-sam-iacs/` or `.aws-sam/` | Ignored SAM cache; version-dependent location |
 
-Build code: [entry point](../build/index.mjs), [validation](../build/lambdas.mjs),
-[bundler](../build/bundle.mjs), [configuration](../build/esbuild.config.mjs).
+Build code: [entry point](../build/index.mts), [validation](../build/lambdas.mts),
+[bundler](../build/bundle.mts), [configuration](../build/esbuild.config.mts).
+
+The build tooling is TypeScript that Node.js runs directly by stripping its types, with no compile step. [`build/tsconfig.json`](../build/tsconfig.json) type-checks it separately from the Lambda code and allows only syntax that Node.js can strip.
 
 Node.js built-ins remain runtime imports. Native addons, runtime files, and
 computed imports may need different packaging. The builder rejects extra output,
