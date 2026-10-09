@@ -6,10 +6,7 @@
 [![AWS Lambda](https://img.shields.io/badge/AWS_Lambda-FF9900?style=flat)](https://aws.amazon.com/lambda/)
 [![Amazon API Gateway](https://img.shields.io/badge/Amazon_API_Gateway-FF4F8B?style=flat)](https://aws.amazon.com/api-gateway/)
 
-An AWS project for reliable payment and subscription event processing. The current
-setup builds and deploys two example TypeScript Lambdas behind an API Gateway
-HTTP API; the payment flow is
-specified in the [requirements](docs/REQUIREMENTS.md).
+An AWS project for reliable payment and subscription event processing. The current setup builds the TypeScript Lambdas registered in `lambdas.json` and deploys them behind an API Gateway HTTP API; the payment flow is specified in the [requirements](docs/REQUIREMENTS.md).
 
 ## Get started
 
