@@ -29,5 +29,7 @@ Tests for TypeScript code use [`tests/support/bundle.mjs`](../tests/support/bund
 | | Dependency lists | Type checking rejects `@Injectable` lists that do not match the constructor |
 | [`http.test.mjs`](../tests/http.test.mjs) | Health function | The registered entry answers `200` through every layer |
 | | HTTP adapter | Requests reach the controller; errors map to the documented responses and logs |
+| [`http-utils.test.mjs`](../tests/http-utils.test.mjs) | Body parsing | `parseHttpBody` returns any JSON value, `undefined` for an empty body, and `BadRequest` for malformed JSON |
+| | JSON responses | `buildHttpResponse` serializes any body except `undefined`, which sends only the status code |
 
 These tests do not cover API Gateway integration or payment behavior. See [TODO](../TODO.md) for planned coverage and [Development](development.md#run-locally) for manual HTTP testing with SAM.
