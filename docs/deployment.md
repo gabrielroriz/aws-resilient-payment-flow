@@ -1,6 +1,6 @@
 # Deployment
 
-Build and deploy all registered Lambdas and their HTTP API to AWS. See [Development](development.md) for local execution and [Testing](testing.md) for automated checks.
+Build and deploy all registered Lambdas, their HTTP API, and the DynamoDB table to AWS. See [Development](development.md) for local execution and [Testing](testing.md) for automated checks.
 
 ## Requirements
 
@@ -30,7 +30,7 @@ flowchart TD
     Config["terraform/ configuration"] --> Plan
     Plan --> Saved["Saved plan"]
     Saved --> Apply["Automatic apply"]
-    Apply --> AWS["AWS Lambdas + HTTP API"]
+    Apply --> AWS["AWS Lambdas, HTTP API, and DynamoDB table"]
     Apply --> Outputs["Function details + endpoint URLs"]
 ```
 
@@ -59,6 +59,7 @@ The script can also be run through Bash using its absolute path from any directo
 |---|---|
 | [`lambdas.tf`](../terraform/lambdas.tf) | One Node.js 24 Lambda per registry entry, `index.handler`, and a shared execution role |
 | [`api_gateway.tf`](../terraform/api_gateway.tf) | HTTP API, automatically deployed `$default` stage, routes, proxy integrations, and invocation permissions |
+| [`dynamodb.tf`](../terraform/dynamodb.tf) | The on-demand [`webhook_events` table](data-model/webhook-events.md) with its indexes and TTL |
 | [`terraform.tf`](../terraform/terraform.tf) | Provider, state backend configuration, and backend bucket resource |
 
 Terraform uploads each ZIP directly to Lambda and tracks its content hash. See [Adding a Lambda](adding-a-lambda.md) for registry fields and function lifecycle behavior.

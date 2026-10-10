@@ -8,6 +8,7 @@
 [![AWS Lambda](https://img.shields.io/badge/AWS_Lambda-FF9900?style=flat)](https://aws.amazon.com/lambda/)
 [![Amazon API Gateway](https://img.shields.io/badge/Amazon_API_Gateway-FF4F8B?style=flat)](https://aws.amazon.com/api-gateway/)
 [![AWS SAM](https://img.shields.io/badge/AWS_SAM-FF9900?style=flat)](https://aws.amazon.com/serverless/sam/)
+[![Amazon DynamoDB](https://img.shields.io/badge/Amazon_DynamoDB-4053D6?style=flat)](https://aws.amazon.com/dynamodb/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/gabrielroriz/aws-resilient-payment-flow/actions/workflows/ci.yml)
 
 > [!IMPORTANT]
@@ -46,7 +47,7 @@ Success is measurable: a webhook acknowledgment p99 below one second under the d
 
 ## Current state
 
-`npm run deploy` builds the TypeScript Lambdas and deploys them with Terraform behind an API Gateway HTTP API; the only function so far is a health check. The [webhook events table](docs/data-model/webhook-events.md), which records events for deduplication and tracing, is designed but not provisioned. Webhook receipt, event processing, and the gateway integrations are not implemented yet.
+`npm run deploy` builds the TypeScript Lambdas and deploys them with Terraform behind an API Gateway HTTP API; the only function so far is a health check. The [webhook events table](docs/data-model/webhook-events.md), which records events for deduplication and tracing, is provisioned, but no function uses it yet. Webhook receipt, event processing, and the gateway integrations are not implemented yet.
 
 ## Architecture
 
