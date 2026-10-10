@@ -10,6 +10,7 @@
 [![AWS SAM](https://img.shields.io/badge/AWS_SAM-FF9900?style=flat)](https://aws.amazon.com/serverless/sam/)
 [![Amazon DynamoDB](https://img.shields.io/badge/Amazon_DynamoDB-4053D6?style=flat)](https://aws.amazon.com/dynamodb/)
 [![AWS SDK for JavaScript](https://img.shields.io/badge/AWS_SDK_for_JavaScript-FF9900?style=flat)](https://aws.amazon.com/sdk-for-javascript/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/gabrielroriz/aws-resilient-payment-flow/actions/workflows/ci.yml)
 
 > [!IMPORTANT]
@@ -66,7 +67,7 @@ npm test
 
 Each registered Lambda builds to `dist/bundles/<function-name>/index.js`.
 
-To run the HTTP endpoints locally, complete the [SAM and Docker setup](docs/development.md#run-locally), then run `npm run dev`.
+To run the HTTP endpoints locally against DynamoDB Local, complete the [SAM and Docker setup](docs/development.md#run-locally), then run `npm run dev`.
 
 To deploy, follow the [AWS and Terraform setup](docs/deployment.md), then run:
 
@@ -78,7 +79,7 @@ This command automatically applies the Terraform plan and outputs each Lambda's 
 
 ## Documentation
 
-- [Development](docs/development.md): local setup and builds.
+- [Development](docs/development.md): local setup, DynamoDB Local, and builds.
 - [Testing](docs/testing.md): running tests, test layout, and how to write new tests.
 - [Architecture](docs/architecture.md): hexagonal model, layers, ports, dependency injection, and error handling.
 - [Receiving webhooks](docs/webhooks.md): the webhook route, its responses, and adding a payment provider.

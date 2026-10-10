@@ -1,0 +1,44 @@
+# Local stand-ins for AWS services, started by npm run dev. Lambdas that SAM runs join this
+# Compose network, so they reach each service by its name; host tools use the published ports.
+name: aws-resilient-payment-flow
+
+services:
+  dynamodb:
+    image: amazon/dynamodb-local:3.3.1
+    # One database for every access key and region, so the Lambdas, setup scripts, and the admin UI
+    # see the same tables. It lives in a volume, so data survives container restarts.
+    command: -jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data
+    # A new named volume is owned by root, which the image's default user cannot write to.
+    user: root
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
+    healthcheck:
+      # Any HTTP response, even the error for this unsigned request, means the server accepts requests.
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://localhost:8000"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  # Web UI for browsing and editing DynamoDB Local tables.
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin:5.3.4
+    environment:
+      DYNAMO_ENDPOINT: http://dynamodb:8000
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+    ports:
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      dynamodb:
+        condition: service_healthy
+
+volumes:
+  dynamodb-data:
+
+networks:
+  default:
+    # Must match the network npm run dev attaches the Lambda containers to.
+    name: aws-resilient-payment-flow
