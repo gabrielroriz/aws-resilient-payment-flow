@@ -4,29 +4,29 @@ import { joinKey, shardOf } from "@infra/dynamodb/keys";
 import { Injectable } from "@kernel/decorators/injectable";
 import { gunzipSync, gzipSync } from "node:zlib";
 
-// Must match the table name provisioned by Terraform.
-const TABLE = "webhook_events";
-const EVENT_SK = "META";
-// Write shards per provider in GSI1: one provider can burst to about 4,000 writes per second,
-// and every time-interval query covers all of them.
-const GSI1_SHARDS = 4;
-// Outlasts provider retries and the provider event history used for reconciliation.
-const RETENTION_SECONDS = 90 * 24 * 60 * 60;
-
 /** Stores webhook events in the `webhook_events` table, one item collection per event. */
 @Injectable(DynamoClient)
 export class DynamoWebhookEventRepository implements WebhookEventRepository {
+  // Must match the table name provisioned by Terraform.
+  private static readonly TABLE = "webhook_events";
+  private static readonly EVENT_SK = "META";
+  // Write shards per provider in GSI1: one provider can burst to about 4,000 writes per second,
+  // and every time-interval query covers all of them.
+  private static readonly GSI1_SHARDS = 4;
+  // Outlasts provider retries and the provider event history used for reconciliation.
+  private static readonly RETENTION_SECONDS = 90 * 24 * 60 * 60;
+
   constructor(private readonly dynamo: DynamoClient) {}
 
   async create(event: WebhookEventRepository.Event): Promise<WebhookEventRepository.CreateResult> {
-    const result = await this.dynamo.putIfAbsent(TABLE, toEventItem(event), "PK");
+    const result = await this.dynamo.putIfAbsent(DynamoWebhookEventRepository.TABLE, this.toEventItem(event), "PK");
     return result.created ? { created: true, event } : { created: false, event: fromEventItem(result.existing) };
   }
 
   async get(id: WebhookEventRepository.EventId): Promise<WebhookEventRepository.Event | undefined> {
-    const item = await this.dynamo.get<DynamoWebhookEventRepository.EventItem>(TABLE, {
+    const item = await this.dynamo.get<DynamoWebhookEventRepository.EventItem>(DynamoWebhookEventRepository.TABLE, {
       PK: eventKey(id),
-      SK: EVENT_SK,
+      SK: DynamoWebhookEventRepository.EVENT_SK,
     });
     return item && fromEventItem(item);
   }
@@ -40,20 +40,20 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       SK: joinKey("DELIVERY", delivery.receivedAt.toISOString(), delivery.requestId),
       received_at: delivery.receivedAt.toISOString(),
       request_id: delivery.requestId,
-      expires_at: expiresAt(event.receivedAt),
+      expires_at: this.expiresAt(event.receivedAt),
     };
-    await this.dynamo.put(TABLE, item);
+    await this.dynamo.put(DynamoWebhookEventRepository.TABLE, item);
   }
 
   async getTrace(id: WebhookEventRepository.EventId): Promise<WebhookEventRepository.Trace | undefined> {
     const items = await this.dynamo.queryAll<DynamoWebhookEventRepository.TraceItem>({
-      TableName: TABLE,
+      TableName: DynamoWebhookEventRepository.TABLE,
       KeyConditionExpression: "PK = :key",
       ExpressionAttributeValues: { ":key": eventKey(id) },
     });
 
     const event = items.find(
-      (item): item is DynamoWebhookEventRepository.EventItem => item.SK === EVENT_SK,
+      (item): item is DynamoWebhookEventRepository.EventItem => item.SK === DynamoWebhookEventRepository.EVENT_SK,
     );
     if (!event) {
       return undefined;
@@ -84,9 +84,9 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
 
     // GSI1 spreads each provider's events over shards, so every shard is queried in parallel.
     const queries = providers.flatMap((provider) =>
-      Array.from({ length: GSI1_SHARDS }, (_, shard) =>
+      Array.from({ length: DynamoWebhookEventRepository.GSI1_SHARDS }, (_, shard) =>
         this.dynamo.queryAll<DynamoWebhookEventRepository.ReceivedItem>({
-          TableName: TABLE,
+          TableName: DynamoWebhookEventRepository.TABLE,
           IndexName: "GSI1",
           KeyConditionExpression: "GSI1PK = :shard AND received_at BETWEEN :from AND :to",
           ...(eventType !== undefined && { FilterExpression: "event_type = :type" }),
@@ -112,7 +112,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     subject,
   }: WebhookEventRepository.SubjectQuery): Promise<WebhookEventRepository.Summary[]> {
     const items = await this.dynamo.queryAll<DynamoWebhookEventRepository.SubjectItem>({
-      TableName: TABLE,
+      TableName: DynamoWebhookEventRepository.TABLE,
       IndexName: "GSI2",
       KeyConditionExpression: "GSI2PK = :subject",
       ExpressionAttributeValues: { ":subject": joinKey(provider, subject.type, subject.id) },
@@ -120,6 +120,32 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
 
     // GSI2 does not project the subject, since every item shares the one queried.
     return items.map((item) => ({ ...fromReceivedItem(item), subject }));
+  }
+
+  // Every item of an event expires with the event, so TTL never leaves a partial trace behind.
+  private expiresAt(eventReceivedAt: Date): number {
+    return Math.floor(eventReceivedAt.getTime() / 1000) + DynamoWebhookEventRepository.RETENTION_SECONDS;
+  }
+
+  private toEventItem(event: WebhookEventRepository.Event): DynamoWebhookEventRepository.EventItem {
+    const key = eventKey(event);
+    return {
+      PK: key,
+      SK: DynamoWebhookEventRepository.EVENT_SK,
+      provider: event.provider,
+      provider_event_id: event.providerEventId,
+      event_type: event.eventType,
+      occurred_at: event.occurredAt.toISOString(),
+      received_at: event.receivedAt.toISOString(),
+      subject_type: event.subject?.type,
+      subject_id: event.subject?.id,
+      // Compression keeps the exact bytes and reduces write units.
+      payload: gzipSync(event.payload),
+      GSI1PK: joinKey(event.provider, shardOf(key, DynamoWebhookEventRepository.GSI1_SHARDS)),
+      // Events without a subject have no GSI2PK, so they stay out of GSI2.
+      GSI2PK: event.subject && joinKey(event.provider, event.subject.type, event.subject.id),
+      expires_at: this.expiresAt(event.receivedAt),
+    };
   }
 }
 
@@ -185,32 +211,6 @@ export namespace DynamoWebhookEventRepository {
 
 function eventKey({ provider, providerEventId }: WebhookEventRepository.EventId): string {
   return joinKey(provider, providerEventId);
-}
-
-// Every item of an event expires with the event, so TTL never leaves a partial trace behind.
-function expiresAt(eventReceivedAt: Date): number {
-  return Math.floor(eventReceivedAt.getTime() / 1000) + RETENTION_SECONDS;
-}
-
-function toEventItem(event: WebhookEventRepository.Event): DynamoWebhookEventRepository.EventItem {
-  const key = eventKey(event);
-  return {
-    PK: key,
-    SK: EVENT_SK,
-    provider: event.provider,
-    provider_event_id: event.providerEventId,
-    event_type: event.eventType,
-    occurred_at: event.occurredAt.toISOString(),
-    received_at: event.receivedAt.toISOString(),
-    subject_type: event.subject?.type,
-    subject_id: event.subject?.id,
-    // Compression keeps the exact bytes and reduces write units.
-    payload: gzipSync(event.payload),
-    GSI1PK: joinKey(event.provider, shardOf(key, GSI1_SHARDS)),
-    // Events without a subject have no GSI2PK, so they stay out of GSI2.
-    GSI2PK: event.subject && joinKey(event.provider, event.subject.type, event.subject.id),
-    expires_at: expiresAt(event.receivedAt),
-  };
 }
 
 function fromReceivedItem(item: DynamoWebhookEventRepository.ReceivedItem): WebhookEventRepository.Summary {
