@@ -1,6 +1,6 @@
 # Webhook events table
 
-The `webhook_events` DynamoDB table records the webhook events received from payment providers. It detects repeated deliveries and keeps each event's processing attempts and business effects, so operators can trace and reprocess events as the [requirements](../REQUIREMENTS.md) describe. [`terraform/dynamodb.tf`](../../terraform/dynamodb.tf) provisions it.
+The `webhook_events` DynamoDB table records the webhook events received from payment providers. It detects repeated deliveries and keeps each event's processing attempts and business effects, so operators can trace and reprocess events as the [requirements](../REQUIREMENTS.md) describe. Terraform provisions it, and a repository adapter implements its access patterns behind the webhook events port.
 
 ## Access patterns
 
@@ -61,7 +61,7 @@ Timestamps are UTC ISO 8601 strings with fixed millisecond precision, so they so
 | `started_at` | String | When processing started |
 | `finished_at` | String | When processing finished |
 | `outcome` | String | `succeeded` or `failed` |
-| `error_code` | String | Stable code from [`ErrorCode`](../../src/application/errors/ErrorCode.ts), present when the attempt failed |
+| `error_code` | String | Stable machine-readable error code, present when the attempt failed |
 | `handler_version` | String | Code version that ran the attempt, used to select events for reprocessing after a defect |
 | `trace_id` | String | Links the attempt to its logs and traces |
 | `expires_at` | Number | TTL in epoch seconds |

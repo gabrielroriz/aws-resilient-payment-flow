@@ -55,7 +55,8 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 | `application/controller/<area>/` | Turns a transport-neutral `Controller.Request` into a use case call and a `Controller.Response` |
 | `application/contracts/` | Shapes shared across layers, such as the `Controller` contract |
 | `application/errors/` | Error codes and the base classes mapped to responses |
-| `infra/<concern>/` | Adapter classes implementing ports |
+| `infra/<concern>/` | Adapter classes implementing ports, grouped by concern, such as `infra/clock/` or `infra/repositories/<entity>/` |
+| `infra/<service>/` | Shared clients and helpers for one external service, such as `infra/dynamodb/`; they implement no port and are reused by adapters |
 | `main/adapters/` | Converts Lambda events into controller calls and maps results and errors to responses |
 | `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler` |
@@ -119,7 +120,7 @@ A dependency is either a concrete class, which resolves directly, or a port, whi
 | Dependency | Example | Wiring |
 |---|---|---|
 | Core to core | `GetHealthController` → `GetHealthUseCase` | Concrete class; no binding |
-| Infra to infra | An adapter → a shared SDK client wrapper | Concrete class; no binding |
+| Infra to infra | A repository adapter → the shared DynamoDB client wrapper | Concrete class; no binding |
 | Core to outside | `GetHealthUseCase` → `Clock` | Port bound to an adapter in the entry file |
 | Core to infra adapter | A use case importing `SystemClock` | Not allowed; add a port |
 
