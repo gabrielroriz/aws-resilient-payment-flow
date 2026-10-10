@@ -1,5 +1,4 @@
 // Webhook events, their processing attempts, effects, and duplicate deliveries.
-// Keys, items, and access patterns are documented in docs/data-model/webhook-events.md.
 resource "aws_dynamodb_table" "webhook_events" {
   name = "webhook_events"
   // On-demand capacity absorbs provider bursts without capacity planning.

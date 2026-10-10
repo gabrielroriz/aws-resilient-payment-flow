@@ -8,6 +8,15 @@ Follow the layers, import rules, and dependency injection conventions in [docs/a
 
 Add concise, plain-English comments where they help humans and AI understand purpose, context, and how the code fits the bigger picture. Explain intent and non-obvious decisions; avoid redundant comments or repeating implementation details.
 
+## References to files
+
+Renaming or moving a file must never leave a stale reference behind, so comments and documentation avoid naming individual files.
+
+- In code comments, explain the code in place and do not point to other files or documents. When code must stay in sync with something elsewhere, say what it must match, not where that lives, such as "must match the table name provisioned by Terraform".
+- In documentation, describe concepts, conventions, and directories instead of individual source files. Do not inventory files, such as listing every test or module with its purpose.
+- Link to a source file only when it is the reference example a reader should copy. Links between guides are fine.
+- Configuration files that tools or scripts load by name, such as `package.json`, `tsconfig.json`, `vitest.config.mjs`, and `lambdas.json`, may be named and linked.
+
 ## Documentation
 
 - Keep README focused on project purpose, getting started, and links to detailed guides in `docs/`.
