@@ -43,15 +43,19 @@ docker compose -f "$PROJECT_ROOT/compose.dev.yaml" up --detach --wait
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/lambda-dev.XXXXXXXX")"
 trap 'rm -rf -- "$WORK_DIR"' EXIT
 
-# Plan, never apply: the plan only describes the tables, functions, and routes to run, so nothing
-# has to be deployed first. Terraform's progress output is hidden; its errors still show.
-export TF_VAR_lambdasVersion=local
 # Local secrets of the simulated gateways; the defaults must match the simulator's.
-export TF_VAR_GATEWAY_GLOBAL_SIGNING_SECRET="${GATEWAY_GLOBAL_SIGNING_SECRET:-local-gateway-global-secret}"
-export TF_VAR_GATEWAY_BRAZIL_ACCESS_TOKEN="${GATEWAY_BRAZIL_ACCESS_TOKEN:-local-gateway-brazil-token}"
+GATEWAY_GLOBAL_SIGNING_SECRET="${GATEWAY_GLOBAL_SIGNING_SECRET:-local-gateway-global-secret}"
+GATEWAY_BRAZIL_ACCESS_TOKEN="${GATEWAY_BRAZIL_ACCESS_TOKEN:-local-gateway-brazil-token}"
+
+# Plan, never apply: the plan only describes the tables, functions, and routes to run, so nothing
+# has to be deployed first. -var values take precedence over a deployment secrets file, so the
+# local API always gets local secrets. Terraform's progress output is hidden; its errors still show.
 printf 'Planning Terraform for the local setup; the plan is never applied.\n'
 terraform -chdir="$PROJECT_ROOT/terraform" init -input=false >/dev/null
-terraform -chdir="$PROJECT_ROOT/terraform" plan -input=false -out="$WORK_DIR/local.tfplan" >/dev/null
+terraform -chdir="$PROJECT_ROOT/terraform" plan -input=false -out="$WORK_DIR/local.tfplan" \
+  -var="lambdasVersion=local" \
+  -var="GATEWAY_GLOBAL_SIGNING_SECRET=$GATEWAY_GLOBAL_SIGNING_SECRET" \
+  -var="GATEWAY_BRAZIL_ACCESS_TOKEN=$GATEWAY_BRAZIL_ACCESS_TOKEN" >/dev/null
 terraform -chdir="$PROJECT_ROOT/terraform" show -json "$WORK_DIR/local.tfplan" >"$WORK_DIR/local.json"
 
 # Create the planned tables in DynamoDB Local and generate the SAM template for the planned Lambdas.

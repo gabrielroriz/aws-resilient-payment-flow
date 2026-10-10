@@ -98,7 +98,7 @@ Tables removed from Terraform stay in DynamoDB Local until its data is erased.
 |---|---|
 | Source | Every `aws_lambda_function` and `aws_apigatewayv2_route` in the Terraform plan |
 | Copied settings | Name, handler, runtime, memory, and timeout, plus the code: the function's bundle in `dist/bundles/`, which Terraform uploads zipped |
-| Environment | The planned variables, including the [simulated gateways'](simulated-gateways.md#setup) secrets, local defaults unless set before `npm run dev` |
+| Environment | The planned variables, including the [simulated gateways'](simulated-gateways.md#setup) secrets: local defaults unless set before `npm run dev`, never the deployment secrets file |
 | Routes | Each route's method and path run the function with the same registry key; requests use payload format `2.0`, as deployed |
 | Undeployed functions and routes | Run locally, because the template needs no deployed resource |
 | DynamoDB endpoint | Every function gets `AWS_ENDPOINT_URL_DYNAMODB=http://dynamodb:8000`, so the AWS SDK sends DynamoDB requests to DynamoDB Local and the code needs no local-only configuration |

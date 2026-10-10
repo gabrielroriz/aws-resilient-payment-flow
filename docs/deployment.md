@@ -17,12 +17,12 @@ Build and deploy all registered Lambdas, their HTTP API, and the DynamoDB table 
 1. Install the tools above and configure credentials for the target AWS account.
 2. Review the backend bucket, state key, provider region, and resource names in [`terraform/terraform.tf`](../terraform/terraform.tf).
 3. Ensure the backend bucket exists before initialization. The configuration also manages this bucket, so an existing bucket must be tracked in this Terraform state before applying.
-4. Export the [simulated gateways'](simulated-gateways.md) secrets, which the webhook entry point receives as environment variables. Planning fails without them, and Terraform state stores them in plain text.
+4. Set the [simulated gateways'](simulated-gateways.md) secrets, which the webhook entry point receives as environment variables. Planning fails without them, and Terraform state stores them in plain text. Keep the values: every deployment must use the same ones, and the simulator needs them to target the deployed API. Generate them with `openssl rand -hex 32`.
 
-   ```bash
-   export TF_VAR_GATEWAY_GLOBAL_SIGNING_SECRET='<secret>'
-   export TF_VAR_GATEWAY_BRAZIL_ACCESS_TOKEN='<token>'
-   ```
+   | Option | How |
+   |---|---|
+   | Secrets file | Copy [`terraform/secrets.auto.tfvars.example`](../terraform/secrets.auto.tfvars.example) to `terraform/secrets.auto.tfvars` and fill it in; Terraform loads it automatically, and git ignores it |
+   | Environment | Export `TF_VAR_GATEWAY_GLOBAL_SIGNING_SECRET` and `TF_VAR_GATEWAY_BRAZIL_ACCESS_TOKEN`; a secrets file takes precedence over them |
 
 ## How deployment works
 
