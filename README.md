@@ -49,7 +49,7 @@ Success is measurable: a webhook acknowledgment p99 below one second under the d
 
 ## Current state
 
-`npm run deploy` builds the TypeScript Lambdas and deploys them with Terraform behind an API Gateway HTTP API. Besides a health check, a [webhook receipt function](docs/webhooks.md) accepts `POST /webhooks/{provider}`: the provider adapter named in the URL authenticates the request and reads its event, which is stored once in the [webhook events table](docs/data-model/webhook-events.md) for deduplication and tracing. No provider adapter exists yet, so every provider is rejected for now. Event processing and the gateway integrations are not implemented yet.
+`npm run deploy` builds the TypeScript Lambdas and deploys them with Terraform behind an API Gateway HTTP API. Besides a health check, a [webhook receipt function](docs/webhooks.md) accepts `POST /webhooks/{provider}`: the provider adapter named in the URL authenticates the request and reads its event, which is stored once in the [webhook events table](docs/data-model/webhook-events.md) for deduplication and tracing. The only provider so far is `gateway1`, an unauthenticated test gateway. Event processing and the gateway integrations are not implemented yet.
 
 ## Architecture
 

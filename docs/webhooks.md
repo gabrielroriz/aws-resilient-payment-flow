@@ -37,6 +37,33 @@ flowchart TD
 
 Errors use the response shape and log fields described in [Errors](architecture.md#errors). An expected error can still signal trouble in volume: a sudden rise in `WEBHOOK_AUTHENTICATION_FAILED` may mean a rotated signing secret, not forged requests.
 
+## Providers
+
+| Provider | URL | Authentication |
+|---|---|---|
+| `gateway1` | `POST /webhooks/gateway1` | None; see [Test gateway](#test-gateway) |
+
+### Test gateway
+
+`gateway1` is a minimal provider for testing webhook receipt end to end, such as against [DynamoDB Local](development.md#run-locally). It accepts every request, because its events carry no signature. Its body is a JSON object:
+
+| Field | Type | Required | Becomes |
+|---|---|---|---|
+| `id` | String | Yes | The provider event ID |
+| `type` | String | Yes | The event type |
+| `occurred_at` | String | Yes | The occurrence time; any timestamp JavaScript `Date` parses, such as ISO 8601 |
+| `subject` | Object with `type` and `id` strings | No | The business object the event affects |
+
+Other fields are stored with the payload but not read. A body without a required field is answered with `MALFORMED_WEBHOOK_EVENT`.
+
+```bash
+curl -X POST http://localhost:3000/webhooks/gateway1 \
+  -H 'content-type: application/json' \
+  -d '{"id":"evt_1","type":"payment.succeeded","occurred_at":"2026-10-10T10:00:00Z","subject":{"type":"payment","id":"pay_1"}}'
+```
+
+Sending the same `id` again returns `"duplicate": true` and records the delivery instead of storing the event twice.
+
 ## Adding a provider
 
 1. Implement the `WebhookProvider` port in `src/infra/webhooks/<provider>/` with `@Injectable(...)`. Its `name` is the URL segment, such as `stripe`.
@@ -49,5 +76,5 @@ Adding a provider changes no business rule, route, or Terraform configuration.
 
 ## Limitations
 
-- No provider adapter exists yet, so every provider is answered with 404.
+- The only provider is the test gateway, which authenticates nothing: anyone who can reach the API can store `gateway1` events.
 - Bodies must be JSON; other formats are rejected with 400 before reaching the provider adapter.
