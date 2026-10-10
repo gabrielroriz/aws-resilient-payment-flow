@@ -27,8 +27,8 @@ fi
 cd "$PROJECT_ROOT"
 npm run build
 
-# Package each bundle under the archive name Terraform plans for the "local" version, leaving
-# deployment archives untouched.
+# Terraform plans need each function's archive to exist; the "local" version leaves deployment
+# archives untouched.
 for bundle in "$PROJECT_ROOT"/dist/bundles/*; do
   name="${bundle##*/}"
   archive="$PROJECT_ROOT/dist/${name}_local.zip"
@@ -46,6 +46,9 @@ trap 'rm -rf -- "$WORK_DIR"' EXIT
 # Plan, never apply: the plan only describes the tables, functions, and routes to run, so nothing
 # has to be deployed first. Terraform's progress output is hidden; its errors still show.
 export TF_VAR_lambdasVersion=local
+# Local secrets of the simulated gateways; the defaults must match the simulator's.
+export TF_VAR_GATEWAY_GLOBAL_SIGNING_SECRET="${GATEWAY_GLOBAL_SIGNING_SECRET:-local-gateway-global-secret}"
+export TF_VAR_GATEWAY_BRAZIL_ACCESS_TOKEN="${GATEWAY_BRAZIL_ACCESS_TOKEN:-local-gateway-brazil-token}"
 printf 'Planning Terraform for the local setup; the plan is never applied.\n'
 terraform -chdir="$PROJECT_ROOT/terraform" init -input=false >/dev/null
 terraform -chdir="$PROJECT_ROOT/terraform" plan -input=false -out="$WORK_DIR/local.tfplan" >/dev/null

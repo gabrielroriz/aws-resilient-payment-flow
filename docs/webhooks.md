@@ -33,7 +33,7 @@ flowchart TD
 | 400 | `MALFORMED_WEBHOOK_EVENT` | `webhooks` | Unexpected | The request is authentic, but its body is not an event the provider sends, so its adapter likely needs updating |
 | 401 | `WEBHOOK_AUTHENTICATION_FAILED` | `webhooks` | Expected | The request does not prove it comes from the provider in its URL |
 | 404 | `WEBHOOK_PROVIDER_NOT_FOUND` | `webhooks` | Expected | The URL names a provider this deployment does not support |
-| 500 | `INTERNAL_SERVER_ERROR` | | Unexpected | A failure the application does not define, such as storage being unavailable; the provider retries |
+| 500 | `INTERNAL_SERVER_ERROR` | | Unexpected | A failure the application does not define, such as storage being unavailable or a provider's secret not being configured; the provider retries |
 
 Errors use the response shape and log fields described in [Errors](architecture.md#errors). An expected error can still signal trouble in volume: a sudden rise in `WEBHOOK_AUTHENTICATION_FAILED` may mean a rotated signing secret, not forged requests.
 
@@ -41,40 +41,21 @@ Errors use the response shape and log fields described in [Errors](architecture.
 
 | Provider | URL | Authentication |
 |---|---|---|
-| `gateway1` | `POST /webhooks/gateway1` | None; see [Test gateway](#test-gateway) |
+| `gatewayGlobal` | `POST /webhooks/gatewayGlobal` | Timestamped HMAC signature header |
+| `gatewayBrazil` | `POST /webhooks/gatewayBrazil` | Static access token header |
 
-### Test gateway
-
-`gateway1` is a minimal provider for testing webhook receipt end to end, such as against [DynamoDB Local](development.md#run-locally). It accepts every request, because its events carry no signature. Its body is a JSON object:
-
-| Field | Type | Required | Becomes |
-|---|---|---|---|
-| `id` | String | Yes | The provider event ID |
-| `type` | String | Yes | The event type |
-| `occurred_at` | String | Yes | The occurrence time; any timestamp JavaScript `Date` parses, such as ISO 8601 |
-| `subject` | Object with `type` and `id` strings | No | The business object the event affects |
-
-Other fields are stored with the payload but not read. A body without a required field is answered with `MALFORMED_WEBHOOK_EVENT`.
-
-```bash
-curl -X POST http://localhost:3000/webhooks/gateway1 \
-  -H 'content-type: application/json' \
-  -d '{"id":"evt_1","type":"payment.succeeded","occurred_at":"2026-10-10T10:00:00Z","subject":{"type":"payment","id":"pay_1"}}'
-```
-
-Sending the same `id` again returns `"duplicate": true` and records the delivery instead of storing the event twice.
+Both are simulated gateways for testing; see [Simulated gateways](simulated-gateways.md) for their formats, credentials, and the delivery simulator.
 
 ## Adding a provider
 
 1. Implement the `WebhookProvider` port in `src/infra/webhooks/<provider>/` with `@Injectable(...)`. Its `name` is the URL segment, such as `stripe`.
-2. In `authenticate`, check the provider's signature or credentials against `rawBody`, the body exactly as received.
+2. In `authenticate`, check the provider's signature or credentials against `rawBody`, the body exactly as received. Declare its secrets in the environment schema, read them through `AppConfig` (see [Configuration](architecture.md#configuration)), and give them to the webhook entry point in [`environment_variables.tf`](../terraform/environment_variables.tf).
 3. In `parse`, return the provider's event ID, event type, occurrence time, and subject, or `undefined` when the body is not one of the provider's events.
 4. List the adapter in the `@Injectable` decorator of `InMemoryWebhookProviderCatalog`.
 5. Add tests next to the adapter. See [Testing](testing.md#writing-tests).
 
-Adding a provider changes no business rule, route, or Terraform configuration.
+Adding a provider changes no business rule or route.
 
 ## Limitations
 
-- The only provider is the test gateway, which authenticates nothing: anyone who can reach the API can store `gateway1` events.
 - Bodies must be JSON; other formats are rejected with 400 before reaching the provider adapter.

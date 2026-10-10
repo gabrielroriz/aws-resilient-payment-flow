@@ -70,6 +70,7 @@ npm run dev
 | Pick up code, registry, or table changes | Stop and rerun `npm run dev` |
 | Use another port for the API | `npm run dev -- --port 3001` |
 | Browse and edit items | Open <http://localhost:8001> |
+| Deliver webhooks as the simulated gateways do | `npm run simulate` in another terminal; see [Simulated gateways](simulated-gateways.md#usage) |
 | Use DynamoDB Local from the host | Add `--endpoint-url http://localhost:8000` to AWS CLI commands, such as `aws dynamodb scan --table-name webhook_events --endpoint-url http://localhost:8000` |
 | Stop the Compose services | `docker compose -f compose.dev.yaml down` |
 | Erase all local data | `docker compose -f compose.dev.yaml down --volumes` |
@@ -96,7 +97,8 @@ Tables removed from Terraform stay in DynamoDB Local until its data is erased.
 | Behavior | Detail |
 |---|---|
 | Source | Every `aws_lambda_function` and `aws_apigatewayv2_route` in the Terraform plan |
-| Copied settings | Name, handler, runtime, memory, timeout, environment variables, and the archive Terraform would upload |
+| Copied settings | Name, handler, runtime, memory, and timeout, plus the code: the function's bundle in `dist/bundles/`, which Terraform uploads zipped |
+| Environment | The planned variables, including the [simulated gateways'](simulated-gateways.md#setup) secrets, local defaults unless set before `npm run dev` |
 | Routes | Each route's method and path run the function with the same registry key; requests use payload format `2.0`, as deployed |
 | Undeployed functions and routes | Run locally, because the template needs no deployed resource |
 | DynamoDB endpoint | Every function gets `AWS_ENDPOINT_URL_DYNAMODB=http://dynamodb:8000`, so the AWS SDK sends DynamoDB requests to DynamoDB Local and the code needs no local-only configuration |
@@ -114,7 +116,7 @@ TypeScript checks types; esbuild bundles each handler and its dependencies, exce
 | Artifact | Purpose |
 |---|---|
 | `dist/bundles/<name>/index.js` | Built handler; replaced on each build |
-| `dist/<name>_local.zip` | Local SAM package; rebuilt by `npm run dev` |
+| `dist/<name>_local.zip` | Archive the local Terraform plan requires; rebuilt by `npm run dev` |
 | `dist/<name>_<version>.zip` | Deployment archive; preserved by local builds |
 
 Build code: [entry point](../build/index.mts), [validation](../build/lambdas.mts),

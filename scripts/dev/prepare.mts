@@ -31,7 +31,7 @@ for (const table of tablesFromPlan(plan)) {
 }
 
 const template = samTemplateFromPlan(plan, {
-  terraformDir: fileURLToPath(new URL('../../terraform/', import.meta.url)),
+  bundlesDir: fileURLToPath(new URL('../../dist/bundles/', import.meta.url)),
   // The AWS SDK sends DynamoDB requests to this endpoint instead of AWS, so handlers need no local-only code.
   environment: { AWS_ENDPOINT_URL_DYNAMODB: LAMBDA_DYNAMODB_ENDPOINT },
 });

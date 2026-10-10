@@ -34,6 +34,8 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'build/**/*.test.mts'],
     // Undo vi.spyOn after each test, so a silenced console or replaced method never leaks into the next.
     restoreMocks: true,
+    // Undo vi.stubEnv after each test, so a configured or missing secret never leaks into the next.
+    unstubEnvs: true,
     // Type tests run through tsc instead of executing, such as the @Injectable dependency list checks.
     typecheck: { enabled: true, include: ['src/**/*.test-d.ts'] },
   },

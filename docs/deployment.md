@@ -17,6 +17,12 @@ Build and deploy all registered Lambdas, their HTTP API, and the DynamoDB table 
 1. Install the tools above and configure credentials for the target AWS account.
 2. Review the backend bucket, state key, provider region, and resource names in [`terraform/terraform.tf`](../terraform/terraform.tf).
 3. Ensure the backend bucket exists before initialization. The configuration also manages this bucket, so an existing bucket must be tracked in this Terraform state before applying.
+4. Export the [simulated gateways'](simulated-gateways.md) secrets, which the webhook entry point receives as environment variables. Planning fails without them, and Terraform state stores them in plain text.
+
+   ```bash
+   export TF_VAR_GATEWAY_GLOBAL_SIGNING_SECRET='<secret>'
+   export TF_VAR_GATEWAY_BRAZIL_ACCESS_TOKEN='<token>'
+   ```
 
 ## How deployment works
 
@@ -58,6 +64,7 @@ The script can also be run through Bash using its absolute path from any directo
 | Configuration | Manages |
 |---|---|
 | [`lambdas.tf`](../terraform/lambdas.tf) | One Node.js 24 Lambda per registry entry, `index.handler`, and a shared execution role |
+| [`environment_variables.tf`](../terraform/environment_variables.tf) | Each Lambda's environment variables, such as the simulated gateways' secrets, set through `TF_VAR_<NAME>` |
 | [`api_gateway.tf`](../terraform/api_gateway.tf) | HTTP API, automatically deployed `$default` stage, routes, proxy integrations, and invocation permissions |
 | [`dynamodb.tf`](../terraform/dynamodb.tf) | The on-demand [`webhook_events` table](data-model/webhook-events.md) with its indexes and TTL |
 | [`terraform.tf`](../terraform/terraform.tf) | Provider, state backend configuration, and backend bucket resource |

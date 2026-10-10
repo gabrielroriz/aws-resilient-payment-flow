@@ -29,14 +29,13 @@ type FunctionValues = {
   runtime: string;
   memory_size: number;
   timeout: number;
-  filename: string;
   environment?: { variables?: Record<string, string> | null }[] | null;
 };
 type RouteValues = { route_key: string };
 
 export type SamTemplateOptions = {
-  /** The directory Terraform ran in, which planned archive paths are relative to. */
-  terraformDir: string;
+  /** The build's bundle directory, with one folder of code per function name. */
+  bundlesDir: string;
   /** Variables added to every function's environment, overriding planned ones. */
   environment: Record<string, string>;
 };
@@ -58,7 +57,10 @@ export function samTemplateFromPlan(plan: TerraformPlan, options: SamTemplateOpt
       Type: 'AWS::Serverless::Function',
       Properties: {
         FunctionName: values.function_name,
-        CodeUri: path.resolve(options.terraformDir, values.filename),
+        // SAM runs the unpacked bundle, the code Terraform uploads zipped. With a zip, SAM unpacks it
+        // per invocation and deletes every unpacked copy when any invocation ends, which breaks
+        // concurrent invocations of one function.
+        CodeUri: path.join(options.bundlesDir, values.function_name),
         Handler: values.handler,
         Runtime: values.runtime,
         MemorySize: values.memory_size,

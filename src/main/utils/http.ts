@@ -1,4 +1,5 @@
 import { BadRequest } from "@application/errors/http/BadRequest";
+import { parseJson } from "@kernel/utils/json";
 import type { APIGatewayProxyResultV2 } from "aws-lambda";
 
 /**
@@ -22,11 +23,11 @@ export function parseHttpBody(body: string | undefined): unknown {
     return undefined;
   }
 
-  try {
-    return JSON.parse(body);
-  } catch {
+  const parsed = parseJson(body);
+  if (parsed === undefined) {
     throw new BadRequest("Malformed JSON body");
   }
+  return parsed;
 }
 
 /**

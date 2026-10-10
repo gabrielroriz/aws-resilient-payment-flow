@@ -69,4 +69,4 @@ A build test bundles every Lambda registered in `lambdas.json` with the producti
 
 ## Limitations
 
-Tests do not cover API Gateway integration, real DynamoDB behavior, or payment behavior. See [TODO](../TODO.md) for planned coverage and [Development](development.md#run-locally) for manual HTTP testing with SAM and DynamoDB Local.
+Tests do not cover API Gateway integration, real DynamoDB behavior, or payment behavior. See [TODO](../TODO.md) for planned coverage and [Development](development.md#run-locally) for manual HTTP testing with SAM and DynamoDB Local, and [Simulated gateways](simulated-gateways.md) for scenario checks against a running API.

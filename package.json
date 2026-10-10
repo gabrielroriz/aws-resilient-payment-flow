@@ -6,6 +6,7 @@
     "build": "tsc --noEmit && tsc -p build && node build/index.mts",
     "dev": "bash scripts/dev.sh",
     "deploy": "bash scripts/deploy.sh",
+    "simulate": "node scripts/simulator/simulate.mts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -19,5 +20,8 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vitest": "5.0.3"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
   }
 }

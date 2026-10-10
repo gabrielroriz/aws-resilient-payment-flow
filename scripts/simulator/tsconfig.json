@@ -1,0 +1,5 @@
+{
+  // The simulator runs directly on Node.js, like the build tooling, and shares its settings.
+  "extends": "../../build/tsconfig.json",
+  "include": ["*.mts"]
+}

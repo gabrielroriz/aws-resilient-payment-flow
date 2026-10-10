@@ -10,6 +10,7 @@
 [![AWS SAM](https://img.shields.io/badge/AWS_SAM-FF9900?style=flat)](https://aws.amazon.com/serverless/sam/)
 [![Amazon DynamoDB](https://img.shields.io/badge/Amazon_DynamoDB-4053D6?style=flat)](https://aws.amazon.com/dynamodb/)
 [![AWS SDK for JavaScript](https://img.shields.io/badge/AWS_SDK_for_JavaScript-FF9900?style=flat)](https://aws.amazon.com/sdk-for-javascript/)
+[![Zod](https://img.shields.io/badge/Zod-3E67B1?style=flat&logo=zod&logoColor=white)](https://zod.dev/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/gabrielroriz/aws-resilient-payment-flow/actions/workflows/ci.yml)
 
@@ -49,7 +50,7 @@ Success is measurable: a webhook acknowledgment p99 below one second under the d
 
 ## Current state
 
-`npm run deploy` builds the TypeScript Lambdas and deploys them with Terraform behind an API Gateway HTTP API. Besides a health check, a [webhook receipt function](docs/webhooks.md) accepts `POST /webhooks/{provider}`: the provider adapter named in the URL authenticates the request and reads its event, which is stored once in the [webhook events table](docs/data-model/webhook-events.md) for deduplication and tracing. The only provider so far is `gateway1`, an unauthenticated test gateway. Event processing and the gateway integrations are not implemented yet.
+`npm run deploy` builds the TypeScript Lambdas and deploys them with Terraform behind an API Gateway HTTP API. Besides a health check, a [webhook receipt function](docs/webhooks.md) accepts `POST /webhooks/{provider}`: the provider adapter named in the URL authenticates the request and reads its event, which is stored once in the [webhook events table](docs/data-model/webhook-events.md) for deduplication and tracing. Two [simulated gateways](docs/simulated-gateways.md), Stripe-like `gatewayGlobal` and Asaas-like `gatewayBrazil`, are supported, and a simulator checks duplicate, retried, out-of-order, and forged deliveries against them. Event processing and the gateway integrations are not implemented yet.
 
 ## Architecture
 
@@ -83,6 +84,7 @@ This command automatically applies the Terraform plan and outputs each Lambda's 
 - [Testing](docs/testing.md): running tests, test layout, and how to write new tests.
 - [Architecture](docs/architecture.md): hexagonal model, layers, ports, dependency injection, and error handling.
 - [Receiving webhooks](docs/webhooks.md): the webhook route, its responses, and adding a payment provider.
+- [Simulated gateways](docs/simulated-gateways.md): the two test gateways' formats and credentials, and the delivery simulator.
 - [Webhook events table](docs/data-model/webhook-events.md): DynamoDB access patterns, keys, items, and indexes for received webhooks.
 - [Adding a Lambda](docs/adding-a-lambda.md): creating a function and configuring its route.
 - [Deployment](docs/deployment.md): requirements, setup, and the AWS deployment workflow.

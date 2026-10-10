@@ -44,7 +44,7 @@ The [health function](../src/main/functions/health.ts) is the reference example:
 | `src/application/` | Use cases, controllers, ports, contracts, and errors | `application`, `kernel` |
 | `src/infra/` | Driven adapters that implement ports | `application`, `kernel` |
 | `src/main/` | Driving adapters for Lambda events and one entry file per function | Any layer |
-| `src/kernel/` | Dependency injection registry and decorator | `kernel` |
+| `src/kernel/` | Dependency injection registry and decorator, and helpers every layer can use | `kernel` |
 
 Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@kernel/*`, and `@main/*`. The import rules are not enforced by tooling; keep `infra` and `main` imports out of `application` during review.
 
@@ -56,9 +56,11 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 | `application/contracts/` | Shapes shared across layers, such as the `Controller` contract |
 | `application/errors/` | Error codes and the base classes mapped to responses |
 | `infra/<concern>/` | Adapter classes implementing ports, grouped by concern, such as `infra/clock/`, `infra/webhooks/`, or `infra/repositories/<entity>/` |
+| `infra/config/` | `AppConfig` and its zod schema: typed, validated access to environment variables for the adapters that need them |
 | `infra/<service>/` | Shared clients and helpers for one external service, such as `infra/dynamodb/`; they implement no port and are reused by adapters |
 | `main/adapters/` | Converts Lambda events into controller calls and maps results and errors to responses |
 | `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
+| `kernel/utils/` | Dependency-free helpers shared by every layer, such as parsing JSON, reading headers, and comparing credentials; one module per concern |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler`; entries of one area share a folder, such as `functions/webhooks/` |
 
 ## Dependency direction
@@ -197,6 +199,15 @@ Keep each group to adapters that every caller uses; anything extra is bundled in
 | Adapters registering themselves as a port's default | Bindings depend on import order, and two adapters for one port overwrite each other silently |
 
 A missing binding fails only when the entry loads. [`build/bundle.test.mts`](../build/bundle.test.mts) loads every registered entry from its production bundle, so `npm test` catches it.
+
+## Configuration
+
+Adapters read environment variables through `AppConfig`, injected like any other dependency, such as `config.webhooks.gatewayGlobal.signingSecret`. Its zod schema declares each variable under the group of code that uses it, and must match the variables Terraform gives each function.
+
+| Behavior | Reason |
+|---|---|
+| A group is validated when it is read, not when the function starts | A function needs only the variables of the groups it uses, and a missing or invalid variable fails only the requests that need it, with an error naming the variable |
+| zod is imported as `import * as z from "zod"` | esbuild then drops the unused parts of zod; the named `z` import bundles all of it |
 
 ## Errors
 

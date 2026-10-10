@@ -1,10 +1,11 @@
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { WebhookProviderCatalog } from "@application/ports/webhooks/WebhookProviderCatalog";
-import { Gateway1WebhookProvider } from "@infra/webhooks/gateway1/Gateway1WebhookProvider";
+import { GatewayBrazilWebhookProvider } from "@infra/webhooks/gatewayBrazil/GatewayBrazilWebhookProvider";
+import { GatewayGlobalWebhookProvider } from "@infra/webhooks/gatewayGlobal/GatewayGlobalWebhookProvider";
 import { Injectable } from "@kernel/decorators/injectable";
 
 /** The supported webhook providers. To add one, list its adapter in `@Injectable` below. */
-@Injectable(Gateway1WebhookProvider)
+@Injectable(GatewayGlobalWebhookProvider, GatewayBrazilWebhookProvider)
 export class InMemoryWebhookProviderCatalog implements WebhookProviderCatalog {
   private readonly byName = new Map<string, WebhookProvider>();
 

@@ -48,6 +48,15 @@ resource "aws_lambda_function" "all_lambdas" {
   runtime     = "nodejs24.x"
   memory_size = lookup(each.value, "memory_size", 1024)
   timeout     = lookup(each.value, "timeout", 300)
+
+  // Only functions listed in lambda_environments get an environment. The condition reads names
+  // only, because Terraform cannot decide which blocks to create from sensitive values.
+  dynamic "environment" {
+    for_each = contains(keys(local.lambda_environments), each.key) ? [each.key] : []
+    content {
+      variables = local.lambda_environments[environment.value]
+    }
+  }
 }
 
 output "lambda_functions" {
