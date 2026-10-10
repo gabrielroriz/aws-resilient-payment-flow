@@ -3,6 +3,7 @@
 name: aws-resilient-payment-flow
 
 services:
+  # Starts without tables; npm run dev creates the ones Terraform defines.
   dynamodb:
     image: amazon/dynamodb-local:3.3.1
     # One database for every access key and region, so the Lambdas, setup scripts, and the admin UI

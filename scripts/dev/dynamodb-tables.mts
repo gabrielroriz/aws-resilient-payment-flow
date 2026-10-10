@@ -53,8 +53,9 @@ type TableDefinition = {
 
 /**
  * Converts every DynamoDB table in a Terraform plan into the request that creates it in DynamoDB
- * Local, so local tables follow the Terraform definitions instead of a copy of them. Only what
- * changes how requests behave is kept; capacity, backups, and encryption mean nothing locally.
+ * Local. Terraform cannot create them itself: its AWS provider calls APIs that DynamoDB Local
+ * lacks, such as DescribeContinuousBackups. Only what changes how requests behave is kept;
+ * capacity, backups, and encryption mean nothing locally.
  */
 export function tablesFromPlan(plan: TerraformPlan): LocalTable[] {
   return plannedResources<TableValues>(plan, 'aws_dynamodb_table').map((resource) => toLocalTable(resource.values));

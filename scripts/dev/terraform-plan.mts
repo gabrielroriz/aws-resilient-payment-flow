@@ -1,4 +1,8 @@
-/** The parts of `terraform show -json` output that the local development scripts read. */
+/**
+ * The parts of `terraform show -json` output that the local development scripts read. A plan
+ * describes every resource in the Terraform configuration without applying anything, so local
+ * resources can follow Terraform instead of a copy of its definitions.
+ */
 export type TerraformPlan = { planned_values?: { root_module?: PlanModule } };
 
 type PlanModule = { resources?: PlannedResource[]; child_modules?: PlanModule[] };

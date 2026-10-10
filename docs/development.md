@@ -51,8 +51,8 @@ flowchart TD
     Runtime --> DynamoDB
 ```
 
-1. The build packages each Lambda, and Docker Compose starts DynamoDB Local and dynamodb-admin.
-2. Terraform plans with `TF_VAR_lambdasVersion=local`. The plan is **never applied**.
+1. The build packages each Lambda, and Docker Compose starts dynamodb-admin and an empty DynamoDB Local.
+2. Terraform plans with `TF_VAR_lambdasVersion=local`, and `terraform show -json` exports the plan as JSON. The plan is **never applied**: it only serves as a machine-readable description of the tables, functions, and routes defined in `terraform/`.
 3. A script reads the plan, creates its DynamoDB tables in DynamoDB Local, and generates a SAM template for its Lambdas and routes. See [Local tables](#local-tables) and [Local functions](#local-functions).
 4. SAM runs the template's Lambdas in Docker, attached to the Compose network. The template is temporary, so no SAM template is maintained.
 
