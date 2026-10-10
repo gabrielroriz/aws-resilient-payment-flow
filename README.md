@@ -10,7 +10,43 @@
 [![AWS SAM](https://img.shields.io/badge/AWS_SAM-FF9900?style=flat)](https://aws.amazon.com/serverless/sam/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/gabrielroriz/aws-resilient-payment-flow/actions/workflows/ci.yml)
 
-An AWS project for reliable payment and subscription event processing. The [requirements](docs/REQUIREMENTS.md) set the context and constraints for the payment flow under development. The current setup builds the TypeScript Lambdas registered in `lambdas.json` and deploys them behind an API Gateway HTTP API.
+> [!IMPORTANT]
+> **Under development.** Only the build and deployment foundation works so far; the payment flow below is the goal, not yet the current behavior. See [Current state](#current-state).
+
+Subscription payments reach this platform as webhooks from external payment providers. This project is building the AWS backend that will turn those webhooks into correct, auditable business outcomes (payment records, customer access, financial records, and notifications) across several gateways, currencies, and countries. Simulated providers, load tests, and failure scenarios will demonstrate the results.
+
+## The challenge
+
+Webhook delivery is unreliable, but the business outcomes must not be. Each event can change money and customer access, so a mistake can grant access without payment, credit a customer twice, or lose a refund.
+
+```mermaid
+flowchart LR
+    Providers["Payment providers<br/>Stripe, a Brazilian gateway, a simulated gateway"]
+    API["Webhook API"]
+    subgraph Effects["Business effects, each applied once"]
+        Payments["Payment records"]
+        Access["Customer access"]
+        Ledger["Financial records per currency"]
+        Notifications["Localized notifications"]
+    end
+    Providers -->|"duplicated, late, or out-of-order deliveries"| API
+    API --> Effects
+```
+
+| What can go wrong | What the system must guarantee |
+|---|---|
+| A provider delivers the same event twice, or retries after a slow acknowledgment | Each business effect happens once |
+| A refund arrives before the payment it refunds | The final state is correct, and an older event never reverses a newer outcome |
+| Processing stops halfway, for example after granting access but before notifying the customer | Recovery completes the remaining steps without repeating finished ones |
+| Gateways differ in authentication, event names, payload shapes, and amount formats | Equivalent events follow the same business rules, and adding a gateway does not change them |
+| One gateway fails or sends a traffic burst | The other gateways keep processing |
+| A defect mishandles events, or a provider event never arrives | Operators can trace each event, safely reprocess the affected ones, and detect missing events from provider history |
+
+Success is measurable: a webhook acknowledgment p99 below one second under the declared load, no acknowledged event lost, zero duplicate business effects, and automatic recovery from a two-hour downstream outage. The [requirements](docs/REQUIREMENTS.md) define the full scope, including currencies, country pricing, localization, and the acceptance scenarios.
+
+## Current state
+
+`npm run deploy` builds the TypeScript Lambdas and deploys them with Terraform behind an API Gateway HTTP API; the only function so far is a health check. The [webhook events table](docs/data-model/webhook-events.md), which records events for deduplication and tracing, is designed but not provisioned. Webhook receipt, event processing, and the gateway integrations are not implemented yet.
 
 ## Architecture
 
@@ -28,8 +64,7 @@ npm test
 
 Each registered Lambda builds to `dist/bundles/<function-name>/index.js`.
 
-To run the HTTP endpoints locally, complete the
-[SAM and Docker setup](docs/development.md#run-locally), then run `npm run dev`.
+To run the HTTP endpoints locally, complete the [SAM and Docker setup](docs/development.md#run-locally), then run `npm run dev`.
 
 To deploy, follow the [AWS and Terraform setup](docs/deployment.md), then run:
 
@@ -37,14 +72,14 @@ To deploy, follow the [AWS and Terraform setup](docs/deployment.md), then run:
 npm run deploy
 ```
 
-This command automatically applies the Terraform plan and outputs each Lambda's
-HTTP endpoint. See [Calling the API](docs/deployment.md#calling-the-api) for endpoint details.
+This command automatically applies the Terraform plan and outputs each Lambda's HTTP endpoint. See [Calling the API](docs/deployment.md#calling-the-api) for endpoint details.
 
 ## Documentation
 
 - [Development](docs/development.md): local setup and builds.
 - [Testing](docs/testing.md): running tests and current coverage.
 - [Architecture](docs/architecture.md): hexagonal model, layers, ports, dependency injection, and error handling.
+- [Webhook events table](docs/data-model/webhook-events.md): DynamoDB access patterns, keys, items, and indexes for received webhooks.
 - [Adding a Lambda](docs/adding-a-lambda.md): creating a function and configuring its route.
 - [Deployment](docs/deployment.md): requirements, setup, and the AWS deployment workflow.
 - [Requirements](docs/REQUIREMENTS.md): project scope and acceptance criteria.
