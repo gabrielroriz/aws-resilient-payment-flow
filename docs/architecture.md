@@ -102,6 +102,28 @@ Use cases receive ports through their constructors, so a unit test can pass a fa
 | Implemented by | Adapters in `src/infra/` | Application code, such as controllers |
 | Used as a DI token | Yes, through a binding | No |
 
+## Types that belong to a class
+
+Declare the types a class owns, such as its inputs, outputs, and the shapes it stores, in an exported namespace with the same name, placed after the class. Callers then write `GetHealthUseCase.Output`, so every use names the owning class and needs no extra import.
+
+```ts
+export class GetHealthUseCase {
+  async execute(): Promise<GetHealthUseCase.Output> {
+    // ...
+  }
+}
+
+export namespace GetHealthUseCase {
+  export type Output = { status: "ok"; checkedAt: string };
+}
+```
+
+| Type | Where it goes |
+|---|---|
+| Owned by one class, including shapes only that class uses | The class's namespace |
+| Shared across layers, such as the `Controller` request and response | `application/contracts/` |
+| Helper for a standalone function or decorator | Module level, next to the function |
+
 ## Dependency injection
 
 Classes register themselves with `@Injectable`, listing their constructor dependencies in order. TypeScript rejects a list that does not match the constructor, so a mismatch fails `npm run build`. esbuild compiles the project's standard decorators but cannot emit constructor type metadata, so the explicit list replaces it.

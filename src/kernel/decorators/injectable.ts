@@ -1,7 +1,7 @@
-import { Registry, type Token } from "@kernel/di/Registry";
+import { Registry } from "@kernel/di/Registry";
 
-type Instances<TDependencies extends readonly Token[]> = {
-  [K in keyof TDependencies]: TDependencies[K] extends Token<infer T> ? T : never;
+type Instances<TDependencies extends readonly Registry.Token[]> = {
+  [K in keyof TDependencies]: TDependencies[K] extends Registry.Token<infer T> ? T : never;
 };
 
 /**
@@ -11,7 +11,7 @@ type Instances<TDependencies extends readonly Token[]> = {
  * so the list replaces it, and TypeScript rejects a list that does not match the
  * constructor's parameters.
  */
-export function Injectable<const TDependencies extends readonly Token[]>(
+export function Injectable<const TDependencies extends readonly Registry.Token[]>(
   ...dependencies: TDependencies
 ) {
   return <TClass extends new (...args: Instances<TDependencies>) => unknown>(

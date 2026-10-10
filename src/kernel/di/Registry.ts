@@ -1,13 +1,4 @@
 /**
- * A class usable as a DI token. Ports are abstract classes rather than interfaces
- * because tokens must exist at runtime.
- */
-export type Token<T = unknown> = abstract new (...args: any[]) => T;
-
-/** A concrete class the registry can instantiate. */
-export type Implementation<T = unknown> = new (...args: any[]) => T;
-
-/**
  * Process-wide dependency container.
  *
  * `@Injectable` registers each class with its constructor dependencies, a function's
@@ -24,11 +15,11 @@ export class Registry {
 
   private constructor() {}
 
-  private readonly providers = new Map<Token, Registry.Provider>();
-  private readonly bindings = new Map<Token, Token>();
-  private readonly instances = new Map<Token, unknown>();
+  private readonly providers = new Map<Registry.Token, Registry.Provider>();
+  private readonly bindings = new Map<Registry.Token, Registry.Token>();
+  private readonly instances = new Map<Registry.Token, unknown>();
 
-  register(implementation: Implementation, dependencies: readonly Token[]): void {
+  register(implementation: Registry.Implementation, dependencies: readonly Registry.Token[]): void {
     // A dependency that is undefined at decoration time usually means a circular import.
     const missing = dependencies.findIndex((dependency) => !dependency);
     if (missing !== -1) {
@@ -41,11 +32,11 @@ export class Registry {
   }
 
   /** Point a port at the adapter that implements it. Bind before resolving dependents. */
-  bind<T>(port: Token<T>, adapter: Implementation<T>): void {
+  bind<T>(port: Registry.Token<T>, adapter: Registry.Implementation<T>): void {
     this.bindings.set(port, adapter);
   }
 
-  resolve<T>(token: Token<T>): T {
+  resolve<T>(token: Registry.Token<T>): T {
     const target = this.bindings.get(token) ?? token;
 
     // If it has cached instance, return it.
@@ -70,6 +61,15 @@ export class Registry {
 }
 
 export namespace Registry {
+  /**
+   * A class usable as a DI token. Ports are abstract classes rather than interfaces
+   * because tokens must exist at runtime.
+   */
+  export type Token<T = unknown> = abstract new (...args: any[]) => T;
+
+  /** A concrete class the registry can instantiate. */
+  export type Implementation<T = unknown> = new (...args: any[]) => T;
+
   export type Provider = {
     implementation: Implementation;
     dependencies: readonly Token[];
