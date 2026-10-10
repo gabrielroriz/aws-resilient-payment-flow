@@ -79,7 +79,7 @@ This command automatically applies the Terraform plan and outputs each Lambda's 
 ## Documentation
 
 - [Development](docs/development.md): local setup and builds.
-- [Testing](docs/testing.md): running tests and current coverage.
+- [Testing](docs/testing.md): running tests, test layout, and how to write new tests.
 - [Architecture](docs/architecture.md): hexagonal model, layers, ports, dependency injection, and error handling.
 - [Webhook events table](docs/data-model/webhook-events.md): DynamoDB access patterns, keys, items, and indexes for received webhooks.
 - [Adding a Lambda](docs/adding-a-lambda.md): creating a function and configuring its route.

@@ -1,8 +1,10 @@
 # Testing
 
+How tests are organized, how they run, and how to write new ones.
+
 ## Requirements
 
-Node.js 24 and npm. The current tests run locally without Docker, SAM, Terraform, or AWS credentials.
+Node.js 24 and npm. Tests run locally without Docker, SAM, Terraform, AWS credentials, or network access.
 
 ## Run tests
 
@@ -23,13 +25,13 @@ Tests build their own fixtures in temporary directories; a separate application 
 
 ## Test layout
 
-Each test sits next to the module it covers and shares its name, such as `src/main/utils/http.ts` and `src/main/utils/http.test.ts`.
+Each test sits next to the module it covers and shares its name, such as `<module>.ts` and `<module>.test.ts`.
 
 | File | Contains | Run by |
 |---|---|---|
 | `src/**/<module>.test.ts` | Tests for TypeScript code, which import it through the path aliases | Vitest |
 | `src/**/<module>.test-d.ts` | Type tests, which pass only when type checking reports the expected errors | Vitest typecheck, through `tsc` |
-| `src/**/<module>.fixtures.ts` | Helpers shared by tests, such as API Gateway test events | Imported by tests |
+| `src/**/<module>.fixtures.ts` | Helpers shared by several test files, such as API Gateway test events | Imported by tests |
 | `build/<script>.test.mts` | Tests for the build tooling | Vitest |
 
 `npm run build` type-checks every `.ts` file under `src/` and every `.mts` file under `build/`, including tests. No Lambda bundle contains test files, because each bundle starts from its entry file.
@@ -47,24 +49,24 @@ Each test sits next to the module it covers and shares its name, such as `src/ma
 
 Vitest's type testing is experimental and may change outside SemVer, so `vitest` is pinned to an exact version in `package.json`.
 
-Each test file gets its own module graph, so the `Registry` singleton starts empty in every file but is shared by the tests within a file. Declare the classes a DI test registers inside that test.
+Each test file gets its own module graph, so the `Registry` singleton starts empty in every file but is shared by the tests within a file.
 
-Unit tests import entries directly. [`build/bundle.test.mts`](../build/bundle.test.mts) also bundles every registered Lambda with the production settings and loads it, so a missing port binding or a bundling problem fails `npm test`.
+A build test bundles every Lambda registered in `lambdas.json` with the production settings and loads it, so a missing port binding or a bundling problem fails `npm test` without a test per function.
 
-## Current coverage
+## Writing tests
 
-| Test file | Check | Expected behavior |
-|---|---|---|
-| [`build/index.test.mts`](../build/index.test.mts) | Standalone bundles | Handlers run without their original sources or installed dependencies |
-| | Dependency isolation | Bundles include needed local and npm imports and exclude unrelated code |
-| | Missing dependency | The build fails instead of producing a broken bundle |
-| [`build/bundle.test.mts`](../build/bundle.test.mts) | Registered entries | Every Lambda in `lambdas.json` bundles with the production settings and loads with all its ports bound |
-| [`src/kernel/di/Registry.test.ts`](../src/kernel/di/Registry.test.ts) | Port binding | Ports resolve to their bound adapters, with one shared instance per class |
-| | Missing binding | Resolution fails with a message naming the port |
-| [`src/kernel/decorators/injectable.test-d.ts`](../src/kernel/decorators/injectable.test-d.ts) | Dependency lists | Type checking rejects `@Injectable` lists that do not match the constructor |
-| [`src/main/functions/health.test.ts`](../src/main/functions/health.test.ts) | Health function | The entry answers `200` through every layer |
-| [`src/main/adapters/lambdaHttpAdapter.test.ts`](../src/main/adapters/lambdaHttpAdapter.test.ts) | HTTP adapter | Requests reach the controller; errors map to the documented responses and logs |
-| [`src/main/utils/http.test.ts`](../src/main/utils/http.test.ts) | Body parsing | `parseHttpBody` returns any JSON value, `undefined` for an empty body, and `BadRequest` for malformed JSON |
-| | JSON responses | `buildHttpResponse` serializes any body except `undefined`, which sends only the status code |
+| Practice | Reason |
+|---|---|
+| Test a use case by passing fake ports to its constructor, without the registry | The test covers business rules only and does not depend on adapters |
+| Test an adapter by replacing the layer directly below it: SDK calls for a shared client, the shared client's methods for a repository | The test checks the requests sent without AWS, Docker, or network access |
+| Replace dependencies with `vi.spyOn`, not module mocks | `restoreMocks` undoes each spy after its test, so replacements never leak |
+| Declare the classes a DI test registers inside that test | The registry is shared by every test in the file |
+| Use fixed dates and values instead of the current time | Results stay deterministic; code that needs the time receives it through the clock port |
+| Assert the exact shape a contract defines, such as a table's items or an HTTP response | A change that breaks the documented contract fails a test |
+| Name each test as a sentence describing one behavior | The list of tests reads as a specification |
+| Move helpers used by several test files into `<module>.fixtures.ts`; keep single-file helpers in that file | Tests stay short without a global utilities module |
+| Express compile-time guarantees as type tests in `.test-d.ts` files | Mistakes such as a wrong `@Injectable` dependency list fail type checking |
 
-These tests do not cover API Gateway integration or payment behavior. See [TODO](../TODO.md) for planned coverage and [Development](development.md#run-locally) for manual HTTP testing with SAM.
+## Limitations
+
+Tests do not cover API Gateway integration, real DynamoDB behavior, or payment behavior. See [TODO](../TODO.md) for planned coverage and [Development](development.md#run-locally) for manual HTTP testing with SAM.
