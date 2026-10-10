@@ -9,7 +9,7 @@ DOCKER_NETWORK=aws-resilient-payment-flow
 # Catch missing tools before spending time building.
 for command in node npm zip terraform sam docker; do
   if ! command -v "$command" >/dev/null 2>&1; then
-    printf 'Required command not found: %s. See docs/development.md#run-locally.\n' "$command" >&2
+    printf 'Required command not found: %s. See docs/guides/development.md#requirements.\n' "$command" >&2
     exit 1
   fi
 done
@@ -20,7 +20,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 if ! docker compose version >/dev/null 2>&1; then
-  printf 'Docker Compose not found. See docs/development.md#requirements.\n' >&2
+  printf 'Docker Compose not found. See docs/guides/development.md#requirements.\n' >&2
   exit 1
 fi
 

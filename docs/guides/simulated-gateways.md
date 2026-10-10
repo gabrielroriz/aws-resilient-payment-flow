@@ -1,12 +1,12 @@
 # Simulated gateways
 
-Two simulated payment gateways, `gatewayGlobal` and `gatewayBrazil`, send webhooks the way real providers do, in different formats and with different authentication. A simulator delivers their webhooks in the patterns of the [acceptance scenarios](REQUIREMENTS.md#6-acceptance-scenarios), such as duplicates, retries, and forgeries, and checks how [webhook receipt](webhooks.md) responds.
+Simulated payment gateways stand in for real providers in tests: each sends webhooks in its own format and with its own authentication, so the system is exercised against provider differences without real accounts. A delivery simulator sends their webhooks in the patterns of the [acceptance scenarios](../requirements.md#6-acceptance-scenarios), such as duplicates, retries, and forgeries, and checks how [webhook receipt](../architecture/webhook-receipt.md) responds.
 
 ## Requirements
 
 | Requirement | Used for |
 |---|---|
-| A running API: `npm run dev`, or a deployed one | Receiving the webhooks |
+| A running API, [local](development.md) or [deployed](deployment.md) | Receiving the webhooks |
 | Node.js 24 and npm | Running the simulator |
 | The gateways' secrets | Authenticating deliveries; the local defaults match `npm run dev` |
 
@@ -17,7 +17,7 @@ Two simulated payment gateways, `gatewayGlobal` and `gatewayBrazil`, send webhoo
 | `GATEWAY_GLOBAL_SIGNING_SECRET` | `gatewayGlobal` | `local-gateway-global-secret` |
 | `GATEWAY_BRAZIL_ACCESS_TOKEN` | `gatewayBrazil` | `local-gateway-brazil-token` |
 
-The webhook entry point and the simulator read the same variables. Locally, `npm run dev` passes them to the entry point, using the defaults when they are unset. A deployed entry point gets them from Terraform variables; see [Deployment](deployment.md#setup). To simulate against a deployed API, export the deployed values first.
+The webhook function and the simulator read the same variables. Locally, `npm run dev` gives the function these values, using the defaults when they are unset. A deployed function gets the values set during the [deployment setup](deployment.md#setup); export the same values before simulating against it.
 
 ## How the gateways differ
 
@@ -61,6 +61,6 @@ Each check prints ✓ or ✗ with the response it got, and the command fails whe
 
 ## Limitations
 
-- Checks read HTTP responses only; locally, the stored items can be inspected in dynamodb-admin. See [Run locally](development.md#run-locally).
+- Checks read HTTP responses only; locally, the stored items can be inspected in dynamodb-admin. See [Development](development.md#usage).
 - Event processing is not implemented, so the scenarios cover receipt: a refund that arrives first is accepted, but no business effect is applied yet.
-- Secrets live in Lambda environment variables and in Terraform state. Rotating one means redeploying, and the receiver holds one secret per gateway at a time.
+- Secrets live in function environment variables and in Terraform state. Rotating one means redeploying, and the receiver holds one secret per gateway at a time.

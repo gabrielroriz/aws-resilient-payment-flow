@@ -1,6 +1,6 @@
 # Webhook events table
 
-The `webhook_events` DynamoDB table records the webhook events received from payment providers. It detects repeated deliveries and keeps each event's processing attempts and business effects, so operators can trace and reprocess events as the [requirements](../REQUIREMENTS.md) describe. Terraform provisions it, and a repository adapter implements its access patterns behind the webhook events port.
+The `webhook_events` DynamoDB table records the webhook events received from payment providers. It detects repeated deliveries and keeps each event's history, including its processing attempts and business effects, so operators can trace and reprocess events as the [requirements](../../requirements.md) describe. Terraform provisions it, and a repository adapter implements its access patterns behind the webhook events port.
 
 ## Access patterns
 
@@ -35,15 +35,17 @@ All items of an event share its `event_key`, so one `Query` returns the whole ev
 | [Effect](#effect) | `EFFECT#{effect}` | When a business effect of the event completes or fails |
 | [Delivery](#delivery) | `DELIVERY#{received_at}#{request_id}` | On each duplicate delivery |
 
+Webhook receipt writes events and deliveries. Attempts and effects belong to event processing, which is not built yet.
+
 Timestamps are UTC ISO 8601 strings with fixed millisecond precision, so they sort correctly in keys. `expires_at` is the exception: DynamoDB TTL requires a number of epoch seconds.
 
 ### Event
 
 | Attribute | Type | Description |
 |---|---|---|
-| `provider` | String | Provider name, such as `stripe` |
+| `provider` | String | Provider name, as in the webhook path |
 | `provider_event_id` | String | Event ID assigned by the provider |
-| `event_type` | String | The provider's own event type, such as Stripe's `invoice.paid`; see [Event type](#event-type) |
+| `event_type` | String | The provider's own event type, such as `payment.succeeded`; see [Event type](#event-type) |
 | `occurred_at` | String | When the provider says the event happened |
 | `received_at` | String | When the webhook reached the API |
 | `subject_type` | String | Business object the event affects, such as `payment` or `subscription` |
@@ -117,7 +119,7 @@ DynamoDB accepts about 1,000 writes per second for a single partition key value,
 
 Every item's `expires_at` is the event's `received_at` plus 90 days, so DynamoDB TTL deletes all items of an event together.
 
-> **Note:** The 90-day period is an assumption until [retention is clarified](../REQUIREMENTS.md#7-business-requirements-to-clarify). It outlasts provider retries and the 30-day Stripe event history used for reconciliation. A redelivery after expiry is treated as a new event, and `business_key` keeps it from repeating business effects. Items are not archived before deletion.
+> **Note:** The 90-day period is an assumption until [retention is clarified](../../requirements.md#7-business-requirements-to-clarify). It outlasts provider retries and the provider event histories used for reconciliation, such as Stripe's 30 days. A redelivery after expiry is treated as a new event, and `business_key` keeps it from repeating business effects. Items are not archived before deletion.
 
 ### Payload size
 

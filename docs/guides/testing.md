@@ -1,10 +1,10 @@
 # Testing
 
-How tests are organized, how they run, and how to write new ones.
+How the automated tests are organized, how they run, and how to write new ones. See [Development](development.md) for running the API by hand.
 
 ## Requirements
 
-Node.js 24 and npm. Tests run locally without Docker, SAM, Terraform, AWS credentials, or network access.
+Node.js 24 and npm. Tests need no Docker, SAM, Terraform, AWS credentials, or network access.
 
 ## Run tests
 
@@ -38,7 +38,7 @@ Each test sits next to the module it covers and shares its name, such as `<modul
 
 ## How it works
 
-[`vitest.config.mjs`](../vitest.config.mjs) compiles tests the same way the deployed Lambdas are compiled:
+[`vitest.config.mjs`](../../vitest.config.mjs) compiles tests the same way the deployed Lambdas are compiled:
 
 | Setting | Effect |
 |---|---|
@@ -46,6 +46,7 @@ Each test sits next to the module it covers and shares its name, such as `<modul
 | `resolve.tsconfigPaths` | Resolves `@application/*`, `@infra/*`, `@kernel/*`, and `@main/*` from `tsconfig.json` |
 | `typecheck` | Checks `*.test-d.ts` files with `tsc` instead of executing them |
 | `restoreMocks` | Restores `vi.spyOn` replacements after each test |
+| `unstubEnvs` | Restores environment variables set with `vi.stubEnv` after each test |
 
 Vitest's type testing is experimental and may change outside SemVer, so `vitest` is pinned to an exact version in `package.json`.
 
@@ -60,6 +61,7 @@ A build test bundles every Lambda registered in `lambdas.json` with the producti
 | Test a use case by passing fake ports to its constructor, without the registry | The test covers business rules only and does not depend on adapters |
 | Test an adapter by replacing the layer directly below it: SDK calls for a shared client, the shared client's methods for a repository | The test checks the requests sent without AWS, Docker, or network access |
 | Replace dependencies with `vi.spyOn`, not module mocks | `restoreMocks` undoes each spy after its test, so replacements never leak |
+| Set environment variables with `vi.stubEnv` | `unstubEnvs` restores them after each test, so a configured or missing variable never leaks |
 | Declare the classes a DI test registers inside that test | The registry is shared by every test in the file |
 | Use fixed dates and values instead of the current time | Results stay deterministic; code that needs the time receives it through the clock port |
 | Assert the exact shape a contract defines, such as a table's items or an HTTP response | A change that breaks the documented contract fails a test |
@@ -69,4 +71,4 @@ A build test bundles every Lambda registered in `lambdas.json` with the producti
 
 ## Limitations
 
-Tests do not cover API Gateway integration, real DynamoDB behavior, or payment behavior. See [TODO](../TODO.md) for planned coverage and [Development](development.md#run-locally) for manual HTTP testing with SAM and DynamoDB Local, and [Simulated gateways](simulated-gateways.md) for scenario checks against a running API.
+Tests replace AWS services and the Lambda runtime, so they do not exercise API Gateway or DynamoDB. The [delivery simulator](simulated-gateways.md) checks webhook receipt end to end against a [local](development.md) or deployed API, and [TODO](../../TODO.md) lists planned coverage.

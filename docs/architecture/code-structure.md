@@ -1,6 +1,6 @@
-# Architecture
+# Code structure
 
-Lambda code follows a hexagonal (ports and adapters) structure with dependency injection. Business logic depends only on ports it defines; AWS services, providers, and the Lambda runtime are adapters at the edges. See [Adding a Lambda](adding-a-lambda.md) for the step-by-step workflow.
+How the Lambda code is organized: a hexagonal (ports and adapters) structure with dependency injection. Business logic depends only on ports it defines, and AWS services, payment providers, and the Lambda runtime are adapters at the edges, so each can change without touching the business rules. See [Adding a Lambda](../guides/adding-a-lambda.md) for the step-by-step workflow.
 
 ## Hexagonal model
 
@@ -35,7 +35,7 @@ flowchart TD
     Entry -. binds port to adapter .-> Adapter
 ```
 
-The [health function](../src/main/functions/health.ts) is the reference example: `GetHealthController` calls `GetHealthUseCase`, which reads the time through the `Clock` port implemented by `SystemClock`.
+The [health function](../../src/main/functions/health.ts) is the reference example: `GetHealthController` calls `GetHealthUseCase`, which reads the time through the `Clock` port implemented by `SystemClock`.
 
 ## Layers
 
@@ -44,7 +44,7 @@ The [health function](../src/main/functions/health.ts) is the reference example:
 | `src/application/` | Use cases, controllers, ports, contracts, and errors | `application`, `kernel` |
 | `src/infra/` | Driven adapters that implement ports | `application`, `kernel` |
 | `src/main/` | Driving adapters for Lambda events and one entry file per function | Any layer |
-| `src/kernel/` | Dependency injection registry and decorator, and helpers every layer can use | `kernel` |
+| `src/kernel/` | Dependency injection and the helpers every layer can use | `kernel` |
 
 Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@kernel/*`, and `@main/*`. The import rules are not enforced by tooling; keep `infra` and `main` imports out of `application` during review.
 
@@ -56,12 +56,13 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 | `application/contracts/` | Shapes shared across layers, such as the `Controller` contract |
 | `application/errors/` | Error codes and the base classes mapped to responses |
 | `infra/<concern>/` | Adapter classes implementing ports, grouped by concern, such as `infra/clock/`, `infra/webhooks/`, or `infra/repositories/<entity>/` |
-| `infra/config/` | `AppConfig` and its zod schema: typed, validated access to environment variables for the adapters that need them |
 | `infra/<service>/` | Shared clients and helpers for one external service, such as `infra/dynamodb/`; they implement no port and are reused by adapters |
+| `infra/config/` | `AppConfig` and its environment schema; see [Configuration](#configuration) |
 | `main/adapters/` | Converts Lambda events into controller calls and maps results and errors to responses |
 | `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
-| `kernel/utils/` | Dependency-free helpers shared by every layer, such as parsing JSON, reading headers, and comparing credentials; one module per concern |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler`; entries of one area share a folder, such as `functions/webhooks/` |
+| `kernel/di/`, `kernel/decorators/` | The dependency injection registry and `@Injectable` |
+| `kernel/utils/` | Dependency-free helpers shared by every layer, such as parsing JSON, reading headers, and comparing credentials; one module per concern |
 
 ## Dependency direction
 
@@ -84,7 +85,7 @@ Classes never construct their own dependencies; the composition root and the reg
 
 ## Ports and contracts
 
-A driven port is a contract only: an abstract class with abstract members that describes what the core needs, in the core's terms. [`Clock`](../src/application/ports/Clock.ts) is the reference.
+A driven port is a contract only: an abstract class with abstract members that describes what the core needs, in the core's terms. [`Clock`](../../src/application/ports/Clock.ts) is the reference.
 
 | Rule | Reason |
 |---|---|
@@ -198,11 +199,11 @@ Keep each group to adapters that every caller uses; anything extra is bundled in
 | One global bootstrap that binds every port | Every bundle includes every adapter and its SDK clients |
 | Adapters registering themselves as a port's default | Bindings depend on import order, and two adapters for one port overwrite each other silently |
 
-A missing binding fails only when the entry loads. [`build/bundle.test.mts`](../build/bundle.test.mts) loads every registered entry from its production bundle, so `npm test` catches it.
+A missing binding fails only when the entry loads. A build test loads every registered entry from its production bundle, so `npm test` catches it.
 
 ## Configuration
 
-Adapters read environment variables through `AppConfig`, injected like any other dependency, such as `config.webhooks.gatewayGlobal.signingSecret`. Its zod schema declares each variable under the group of code that uses it, and must match the variables Terraform gives each function.
+Adapters read environment variables through `AppConfig`, injected like any other dependency. Its zod schema declares each variable under the group of code that uses it, such as the webhook providers' credentials, and `AppConfig` exposes each group as typed, named settings. The schema must match the variables Terraform gives each function; see [Environment variables](../guides/adding-a-lambda.md#environment-variables).
 
 | Behavior | Reason |
 |---|---|
@@ -211,7 +212,7 @@ Adapters read environment variables through `AppConfig`, injected like any other
 
 ## Errors
 
-[`lambdaHttpAdapter`](../src/main/adapters/lambdaHttpAdapter.ts) parses JSON request bodies and returns JSON responses. Errors become `{ "success": false, "error": { "code", "message" } }`:
+`lambdaHttpAdapter` parses JSON request bodies and returns JSON responses. Errors become `{ "success": false, "error": { "code", "message" } }`:
 
 | Thrown | Use for | Response |
 |---|---|---|
@@ -224,8 +225,8 @@ Both base classes extend `BaseError`. Each subclass passes its details to the co
 | Detail | Meaning |
 |---|---|
 | `statusCode` | HTTP status of the response |
-| `code` | Stable machine-readable code; add new codes to [`ErrorCode`](../src/application/errors/enums/ErrorCode.ts) |
-| `category` | Area the error belongs to, from [`ErrorCategory`](../src/application/errors/enums/ErrorCategory.ts), such as `webhooks`; always `http` for an `HttpError` |
+| `code` | Stable machine-readable code, from the `ErrorCode` enum |
+| `category` | Area the error belongs to, from the `ErrorCategory` enum, such as `webhooks`; always `http` for an `HttpError` |
 | `kind` | `expected` when the error is part of normal operation, such as a forged webhook; `unexpected` when it needs attention, such as an event a supported provider sent that cannot be read |
 
 Every error is logged as one JSON line, so monitoring can count errors by category, kind, and code:
