@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, symlink } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -18,6 +18,8 @@ test('every registered Lambda bundles with the production settings and loads', a
 
   const registry = await extractAndValidateLambdas(project);
   await bundleLambdas(project, registry, outputRoot);
+  // Bundles load the AWS SDK at run time, as the Lambda runtime provides it; the installed copy stands in.
+  await symlink(path.join(project, 'node_modules'), path.join(outputRoot, 'node_modules'), 'dir');
 
   for (const name of Object.keys(registry)) {
     // Entries bind ports and resolve their controllers on load, so a missing binding throws here.

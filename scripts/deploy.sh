@@ -38,7 +38,8 @@ cp -R "$PROJECT_ROOT/build" "$BUILD_DIR/build"
   for bundle in dist/bundles/*; do
     name="${bundle##*/}"
     archive="$PROJECT_ROOT/dist/${name}_$VERSION.zip"
-    # Match Terraform's index.handler entry point; imported dependencies are already bundled.
+    # Match Terraform's index.handler entry point; imported dependencies are already bundled,
+    # except the AWS SDK, which the Lambda runtime provides.
     (cd "$bundle" && zip -q "$archive" index.js)
     printf 'Packaged %s: %s\n' "$name" "$archive"
   done

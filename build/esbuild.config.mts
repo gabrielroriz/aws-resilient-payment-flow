@@ -1,8 +1,11 @@
 import type { BuildOptions } from 'esbuild';
 
 export default {
-  // Keep each deployment self-contained and small, with no separate source map.
+  // Keep each deployment to one small file, with no separate source map.
   bundle: true,
+  // The Lambda Node.js runtime provides AWS SDK v3, so handlers import it at run time instead of
+  // carrying a copy. Its version is the one the runtime ships, not the one installed locally.
+  external: ['@aws-sdk/*'],
   minify: true,
   // Keep class names readable after minification so DI errors name the missing provider.
   keepNames: true,

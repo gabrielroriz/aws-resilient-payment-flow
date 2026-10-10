@@ -70,7 +70,7 @@ Use one server per checkout. The first invocation downloads the runtime image.
 
 ## Build output
 
-TypeScript checks types; esbuild bundles each handler and its dependencies into one minified CommonJS file. esbuild resolves the `tsconfig.json` path aliases, compiles decorators, and keeps class names so dependency injection errors stay readable.
+TypeScript checks types; esbuild bundles each handler and its dependencies, except the AWS SDK, into one minified CommonJS file. esbuild resolves the `tsconfig.json` path aliases, compiles decorators, and keeps class names so dependency injection errors stay readable.
 
 | Artifact | Purpose |
 |---|---|
@@ -84,7 +84,4 @@ Build code: [entry point](../build/index.mts), [validation](../build/lambdas.mts
 
 The build tooling is TypeScript that Node.js runs directly by stripping its types, with no compile step. [`build/tsconfig.json`](../build/tsconfig.json) type-checks it separately from the Lambda code and allows only syntax that Node.js can strip.
 
-Node.js built-ins remain runtime imports. Native addons, runtime files, and
-computed imports may need different packaging. The builder rejects extra output,
-external non-built-in imports, and unsupported dynamic imports/`require` calls.
-Imports with side effects may remain.
+Node.js built-ins and AWS SDK v3 packages (`@aws-sdk/*`) remain runtime imports, because the Lambda Node.js runtime provides them; the SDK is a development dependency, used only for type checking and tests. The deployed SDK version is the one the runtime ships, so code must not rely on SDK features newer than it. Native addons, runtime files, and computed imports may need different packaging. The builder rejects extra output, any other external import, and unsupported dynamic imports/`require` calls. Imports with side effects may remain.

@@ -56,6 +56,24 @@ test('each bundle runs alone with local and npm imports, excluding unrelated cod
   }
 });
 
+test('AWS SDK imports stay out of the bundle and load from the runtime', async () => {
+  // The fixture project has no AWS SDK installed, so the build must not try to bundle it.
+  const root = await fixture({
+    'src/handler.ts': 'import { marker } from "@aws-sdk/fixture"; export const handler = () => marker;',
+  }, { sdk: { entry: 'src/handler.ts' } });
+
+  execFileSync(process.execPath, [path.join(root, 'build/index.mts')]);
+
+  const directory = path.join(root, 'dist/bundles/sdk');
+  expect(await readdir(directory)).toEqual(['index.js']);
+  // Stand in for the SDK that the Lambda runtime provides, then run the packaged handler against it.
+  await mkdir(path.join(root, 'node_modules/@aws-sdk/fixture'), { recursive: true });
+  await writeFile(path.join(root, 'node_modules/@aws-sdk/fixture/index.js'), 'exports.marker = "RUNTIME_SDK";');
+  expect(execFileSync(process.execPath, ['-e', 'process.stdout.write(require("./index.js").handler())'], {
+    cwd: directory, encoding: 'utf8',
+  })).toBe('RUNTIME_SDK');
+});
+
 test('a missing dependency stops bundling instead of leaving a broken runtime import', async () => {
   // Surface missing imports during the build, before an unusable package reaches AWS.
   const root = await fixture({
