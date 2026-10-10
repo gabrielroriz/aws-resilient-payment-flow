@@ -1,4 +1,4 @@
-import { WebhookEventRepository } from "@application/ports/WebhookEventRepository";
+import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
 import { DynamoWebhookEventRepository } from "@infra/repositories/webhook-event/DynamoWebhookEventRepository";
 import { gunzipSync } from "node:zlib";

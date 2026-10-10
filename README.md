@@ -48,7 +48,7 @@ Success is measurable: a webhook acknowledgment p99 below one second under the d
 
 ## Current state
 
-`npm run deploy` builds the TypeScript Lambdas and deploys them with Terraform behind an API Gateway HTTP API; the only function so far is a health check. The [webhook events table](docs/data-model/webhook-events.md), which records events for deduplication and tracing, is provisioned and has a repository adapter, but no function uses it yet. Webhook receipt, event processing, and the gateway integrations are not implemented yet.
+`npm run deploy` builds the TypeScript Lambdas and deploys them with Terraform behind an API Gateway HTTP API. Besides a health check, a [webhook receipt function](docs/webhooks.md) accepts `POST /webhooks/{provider}`: the provider adapter named in the URL authenticates the request and reads its event, which is stored once in the [webhook events table](docs/data-model/webhook-events.md) for deduplication and tracing. No provider adapter exists yet, so every provider is rejected for now. Event processing and the gateway integrations are not implemented yet.
 
 ## Architecture
 
@@ -81,6 +81,7 @@ This command automatically applies the Terraform plan and outputs each Lambda's 
 - [Development](docs/development.md): local setup and builds.
 - [Testing](docs/testing.md): running tests, test layout, and how to write new tests.
 - [Architecture](docs/architecture.md): hexagonal model, layers, ports, dependency injection, and error handling.
+- [Receiving webhooks](docs/webhooks.md): the webhook route, its responses, and adding a payment provider.
 - [Webhook events table](docs/data-model/webhook-events.md): DynamoDB access patterns, keys, items, and indexes for received webhooks.
 - [Adding a Lambda](docs/adding-a-lambda.md): creating a function and configuring its route.
 - [Deployment](docs/deployment.md): requirements, setup, and the AWS deployment workflow.

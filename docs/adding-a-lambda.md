@@ -14,8 +14,9 @@ Each Lambda is an entry file that wires one controller into the HTTP adapter. Se
 ## Registry fields
 
 ```json
-"payment_webhook": {
-  "entry": "src/main/functions/paymentWebhook.ts",
+"webhook_entry_point": {
+  "entry": "src/main/functions/webhooks/webhookEntryPoint.ts",
+  "role": "webhook_entry_point",
   "memory_size": 512,
   "timeout": 30,
   "http_method": "POST",
@@ -27,6 +28,7 @@ Each Lambda is an entry file that wires one controller into the HTTP adapter. Se
 |---|---|---|
 | Object key | AWS function name | Required |
 | `entry` | TypeScript file under `src/` exporting `handler` | Required |
+| `role` | IAM role the function runs with, by its name in the Terraform `lambda_roles` local; see [Permissions](#permissions) | `default`, which grants no access to AWS services |
 | `memory_size` | Memory in MB | `1024` |
 | `timeout` | Lambda timeout in seconds | `300` |
 | `http_method` | Client method: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, or `ANY` | `ANY` |
@@ -34,7 +36,18 @@ Each Lambda is an entry file that wires one controller into the HTTP adapter. Se
 
 Method/path pairs must be unique. Replace path parameters when calling routes. Backend Lambda invocation always uses `POST`, regardless of `http_method`.
 
-Handlers receive payload format `2.0` events; `lambdaHttpAdapter` passes path parameters, query parameters, headers, and the parsed JSON body to the controller. The current routes have no authentication.
+Handlers receive payload format `2.0` events; `lambdaHttpAdapter` passes path parameters, query parameters, headers, the request ID, the parsed JSON body, and the raw body to the controller, decoding the body first when API Gateway base64-encodes it. Routes have no API Gateway authentication; the [webhook route](webhooks.md) authenticates each request through its provider's adapter.
+
+## Permissions
+
+Functions run with a default IAM role that grants no access to AWS services. A function that calls AWS services, such as DynamoDB, needs a dedicated role:
+
+1. In `terraform/`, add an `aws_iam_role` that uses the shared Lambda assume-role policy, such as the webhook entry point's role.
+2. Attach a policy that grants only the actions and resources the function uses.
+3. Add the role to the `lambda_roles` local under a name.
+4. Set the function's `role` field in `lambdas.json` to that name.
+
+A `role` that is not in `lambda_roles` fails the plan, so a typo never deploys a function without its permissions.
 
 ## Lifecycle
 

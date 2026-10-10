@@ -51,15 +51,15 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 | Path | Responsibility |
 |---|---|
 | `application/usecases/<area>/` | One business operation per class; depends on ports and other application code |
-| `application/ports/` | Abstract classes describing what the core needs from outside, such as time, storage, or providers |
+| `application/ports/` | Abstract classes describing what the core needs from outside, such as time, storage, or providers; ports of one area share a folder, such as `ports/webhooks/` |
 | `application/controller/<area>/` | Turns a transport-neutral `Controller.Request` into a use case call and a `Controller.Response` |
 | `application/contracts/` | Shapes shared across layers, such as the `Controller` contract |
 | `application/errors/` | Error codes and the base classes mapped to responses |
-| `infra/<concern>/` | Adapter classes implementing ports, grouped by concern, such as `infra/clock/` or `infra/repositories/<entity>/` |
+| `infra/<concern>/` | Adapter classes implementing ports, grouped by concern, such as `infra/clock/`, `infra/webhooks/`, or `infra/repositories/<entity>/` |
 | `infra/<service>/` | Shared clients and helpers for one external service, such as `infra/dynamodb/`; they implement no port and are reused by adapters |
 | `main/adapters/` | Converts Lambda events into controller calls and maps results and errors to responses |
 | `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
-| `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler` |
+| `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler`; entries of one area share a folder, such as `functions/webhooks/` |
 
 ## Dependency direction
 
@@ -204,8 +204,27 @@ A missing binding fails only when the entry loads. [`build/bundle.test.mts`](../
 
 | Thrown | Use for | Response |
 |---|---|---|
-| `ApplicationError` subclass | Expected business failures from use cases | Its `statusCode` (default `400`), code, and message |
-| `HttpError` subclass, such as `BadRequest` | Invalid requests, such as a malformed JSON body | Its `statusCode`, code, and message |
-| Anything else | Unexpected failures | `500` with `INTERNAL_SERVER_ERROR`; details only in logs |
+| `HttpError` subclass, such as `BadRequest` | Failures of the request itself, raised before the controller is reached, such as a malformed JSON body | Its `statusCode`, code, and message |
+| `ApplicationError` subclass | Failures raised from the controller down, such as a business rule a use case enforces | Its `statusCode`, code, and message |
+| Anything else | Failures nobody anticipated, such as a storage outage or a defect | `500` with `INTERNAL_SERVER_ERROR`; details only in logs |
 
-Add new codes to [`ErrorCode`](../src/application/errors/ErrorCode.ts). Every error is logged as one JSON line with the request ID, route, and error kind; stacks are logged only for unexpected errors.
+Both base classes extend `BaseError`. Each subclass passes its details to the constructor, which also sets `name` from the class name; `HttpError` sets the `http` category itself. Declare each application error in the area folder it belongs to, such as `errors/application/webhooks/`:
+
+| Detail | Meaning |
+|---|---|
+| `statusCode` | HTTP status of the response |
+| `code` | Stable machine-readable code; add new codes to [`ErrorCode`](../src/application/errors/enums/ErrorCode.ts) |
+| `category` | Area the error belongs to, from [`ErrorCategory`](../src/application/errors/enums/ErrorCategory.ts), such as `webhooks`; always `http` for an `HttpError` |
+| `kind` | `expected` when the error is part of normal operation, such as a forged webhook; `unexpected` when it needs attention, such as an event a supported provider sent that cannot be read |
+
+Every error is logged as one JSON line, so monitoring can count errors by category, kind, and code:
+
+| Field | Value |
+|---|---|
+| `logType` | `application_error` |
+| `category` | The error's category; absent for errors the application does not define, which the route and function still identify |
+| `errorKind` | The error's kind; `unexpected` for errors the application does not define |
+| `errorCode` | The error's code; `INTERNAL_SERVER_ERROR` for errors the application does not define |
+| `errorName`, `errorMessage` | The error's class name and message |
+| `errorStack` | Present only for unexpected errors |
+| `requestId`, `route` | API Gateway request ID and route key |

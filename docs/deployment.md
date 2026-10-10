@@ -78,7 +78,7 @@ Use the method and path configured in `lambdas.json` when calling an endpoint; s
 
 | API behavior | Current configuration |
 |---|---|
-| Authentication | Public routes; provider authenticity checks are not implemented |
+| Authentication | Public routes; the [webhook route](webhooks.md) authenticates each request through its provider's adapter |
 | Lambda event format | API Gateway payload `2.0` |
 | Integration timeout | 30 seconds, even if the Lambda timeout is longer |
 | Unmatched route | HTTP 404 |

@@ -1,4 +1,4 @@
-import { WebhookEventRepository } from "@application/ports/WebhookEventRepository";
+import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
 import { joinKey, shardOf } from "@infra/dynamodb/keys";
 import { Injectable } from "@kernel/decorators/injectable";

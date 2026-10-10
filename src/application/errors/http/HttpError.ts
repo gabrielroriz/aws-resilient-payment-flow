@@ -1,7 +1,12 @@
-import { ErrorCode } from "../ErrorCode";
+import { BaseError } from "../BaseError";
+import { ErrorCategory } from "../enums/ErrorCategory";
 
-/** Request-level failure with a fixed HTTP status, such as a malformed body. */
-export abstract class HttpError extends Error {
-  public abstract statusCode: number;
-  public abstract code: ErrorCode;
+/**
+ * Failure of the request itself, raised before the controller is reached, such as a malformed body.
+ * It belongs to no business area, so every such error is in the http category.
+ */
+export abstract class HttpError extends BaseError {
+  constructor(message: string, details: Omit<BaseError.Details, "category">) {
+    super(message, { ...details, category: ErrorCategory.HTTP });
+  }
 }

@@ -2,6 +2,18 @@ import { BadRequest } from "@application/errors/http/BadRequest";
 import type { APIGatewayProxyResultV2 } from "aws-lambda";
 
 /**
+ * Returns the request body as the client sent it. API Gateway base64-encodes bodies it does not
+ * treat as text, such as form posts, so those are decoded back to the original text.
+ */
+export function decodeHttpBody(body: string | undefined, isBase64Encoded: boolean): string | undefined {
+  if (body === undefined || !isBase64Encoded) {
+    return body;
+  }
+
+  return Buffer.from(body, "base64").toString("utf8");
+}
+
+/**
  * Parses a raw request body as JSON. A malformed body is the caller's fault, so it
  * becomes a `BadRequest` (400) instead of surfacing as an unexpected 500.
  */

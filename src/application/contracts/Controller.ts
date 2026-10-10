@@ -10,9 +10,13 @@ export namespace Controller {
   export type Request<TBody = unknown> = {
     /** Parsed JSON body; `undefined` when the request has no body. */
     body: TBody;
+    /** Body exactly as the client sent it, for signature checks and audit; `undefined` when there is none. */
+    rawBody: string | undefined;
     params: Record<string, string | undefined>;
     queryParams: Record<string, string | undefined>;
     headers: Record<string, string | undefined>;
+    /** ID the platform assigned to this request, used to trace it in logs and records. */
+    requestId: string;
   };
 
   export type Response<TBody = unknown> = {

@@ -3,5 +3,13 @@
     "entry": "src/main/functions/health.ts",
     "http_method": "GET",
     "path": "/health"
+  },
+  "webhook_entry_point": {
+    "entry": "src/main/functions/webhooks/webhookEntryPoint.ts",
+    "role": "webhook_entry_point",
+    "memory_size": 512,
+    "timeout": 30,
+    "http_method": "POST",
+    "path": "/webhooks/{provider}"
   }
 }

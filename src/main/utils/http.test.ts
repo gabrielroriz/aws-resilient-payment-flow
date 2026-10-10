@@ -1,5 +1,17 @@
-import { buildHttpResponse, parseHttpBody } from "@main/utils/http";
+import { buildHttpResponse, decodeHttpBody, parseHttpBody } from "@main/utils/http";
 import { expect, test } from "vitest";
+
+test("decodeHttpBody returns a text body unchanged", () => {
+  expect(decodeHttpBody('{"id":"evt_1"}', false)).toBe('{"id":"evt_1"}');
+  expect(decodeHttpBody(undefined, false)).toBeUndefined();
+});
+
+test("decodeHttpBody decodes a base64-encoded body to the text the client sent", () => {
+  const form = "amount=100&currency=BRL&name=Jo%C3%A3o&note=São Paulo";
+
+  expect(decodeHttpBody(Buffer.from(form).toString("base64"), true)).toBe(form);
+  expect(decodeHttpBody(undefined, true)).toBeUndefined();
+});
 
 test("parseHttpBody returns undefined for a missing or empty body", () => {
   expect(parseHttpBody(undefined)).toBeUndefined();
@@ -19,6 +31,8 @@ test("parseHttpBody rejects malformed JSON with a BadRequest", () => {
     name: "BadRequest",
     statusCode: 400,
     code: "BAD_REQUEST",
+    category: "http",
+    kind: "expected",
     message: "Malformed JSON body",
   });
 
