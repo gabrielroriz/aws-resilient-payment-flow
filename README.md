@@ -52,27 +52,11 @@ Success is measurable: a webhook acknowledgment p99 below one second under the d
 
 ## The approach
 
-The design separates receiving an event from acting on it, and makes every step safe to repeat.
+The design separates receiving an event from acting on it, and makes every step safe to repeat. What is built so far receives each webhook, records it once, and queues it for processing:
 
-```mermaid
-flowchart LR
-    Providers["Payment providers"] --> Receive
-    subgraph Built["Built"]
-        Receive["Receive: authenticate and record each event once"]
-        Log[("Event log")]
-        Queue@{ shape: h-cyl, label: "Processing queue" }
-    end
-    subgraph Planned["Planned"]
-        Process["Process: apply each business effect once"]
-        Reconcile["Reconcile with provider history"]
-    end
-    Receive --> Log
-    Receive --> Queue
-    Queue --> Process
-    Log --> Process
-    Process --> Effects["Payments, access, ledger, notifications"]
-    Reconcile --> Log
-```
+![Payment providers deliver webhooks through Amazon API Gateway to the webhook_entry_point Lambda, which records each event once in the webhook_events DynamoDB table and dispatches it to the webhook_events.fifo SQS FIFO queue, grouped by provider; a message that fails 5 receives moves to the webhook_events_dlq.fifo dead-letter queue](docs/architecture/images/architecture.excalidraw.svg)
+
+*An editable [Excalidraw](https://excalidraw.com) drawing; see [Diagrams](docs/guides/diagrams.md). Icons from [AWS Serverless Icons v2](https://github.com/excalidraw/excalidraw-libraries/blob/main/libraries/stojanovic/aws-serverless-icons-v2.excalidrawlib) by Slobodan Stojanović.*
 
 | Principle | How it addresses the problem | Status |
 |---|---|---|
@@ -123,4 +107,5 @@ Use Node.js 24 and npm, then install the dependencies with `npm ci`. Local runs 
   - [Simulated gateways](docs/guides/simulated-gateways.md): the test gateways and the delivery simulator.
   - [Adding a Lambda](docs/guides/adding-a-lambda.md): creating a function, its route, permissions, and environment variables.
   - [Adding a provider](docs/guides/adding-a-provider.md): supporting a new payment gateway.
+  - [Diagrams](docs/guides/diagrams.md): editing the Mermaid and Excalidraw diagrams.
 - [TODO](TODO.md): deferred work.
