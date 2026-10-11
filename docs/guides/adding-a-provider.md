@@ -7,7 +7,7 @@ Support a new payment gateway by adding an adapter that authenticates its webhoo
 1. Implement the `WebhookProvider` port in `src/infra/webhooks/<provider>/`, decorated with `@Injectable(...)` listing its constructor dependencies. Its `name` is the provider's path segment, as in `POST /webhooks/<provider>`.
 2. In `authenticate`, verify the provider's signature or credentials against `rawBody`, the body exactly as received. Read credentials from `AppConfig`, and declare them as environment variables of the webhook function; see [Environment variables](adding-a-lambda.md#environment-variables).
 3. In `parse`, map the provider's event into the fields below, or return `undefined` when the body is not one of the provider's events.
-4. List the adapter in the `@Injectable` decorator of the provider catalog, `InMemoryWebhookProviderCatalog`.
+4. List the adapter in the `@Injectable` decorator of the provider registry, `InMemoryWebhookProviderRegistry`.
 5. Add tests next to the adapter, covering authentic, forged, and malformed requests. See [Writing tests](testing.md#writing-tests).
 6. For a simulated provider, also teach the delivery simulator to send its format; see [Simulated gateways](simulated-gateways.md).
 

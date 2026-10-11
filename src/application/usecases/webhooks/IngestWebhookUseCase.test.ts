@@ -2,7 +2,7 @@ import { Clock } from "@application/ports/Clock";
 import { WebhookEventDispatcher } from "@application/ports/webhooks/WebhookEventDispatcher";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
-import { WebhookProviderCatalog } from "@application/ports/webhooks/WebhookProviderCatalog";
+import { WebhookProviderRegistry } from "@application/ports/webhooks/WebhookProviderRegistry";
 import { IngestWebhookUseCase } from "@application/usecases/webhooks/IngestWebhookUseCase";
 import { expect, test, vi } from "vitest";
 
@@ -33,7 +33,7 @@ function fakeProvider(overrides: Partial<WebhookProvider> = {}) {
 
 // `stored` is the event an earlier delivery already stored, making this delivery a duplicate.
 function setup({ provider = fakeProvider(), stored }: { provider?: WebhookProvider; stored?: WebhookEventRepository.Event } = {}) {
-  const providerCatalog: WebhookProviderCatalog = { find: (name) => (name === provider.name ? provider : undefined) };
+  const providerRegistry: WebhookProviderRegistry = { find: (name) => (name === provider.name ? provider : undefined) };
   const create = vi.fn(
     async (event: WebhookEventRepository.Event): Promise<WebhookEventRepository.CreateResult> =>
       stored ? { created: false, event: stored } : { created: true, event },
@@ -44,7 +44,7 @@ function setup({ provider = fakeProvider(), stored }: { provider?: WebhookProvid
   const dispatcher = { dispatch: vi.fn(async (_event: WebhookEventRepository.EventId) => {}) } satisfies WebhookEventDispatcher;
 
   return {
-    useCase: new IngestWebhookUseCase(providerCatalog, events, dispatcher, clock),
+    useCase: new IngestWebhookUseCase(providerRegistry, events, dispatcher, clock),
     create,
     recordDuplicateDelivery,
     dispatch: dispatcher.dispatch,

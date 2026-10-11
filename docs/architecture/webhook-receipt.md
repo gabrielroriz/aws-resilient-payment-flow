@@ -42,7 +42,7 @@ Errors use the response shape and log fields described in [Errors](code-structur
 
 ## Provider adapters
 
-Each supported provider has an adapter that implements the `WebhookProvider` port, and the provider catalog finds it by the name in the path.
+Each supported provider has an adapter that implements the `WebhookProvider` port, and the provider registry finds it by the name in the path.
 
 | Adapter member | Responsibility |
 |---|---|

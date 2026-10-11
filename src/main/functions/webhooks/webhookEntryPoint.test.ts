@@ -1,7 +1,7 @@
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
 import { SqsWebhookEventDispatcher } from "@infra/queues/SqsWebhookEventDispatcher";
-import { InMemoryWebhookProviderCatalog } from "@infra/webhooks/InMemoryWebhookProviderCatalog";
+import { InMemoryWebhookProviderRegistry } from "@infra/webhooks/InMemoryWebhookProviderRegistry";
 import { invokeHttp } from "@main/adapters/lambdaHttpAdapter.fixtures";
 import { handler } from "@main/functions/webhooks/webhookEntryPoint";
 import { gunzipSync } from "node:zlib";
@@ -30,7 +30,7 @@ function webhookTo(provider: string) {
 }
 
 test("the webhook function stores and dispatches an event from the provider named in the URL", async () => {
-  vi.spyOn(InMemoryWebhookProviderCatalog.prototype, "find").mockImplementation((name) =>
+  vi.spyOn(InMemoryWebhookProviderRegistry.prototype, "find").mockImplementation((name) =>
     name === simulated.name ? simulated : undefined,
   );
   const putIfAbsent = vi.spyOn(DynamoClient.prototype, "putIfAbsent").mockResolvedValue({ created: true });

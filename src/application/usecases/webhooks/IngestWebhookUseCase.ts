@@ -5,7 +5,7 @@ import { Clock } from "@application/ports/Clock";
 import { WebhookEventDispatcher } from "@application/ports/webhooks/WebhookEventDispatcher";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
-import { WebhookProviderCatalog } from "@application/ports/webhooks/WebhookProviderCatalog";
+import { WebhookProviderRegistry } from "@application/ports/webhooks/WebhookProviderRegistry";
 import { Injectable } from "@kernel/decorators/injectable";
 
 /**
@@ -15,10 +15,10 @@ import { Injectable } from "@kernel/decorators/injectable";
  * is then dispatched for processing: ingestion applies no business effects, which keeps the
  * acknowledgment fast.
  */
-@Injectable(WebhookProviderCatalog, WebhookEventRepository, WebhookEventDispatcher, Clock)
+@Injectable(WebhookProviderRegistry, WebhookEventRepository, WebhookEventDispatcher, Clock)
 export class IngestWebhookUseCase {
   constructor(
-    private readonly providerCatalog: WebhookProviderCatalog,
+    private readonly providerRegistry: WebhookProviderRegistry,
     private readonly events: WebhookEventRepository,
     private readonly dispatcher: WebhookEventDispatcher,
     private readonly clock: Clock,
@@ -32,7 +32,7 @@ export class IngestWebhookUseCase {
     // Read first, so the receipt time does not include the time spent authenticating.
     const receivedAt = this.clock.now();
 
-    const provider = this.providerCatalog.find(providerName);
+    const provider = this.providerRegistry.find(providerName);
     if (!provider) {
       throw new WebhookProviderNotFound(providerName);
     }
