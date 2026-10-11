@@ -33,7 +33,7 @@ sequenceDiagram
         Worker-->>Queue: Acknowledge successful records
     else Invalid message, missing event, or processor failure
         Worker-->>Queue: Failed and unprocessed message IDs
-        Note over Queue: Retry after visibility timeout; DLQ after 5 receives
+        Note over Queue: Retry after visibility timeout, DLQ after 5 receives
     end
 ```
 
