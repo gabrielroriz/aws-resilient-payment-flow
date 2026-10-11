@@ -82,7 +82,7 @@ test("the HTTP adapter maps requests, application errors, and unknown errors to 
 
   expect(await call({ body: "{not json" })).toEqual({
     statusCode: 400,
-    body: { success: false, error: { code: "BAD_REQUEST", message: "Malformed JSON body" } },
+    body: { success: false, error: { code: "HTTP_BAD_REQUEST", message: "Malformed JSON body" } },
   });
 
   // Unknown failures hide their details from the caller but keep them in the logs.
@@ -113,7 +113,7 @@ test("the HTTP adapter logs every error with its category, kind, and code", asyn
     },
     { ...common, category: "webhooks", errorKind: "unexpected", errorCode: "UNREADABLE", errorName: "Unreadable" },
     { ...common, errorKind: "unexpected", errorCode: "INTERNAL_SERVER_ERROR", errorMessage: "database password leaked" },
-    { ...common, category: "http", errorKind: "expected", errorCode: "BAD_REQUEST", errorName: "BadRequest" },
+    { ...common, category: "http", errorKind: "expected", errorCode: "HTTP_BAD_REQUEST", errorName: "ErrorHttpBadRequest" },
   ]);
   // Errors the application does not define have no category; the route and function identify them.
   expect(logs[2]).not.toHaveProperty("category");

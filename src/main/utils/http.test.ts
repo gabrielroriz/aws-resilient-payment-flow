@@ -26,11 +26,11 @@ test("parseHttpBody parses any JSON value", () => {
   expect(parseHttpBody("null")).toBeNull();
 });
 
-test("parseHttpBody rejects malformed JSON with a BadRequest", () => {
+test("parseHttpBody rejects malformed JSON with a ErrorHttpBadRequest", () => {
   const badRequest = expect.objectContaining({
-    name: "BadRequest",
+    name: "ErrorHttpBadRequest",
     statusCode: 400,
-    code: "BAD_REQUEST",
+    code: "HTTP_BAD_REQUEST",
     category: "http",
     kind: "expected",
     message: "Malformed JSON body",

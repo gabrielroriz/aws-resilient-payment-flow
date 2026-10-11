@@ -1,4 +1,4 @@
-import { WebhookProviderNotFound } from "@application/errors/application/webhooks/WebhookProviderNotFound";
+import { ErrorWebhookProviderNotFound } from "@application/errors/application/webhooks/ErrorWebhookProviderNotFound";
 import { lambdaSqsAdapter } from "@main/adapters/lambdaSqsAdapter";
 import { sqsEvent } from "@main/adapters/lambdaSqsAdapter.fixtures";
 import { expect, test, vi } from "vitest";
@@ -40,8 +40,8 @@ test("malformed JSON fails before the handler and keeps the remainder of the bat
   });
   expect(handle).not.toHaveBeenCalled();
   expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
-    category: "queue", errorKind: "unexpected", errorCode: "MALFORMED_QUEUE_MESSAGE",
-    errorName: "MalformedQueueMessage", errorMessage: "Queue message body is not valid JSON.",
+    category: "queue", errorKind: "unexpected", errorCode: "QUEUE_MALFORMED_MESSAGE",
+    errorName: "ErrorQueueMalformedMessage", errorMessage: "Queue message body is not valid JSON.",
     errorStack: expect.any(String),
   });
   expect(log.mock.calls[0][0]).not.toContain("sensitive-payment-payload");
@@ -49,7 +49,7 @@ test("malformed JSON fails before the handler and keeps the remainder of the bat
 
 test("expected application errors keep their metadata and retry the batch without logging a stack", async () => {
   const log = vi.spyOn(console, "error").mockImplementation(() => {});
-  const handle = vi.fn().mockRejectedValue(new WebhookProviderNotFound("unknown"));
+  const handle = vi.fn().mockRejectedValue(new ErrorWebhookProviderNotFound("unknown"));
   await expect(lambdaSqsAdapter({ handle })(sqsEvent({}, {}))).resolves.toEqual({
     batchItemFailures: [{ itemIdentifier: "message-0" }, { itemIdentifier: "message-1" }],
   });
@@ -57,7 +57,7 @@ test("expected application errors keep their metadata and retry the batch withou
   const failure = JSON.parse(log.mock.calls[0][0]);
   expect(failure).toMatchObject({
     category: "webhooks", errorKind: "expected", errorCode: "WEBHOOK_PROVIDER_NOT_FOUND",
-    errorName: "WebhookProviderNotFound", errorMessage: "Unknown webhook provider: unknown",
+    errorName: "ErrorWebhookProviderNotFound", errorMessage: "Unknown webhook provider: unknown",
   });
   expect(failure).not.toHaveProperty("errorStack");
 });

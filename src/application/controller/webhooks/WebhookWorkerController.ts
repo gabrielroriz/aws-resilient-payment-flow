@@ -1,5 +1,5 @@
 import { MessageHandler } from "@application/contracts/MessageHandler";
-import { MalformedWebhookMessage } from "@application/errors/application/webhooks/MalformedWebhookMessage";
+import { ErrorWebhookMalformedMessage } from "@application/errors/application/webhooks/ErrorWebhookMalformedMessage";
 import { WebhookProviderRegistry } from "@application/ports/webhooks/WebhookProviderRegistry";
 import { Injectable } from "@kernel/decorators/injectable";
 import { isObject } from "@kernel/utils/json";
@@ -12,7 +12,7 @@ export class WebhookWorkerController implements MessageHandler {
   async handle(body: unknown): Promise<void> {
     if (!isObject(body) || typeof body.provider !== "string" || !body.provider.trim() ||
         typeof body.providerEventId !== "string" || !body.providerEventId.trim()) {
-      throw new MalformedWebhookMessage();
+      throw new ErrorWebhookMalformedMessage();
     }
     await this.providerRegistry.route({ provider: body.provider, providerEventId: body.providerEventId });
   }

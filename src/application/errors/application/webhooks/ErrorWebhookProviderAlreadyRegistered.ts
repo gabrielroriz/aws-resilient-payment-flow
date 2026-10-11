@@ -4,7 +4,7 @@ import { ErrorKind } from "../../enums/ErrorKind";
 import { ApplicationError } from "../ApplicationError";
 
 /** Conflicting registrations would silently route a gateway's events to the wrong adapter. */
-export class WebhookProviderAlreadyRegistered extends ApplicationError {
+export class ErrorWebhookProviderAlreadyRegistered extends ApplicationError {
   constructor(provider: string) {
     super(`Duplicate webhook provider name: ${provider}`, {
       statusCode: 500,

@@ -1,6 +1,6 @@
-import { WebhookEventNotFound } from "@application/errors/application/webhooks/WebhookEventNotFound";
-import { WebhookProviderAlreadyRegistered } from "@application/errors/application/webhooks/WebhookProviderAlreadyRegistered";
-import { WebhookProviderNotFound } from "@application/errors/application/webhooks/WebhookProviderNotFound";
+import { ErrorWebhookEventNotFound } from "@application/errors/application/webhooks/ErrorWebhookEventNotFound";
+import { ErrorWebhookProviderAlreadyRegistered } from "@application/errors/application/webhooks/ErrorWebhookProviderAlreadyRegistered";
+import { ErrorWebhookProviderNotFound } from "@application/errors/application/webhooks/ErrorWebhookProviderNotFound";
 import { ErrorKind } from "@application/errors/enums/ErrorKind";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
@@ -18,7 +18,7 @@ export class InMemoryWebhookProviderRegistry implements WebhookProviderRegistry 
     for (const provider of providers) {
       // A second adapter with the same name would silently take over the first one's webhooks.
       if (this.byName.has(provider.name)) {
-        throw new WebhookProviderAlreadyRegistered(provider.name);
+        throw new ErrorWebhookProviderAlreadyRegistered(provider.name);
       }
       this.byName.set(provider.name, provider);
     }
@@ -33,13 +33,13 @@ export class InMemoryWebhookProviderRegistry implements WebhookProviderRegistry 
     const event = await this.events.get(id);
     if (!event) {
       // Missing records can reflect a transient read or a broken dispatch; never acknowledge them.
-      throw new WebhookEventNotFound(id);
+      throw new ErrorWebhookEventNotFound(id);
     }
 
     const provider = this.find(event.provider);
     if (!provider) {
       // A stored event was already accepted, so a missing provider is a configuration problem.
-      throw new WebhookProviderNotFound(event.provider, ErrorKind.UNEXPECTED);
+      throw new ErrorWebhookProviderNotFound(event.provider, ErrorKind.UNEXPECTED);
     }
     await provider.process(event);
   }

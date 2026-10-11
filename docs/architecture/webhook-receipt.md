@@ -32,8 +32,8 @@ flowchart TD
 | Status | Error code | Category | Kind | When |
 |---|---|---|---|---|
 | 200 | | | | The event was stored, or a repeated delivery was recorded; the body is `{ "provider", "providerEventId", "duplicate" }` |
-| 400 | `BAD_REQUEST` | `http` | Expected | The body is not valid JSON |
-| 400 | `MALFORMED_WEBHOOK_EVENT` | `webhooks` | Unexpected | The request is authentic, but its body is not an event the provider sends, so its adapter likely needs updating |
+| 400 | `HTTP_BAD_REQUEST` | `http` | Expected | The body is not valid JSON |
+| 400 | `WEBHOOK_MALFORMED_EVENT` | `webhooks` | Unexpected | The request is authentic, but its body is not an event the provider sends, so its adapter likely needs updating |
 | 401 | `WEBHOOK_AUTHENTICATION_FAILED` | `webhooks` | Expected | The request does not prove it comes from the provider in its path |
 | 404 | `WEBHOOK_PROVIDER_NOT_FOUND` | `webhooks` | Expected | The path names a provider this deployment does not support |
 | 500 | `INTERNAL_SERVER_ERROR` | | Unexpected | A failure the application does not define, such as storage or the queue being unavailable, or provider credentials or the queue name missing; the provider retries |

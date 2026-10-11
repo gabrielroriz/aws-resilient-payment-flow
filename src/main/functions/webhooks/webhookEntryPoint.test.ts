@@ -72,7 +72,7 @@ test("the webhook function answers 404 for a provider it does not support and lo
     category: "webhooks",
     errorKind: "expected",
     errorCode: "WEBHOOK_PROVIDER_NOT_FOUND",
-    errorName: "WebhookProviderNotFound",
+    errorName: "ErrorWebhookProviderNotFound",
   });
   expect(failure).not.toHaveProperty("errorStack");
 });

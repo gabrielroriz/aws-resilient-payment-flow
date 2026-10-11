@@ -1,5 +1,5 @@
-import { WebhookEventNotFound } from "@application/errors/application/webhooks/WebhookEventNotFound";
-import { WebhookProviderNotFound } from "@application/errors/application/webhooks/WebhookProviderNotFound";
+import { ErrorWebhookEventNotFound } from "@application/errors/application/webhooks/ErrorWebhookEventNotFound";
+import { ErrorWebhookProviderNotFound } from "@application/errors/application/webhooks/ErrorWebhookProviderNotFound";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { InMemoryWebhookProviderRegistry } from "@infra/webhooks/InMemoryWebhookProviderRegistry";
@@ -42,7 +42,7 @@ test("the registry finds no provider for a name it does not list", () => {
 test("the registry rejects two providers with the same name", () => {
   expect(() => new InMemoryWebhookProviderRegistry(repository().events, provider("stripe"), provider("stripe"))).toThrow(
     expect.objectContaining({
-      name: "WebhookProviderAlreadyRegistered",
+      name: "ErrorWebhookProviderAlreadyRegistered",
       message: "Duplicate webhook provider name: stripe",
       statusCode: 500,
       code: "WEBHOOK_PROVIDER_ALREADY_REGISTERED",
@@ -81,7 +81,7 @@ test("a missing stored event must be retried, never passed to a provider as an e
   const registry = new InMemoryWebhookProviderRegistry(events, target);
   const operation = registry.route({ provider: stored.provider, providerEventId: stored.providerEventId });
 
-  await expect(operation).rejects.toBeInstanceOf(WebhookEventNotFound);
+  await expect(operation).rejects.toBeInstanceOf(ErrorWebhookEventNotFound);
   await expect(operation).rejects.toMatchObject({
     statusCode: 404, code: "WEBHOOK_EVENT_NOT_FOUND", category: "webhooks", kind: "unexpected",
     message: "Stored webhook event not found: gatewayGlobal/evt_1",
@@ -95,7 +95,7 @@ test.each(["unknown", "GatewayGlobal", "constructor"])("routing an unregistered 
   const registry = new InMemoryWebhookProviderRegistry(repository({ ...stored, provider: name }).events, target);
   const operation = registry.route({ provider: name, providerEventId: stored.providerEventId });
 
-  await expect(operation).rejects.toBeInstanceOf(WebhookProviderNotFound);
+  await expect(operation).rejects.toBeInstanceOf(ErrorWebhookProviderNotFound);
   await expect(operation).rejects.toMatchObject({
     statusCode: 404, code: "WEBHOOK_PROVIDER_NOT_FOUND", category: "webhooks", kind: "unexpected",
     message: `Unknown webhook provider: ${name}`,

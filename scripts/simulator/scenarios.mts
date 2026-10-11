@@ -98,7 +98,7 @@ export const scenarios: Scenario[] = [
       forEachGateway(async (gateway) => [
         check(gateway, 'event without an ID', await deliver(baseUrl, gateway, '{"unexpected":true}'), {
           status: 400,
-          code: 'MALFORMED_WEBHOOK_EVENT',
+          code: 'WEBHOOK_MALFORMED_EVENT',
         }),
       ]),
   },

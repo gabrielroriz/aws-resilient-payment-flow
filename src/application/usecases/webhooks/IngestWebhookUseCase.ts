@@ -1,6 +1,6 @@
-import { MalformedWebhookEvent } from "@application/errors/application/webhooks/MalformedWebhookEvent";
-import { WebhookAuthenticationFailed } from "@application/errors/application/webhooks/WebhookAuthenticationFailed";
-import { WebhookProviderNotFound } from "@application/errors/application/webhooks/WebhookProviderNotFound";
+import { ErrorWebhookAuthenticationFailed } from "@application/errors/application/webhooks/ErrorWebhookAuthenticationFailed";
+import { ErrorWebhookMalformedEvent } from "@application/errors/application/webhooks/ErrorWebhookMalformedEvent";
+import { ErrorWebhookProviderNotFound } from "@application/errors/application/webhooks/ErrorWebhookProviderNotFound";
 import { Clock } from "@application/ports/Clock";
 import { WebhookEventDispatcher } from "@application/ports/webhooks/WebhookEventDispatcher";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
@@ -34,17 +34,17 @@ export class IngestWebhookUseCase {
 
     const provider = this.providerRegistry.find(providerName);
     if (!provider) {
-      throw new WebhookProviderNotFound(providerName);
+      throw new ErrorWebhookProviderNotFound(providerName);
     }
 
     // Nothing from an unauthenticated request is parsed or stored, so a forged request has no effect.
     if (!(await provider.authenticate(request))) {
-      throw new WebhookAuthenticationFailed();
+      throw new ErrorWebhookAuthenticationFailed();
     }
 
     const parsed = provider.parse(request);
     if (!parsed) {
-      throw new MalformedWebhookEvent();
+      throw new ErrorWebhookMalformedEvent();
     }
 
     const { created, event } = await this.events.create({

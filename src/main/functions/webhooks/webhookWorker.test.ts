@@ -43,8 +43,8 @@ test.each([null, [], {}, { provider: "gatewayGlobal" }, { provider: " ", provide
     await expect(handler(sqsEvent(body))).resolves.toEqual({ batchItemFailures: [{ itemIdentifier: "message-0" }] });
     expect(get).not.toHaveBeenCalled();
     expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
-      category: "webhooks", errorKind: "unexpected", errorCode: "MALFORMED_WEBHOOK_MESSAGE",
-      errorName: "MalformedWebhookMessage", errorStack: expect.any(String),
+      category: "webhooks", errorKind: "unexpected", errorCode: "WEBHOOK_MALFORMED_MESSAGE",
+      errorName: "ErrorWebhookMalformedMessage", errorStack: expect.any(String),
     });
   },
 );
@@ -61,7 +61,7 @@ test("the registry rejects an unknown stored provider with the shared error and 
   expect(get).toHaveBeenCalledWith("webhook_events", { PK: "unknown#evt", SK: "META" });
   expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
     category: "webhooks", errorKind: "unexpected", errorCode: "WEBHOOK_PROVIDER_NOT_FOUND",
-    errorName: "WebhookProviderNotFound", errorMessage: "Unknown webhook provider: unknown",
+    errorName: "ErrorWebhookProviderNotFound", errorMessage: "Unknown webhook provider: unknown",
     errorStack: expect.any(String),
   });
 });
@@ -78,7 +78,7 @@ test("a missing stored event logs its own code and leaves the batch for retry", 
   expect(process).not.toHaveBeenCalled();
   expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
     category: "webhooks", errorKind: "unexpected", errorCode: "WEBHOOK_EVENT_NOT_FOUND",
-    errorName: "WebhookEventNotFound", errorMessage: "Stored webhook event not found: gatewayGlobal/missing",
+    errorName: "ErrorWebhookEventNotFound", errorMessage: "Stored webhook event not found: gatewayGlobal/missing",
     errorStack: expect.any(String),
   });
 });

@@ -222,7 +222,7 @@ HTTP errors follow the mapping below. Both driving adapters log the same error m
 
 | Thrown | Use for | Response |
 |---|---|---|
-| `HttpError` subclass, such as `BadRequest` | Failures of the request itself, raised before the controller is reached, such as a malformed JSON body | Its `statusCode`, code, and message |
+| `HttpError` subclass, such as `ErrorHttpBadRequest` | Failures of the request itself, raised before the controller is reached, such as a malformed JSON body | Its `statusCode`, code, and message |
 | `ApplicationError` subclass | Failures raised from the controller down, such as a business rule a use case enforces | Its `statusCode`, code, and message |
 | Anything else | Failures nobody anticipated, such as a storage outage or a defect | `500` with `INTERNAL_SERVER_ERROR`; details only in logs |
 
@@ -235,7 +235,16 @@ All defined errors extend `BaseError`, which sets `name` from the class name. HT
 | `category` | Area the error belongs to, from the `ErrorCategory` enum, such as `webhooks`, `http`, or `queue` |
 | `kind` | `expected` when the error is part of normal operation, such as a forged webhook; `unexpected` when it needs attention, such as an event a supported provider sent that cannot be read |
 
-An error can be shared across receipt and processing while its kind varies by context. `WebhookProviderNotFound` defaults to expected for public requests; the registry's routing operation marks it unexpected because an accepted event should have a registered provider. Codes identify failures, while kinds describe whether they need investigation.
+Errors are named after their domain first, so codes and classes of one area sort together:
+
+| Name | Pattern | Example |
+|---|---|---|
+| Code | `<DOMAIN>_<NAME>`, where the domain is the error's category in singular | `WEBHOOK_MALFORMED_MESSAGE`, `HTTP_BAD_REQUEST` |
+| Class | `Error` followed by the code in PascalCase, in a file of the same name | `ErrorWebhookMalformedMessage`, `ErrorHttpBadRequest` |
+
+`INTERNAL_SERVER_ERROR` has no domain, because it is the fallback for errors the application does not define. The abstract base classes `BaseError`, `HttpError`, and `ApplicationError` are never thrown and keep their names.
+
+An error can be shared across receipt and processing while its kind varies by context. `ErrorWebhookProviderNotFound` defaults to expected for public requests; the registry's routing operation marks it unexpected because an accepted event should have a registered provider. Codes identify failures, while kinds describe whether they need investigation.
 
 Every error caught by a driving adapter is logged as one JSON line, so monitoring can count errors by category, kind, and code. Errors during dependency initialization are reported by the Lambda runtime before the adapter runs.
 

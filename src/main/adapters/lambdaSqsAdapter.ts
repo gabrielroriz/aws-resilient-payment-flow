@@ -1,5 +1,5 @@
 import { MessageHandler } from "@application/contracts/MessageHandler";
-import { MalformedQueueMessage } from "@application/errors/queue/MalformedQueueMessage";
+import { ErrorQueueMalformedMessage } from "@application/errors/queue/ErrorQueueMalformedMessage";
 import { parseJson } from "@kernel/utils/json";
 import { errorLogFields } from "@main/utils/errors";
 import type { SQSEvent, SQSBatchResponse } from "aws-lambda";
@@ -11,7 +11,7 @@ export function lambdaSqsAdapter(handler: MessageHandler) {
       try {
         const body = parseJson(record.body);
         // Syntax errors can include body fragments; keep payment data out of failure logs.
-        if (body === undefined) throw new MalformedQueueMessage();
+        if (body === undefined) throw new ErrorQueueMalformedMessage();
         await handler.handle(body);
       } catch (error) {
         console.error(JSON.stringify({

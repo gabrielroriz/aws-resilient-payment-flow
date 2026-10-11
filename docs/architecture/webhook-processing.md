@@ -64,8 +64,8 @@ Failures caught during delivery use the shared [error log fields](code-structure
 
 | Error code | Category | When |
 |---|---|---|
-| `MALFORMED_QUEUE_MESSAGE` | `queue` | The SQS body is not valid JSON; the error never includes the raw body |
-| `MALFORMED_WEBHOOK_MESSAGE` | `webhooks` | The decoded message lacks a nonempty string `provider` or `providerEventId` |
+| `QUEUE_MALFORMED_MESSAGE` | `queue` | The SQS body is not valid JSON; the error never includes the raw body |
+| `WEBHOOK_MALFORMED_MESSAGE` | `webhooks` | The decoded message lacks a nonempty string `provider` or `providerEventId` |
 | `WEBHOOK_PROVIDER_NOT_FOUND` | `webhooks` | The registry cannot route the stored event to a registered adapter; receipt shares this error but treats unknown public paths as expected |
 | `WEBHOOK_EVENT_NOT_FOUND` | `webhooks` | The queued identity has no stored event |
 | `INTERNAL_SERVER_ERROR` | Unspecified | An unclassified repository or provider failure |

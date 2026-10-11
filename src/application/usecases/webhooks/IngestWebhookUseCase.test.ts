@@ -108,7 +108,7 @@ test("ingest rejects a provider that is not supported and stores nothing", async
 
   await expect(useCase.execute({ provider: "stripe", requestId: "req-1", request })).rejects.toThrow(
     expect.objectContaining({
-      name: "WebhookProviderNotFound",
+      name: "ErrorWebhookProviderNotFound",
       statusCode: 404,
       code: "WEBHOOK_PROVIDER_NOT_FOUND",
       category: "webhooks",
@@ -126,7 +126,7 @@ test("ingest rejects an unauthenticated webhook without reading or storing it", 
 
   await expect(useCase.execute({ provider: "simulated", requestId: "req-1", request })).rejects.toThrow(
     expect.objectContaining({
-      name: "WebhookAuthenticationFailed",
+      name: "ErrorWebhookAuthenticationFailed",
       statusCode: 401,
       code: "WEBHOOK_AUTHENTICATION_FAILED",
       category: "webhooks",
@@ -145,9 +145,9 @@ test("ingest rejects an authenticated webhook whose body is not a provider event
   await expect(useCase.execute({ provider: "simulated", requestId: "req-1", request })).rejects.toThrow(
     // The provider really sent it, so its adapter likely needs updating.
     expect.objectContaining({
-      name: "MalformedWebhookEvent",
+      name: "ErrorWebhookMalformedEvent",
       statusCode: 400,
-      code: "MALFORMED_WEBHOOK_EVENT",
+      code: "WEBHOOK_MALFORMED_EVENT",
       category: "webhooks",
       kind: "unexpected",
     }),

@@ -1,4 +1,4 @@
-import { BadRequest } from "@application/errors/http/BadRequest";
+import { ErrorHttpBadRequest } from "@application/errors/http/ErrorHttpBadRequest";
 import { parseJson } from "@kernel/utils/json";
 import type { APIGatewayProxyResultV2 } from "aws-lambda";
 
@@ -16,7 +16,7 @@ export function decodeHttpBody(body: string | undefined, isBase64Encoded: boolea
 
 /**
  * Parses a raw request body as JSON. A malformed body is the caller's fault, so it
- * becomes a `BadRequest` (400) instead of surfacing as an unexpected 500.
+ * becomes a `ErrorHttpBadRequest` (400) instead of surfacing as an unexpected 500.
  */
 export function parseHttpBody(body: string | undefined): unknown {
   if (!body) {
@@ -25,7 +25,7 @@ export function parseHttpBody(body: string | undefined): unknown {
 
   const parsed = parseJson(body);
   if (parsed === undefined) {
-    throw new BadRequest("Malformed JSON body");
+    throw new ErrorHttpBadRequest("Malformed JSON body");
   }
   return parsed;
 }

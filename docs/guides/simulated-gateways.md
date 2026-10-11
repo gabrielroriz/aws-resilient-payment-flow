@@ -55,7 +55,7 @@ npm run simulate -- --url https://<api-id>.execute-api.us-east-1.amazonaws.com
 | `overlapping-ids` | The same event ID from both gateways is stored as two independent events |
 | `out-of-order` | A refund delivered before its payment is accepted, and so is the payment |
 | `forged-request` | Missing, forged, and, for `gatewayGlobal`, stale credentials are rejected with 401, and nothing is stored |
-| `malformed-event` | An authentic body that is not a gateway event is rejected with 400 `MALFORMED_WEBHOOK_EVENT` |
+| `malformed-event` | An authentic body that is not a gateway event is rejected with 400 `WEBHOOK_MALFORMED_EVENT` |
 
 Each check prints ✓ or ✗ with the response it got, and the command fails when any check fails. Every run uses new event IDs, so earlier runs never affect the results.
 
