@@ -56,8 +56,6 @@ The design separates receiving an event from acting on it, and makes every step 
 
 ![Payment providers deliver webhooks through Amazon API Gateway to the webhook_entry_point Lambda, which records each event once in the webhook_events DynamoDB table and dispatches it to the webhook_events.fifo SQS FIFO queue, grouped by provider; a message that fails 5 receives moves to the webhook_events_dlq.fifo dead-letter queue](docs/architecture/images/architecture.excalidraw.svg)
 
-*An editable [Excalidraw](https://excalidraw.com) drawing; see [Diagrams](docs/guides/diagrams.md). Icons from [AWS Serverless Icons v2](https://github.com/excalidraw/excalidraw-libraries/blob/main/libraries/stojanovic/aws-serverless-icons-v2.excalidrawlib) by Slobodan Stojanović.*
-
 | Principle | How it addresses the problem | Status |
 |---|---|---|
 | Record before acknowledging | Each webhook is authenticated and stored once, keyed by its provider and event ID, before the provider gets a response. A repeated delivery is recognized and recorded instead of stored again, and no acknowledged event is lost. | Built |
