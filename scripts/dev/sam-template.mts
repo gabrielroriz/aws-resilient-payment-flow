@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { plannedResources, type PlannedResource, type TerraformPlan } from './terraform-plan.mts';
 
-/** A SAM template whose functions SAM runs locally behind their HTTP API routes. */
+/** A SAM template for local HTTP routes and direct invocations of queue workers. */
 export type SamTemplate = {
   AWSTemplateFormatVersion: '2010-09-09';
   Transform: 'AWS::Serverless-2016-10-31';
@@ -41,7 +41,7 @@ export type SamTemplateOptions = {
 };
 
 /**
- * Builds a SAM template that runs the planned Lambdas behind their planned HTTP API routes. SAM's
+ * Builds a SAM template with every planned Lambda and the routes of HTTP functions. SAM's
  * own Terraform support links routes to functions through IDs that exist only after apply, so it
  * cannot run a function or route that was never deployed; this template needs no deployed resource.
  */

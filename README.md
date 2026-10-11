@@ -17,7 +17,7 @@
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/gabrielroriz/aws-resilient-payment-flow/actions/workflows/ci.yml)
 
 > [!IMPORTANT]
-> **Under development.** Webhooks are already received, authenticated, recorded exactly once, and queued for processing; turning them into business effects is not built yet. See [Progress](#progress).
+> **Under development.** Webhooks are already received, authenticated, recorded exactly once, queued, and routed by a worker to the same gateway adapters for processing; business effects are not built yet. See [Progress](#progress).
 
 Subscription payments reach this platform as webhooks from external payment providers. This project builds the AWS backend that turns those webhooks into correct, auditable business outcomes (payment records, customer access, financial records, and notifications) across several gateways, currencies, and countries, and demonstrates them with simulated providers, failure scenarios, and load tests.
 
@@ -52,9 +52,9 @@ Success is measurable: a webhook acknowledgment p99 below one second under the d
 
 ## The approach
 
-The design separates receiving an event from acting on it, and makes every step safe to repeat. What is built so far receives each webhook, records it once, and queues it for processing:
+The design separates receiving an event from acting on it, and makes every step safe to repeat. What is built so far receives each webhook, records it once, and routes its queued event to the gateway adapter's processing method:
 
-![Payment providers deliver webhooks through Amazon API Gateway to the webhook_entry_point Lambda, which records each event once in the webhook_events DynamoDB table and dispatches it to the webhook_events.fifo SQS FIFO queue, grouped by provider; a message that fails 5 receives moves to the webhook_events_dlq.fifo dead-letter queue](docs/architecture/images/architecture.excalidraw.svg)
+![Payment providers deliver webhooks through Amazon API Gateway to the webhook_entry_point Lambda, which records each event once in the webhook_events DynamoDB table and dispatches it to the webhook_events.fifo SQS FIFO queue, grouped by provider; the webhook_worker Lambda reads each stored event and calls its gateway adapter's processing method, while repeated failures move to the webhook_events_dlq.fifo dead-letter queue](docs/architecture/images/architecture.excalidraw.svg)
 
 | Principle | How it addresses the problem | Status |
 |---|---|---|
@@ -74,7 +74,8 @@ The design separates receiving an event from acting on it, and makes every step 
 | Local environment | Done | Running the API, its database, and the simulator from the same infrastructure definitions, without deploying |
 | Webhook receipt | Done | At receipt: duplicate delivery, provider retry, overlapping gateway identifiers, forged requests, and malformed events |
 | Simulated gateways and delivery simulator | Done | Replaying those scenarios against a local or deployed API |
-| Event processing and business effects | In progress | Out-of-order delivery, partial failure, and downstream outage; events are queued for processing |
+| Worker routing | Done | SQS consumption locally and on AWS, shared gateway adapters, and retries with FIFO ordering |
+| Event processing and business effects | In progress | Business effects, out-of-order delivery, partial failure, and downstream outage |
 | Recovery, reprocessing, and reconciliation | Planned | Defect recovery and missing events |
 | Real gateways in test environments | Planned | Equivalent events from real gateways following the same business rules |
 | Currencies, country pricing, and localization | Planned | Currency precision, historical reporting, and localized notifications |
@@ -97,13 +98,14 @@ Use Node.js 24 and npm, then install the dependencies with `npm ci`. Local runs 
 - **Architecture**: how the system is built.
   - [Code structure](docs/architecture/code-structure.md): hexagonal layers, dependency injection, configuration, and errors.
   - [Webhook receipt](docs/architecture/webhook-receipt.md): how webhooks are authenticated, recorded, queued for processing, and answered.
+  - [Webhook processing](docs/architecture/webhook-processing.md): queue consumption, gateway routing, and retries.
   - [Data model](docs/architecture/data-model/): access patterns, keys, and items of each DynamoDB table.
 - **Guides**: how to work on the project.
-  - [Development](docs/guides/development.md): running the API, its database, and its queues locally.
+  - [Development](docs/guides/development.md): running the API, worker, database, and queues locally.
   - [Testing](docs/guides/testing.md): running and writing automated tests.
   - [Deployment](docs/guides/deployment.md): deploying to AWS and calling the API.
   - [Simulated gateways](docs/guides/simulated-gateways.md): the test gateways and the delivery simulator.
-  - [Adding a Lambda](docs/guides/adding-a-lambda.md): creating a function, its route, permissions, and environment variables.
+  - [Adding a Lambda](docs/guides/adding-a-lambda.md): creating a function, its trigger, permissions, and environment variables.
   - [Adding a provider](docs/guides/adding-a-provider.md): supporting a new payment gateway.
   - [Diagrams](docs/guides/diagrams.md): editing the Mermaid and Excalidraw diagrams.
 - [TODO](TODO.md): deferred work.

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "tsc --noEmit && tsc -p build && node build/index.mts",
+    "build": "tsc --noEmit && tsc -p build && tsc -p scripts/dev && node build/index.mts",
     "dev": "bash scripts/dev.sh",
     "deploy": "bash scripts/deploy.sh",
     "simulate": "node scripts/simulator/simulate.mts",

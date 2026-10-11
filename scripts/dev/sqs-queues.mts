@@ -38,7 +38,13 @@ type QueueValues = {
  * requests behave is kept; retention, encryption, and access policies mean nothing locally.
  */
 export function queuesFromPlan(plan: TerraformPlan): LocalQueue[] {
-  const queues = plannedResources<QueueValues>(plan, 'aws_sqs_queue').map((resource) => toLocalQueue(resource.values));
+  // Named targets remain known even when the deployed redrive policy contains an unknown ARN.
+  const redrive = plan.planned_values?.outputs?.local_sqs_redrive?.value as Record<string, LocalQueue['deadLetter']> | undefined;
+  const queues = plannedResources<QueueValues>(plan, 'aws_sqs_queue').map(({ values }) => {
+    const queue = toLocalQueue(values);
+    queue.deadLetter = redrive?.[queue.name] ?? queue.deadLetter;
+    return queue;
+  });
   const deadLetterNames = new Set(queues.flatMap((queue) => queue.deadLetter?.queueName ?? []));
   return [...queues.filter((queue) => deadLetterNames.has(queue.name)), ...queues.filter((queue) => !deadLetterNames.has(queue.name))];
 }
@@ -75,8 +81,7 @@ export async function syncQueue(client: SQSClient, queue: LocalQueue): Promise<S
 }
 
 function toLocalQueue(queue: QueueValues): LocalQueue {
-  // The plan knows a redrive policy only once its dead-letter queue is deployed, because the policy
-  // holds that queue's ARN; until then the local queue has no dead-letter queue.
+  // Deployed queues can supply their redrive policy directly; undeployed targets use named outputs.
   const redrive = queue.redrive_policy ? JSON.parse(queue.redrive_policy) : undefined;
   return {
     name: queue.name,

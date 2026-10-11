@@ -1,6 +1,6 @@
 # Development
 
-Run the API, its database, and its queues on your machine, from the same Terraform definitions that deploy them. See [Testing](testing.md) for automated checks and [Deployment](deployment.md) for releases to AWS.
+Run the API, worker, database, and queues on your machine, from the same Terraform definitions that deploy them. See [Testing](testing.md) for automated checks and [Deployment](deployment.md) for releases to AWS.
 
 ## Requirements
 
@@ -9,9 +9,9 @@ Run the API, its database, and its queues on your machine, from the same Terrafo
 | Node.js 24 and npm | Building |
 | [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) | Running the functions; verified with SAM 1.167.0 |
 | Docker with its daemon running, and Docker Compose v2 | Function containers and the local services |
-| Terraform matching the `required_version` in `terraform/`, Bash, and `zip` | Planning and packaging |
+| Terraform matching the `required_version` in `terraform/`, Bash 4.3 or newer, and `zip` | Planning and packaging |
 | AWS credentials and network access | Reading the Terraform state, and AWS services that are not emulated locally |
-| Free local ports 3000, 8000, 8001, 9324, and 9325 | The API, DynamoDB Local, dynamodb-admin, ElasticMQ, and its UI |
+| Free local ports 3000, 3002, 8000, 8001, 9324, and 9325 | The API, Lambda invocation server, DynamoDB Local, dynamodb-admin, ElasticMQ, and its UI |
 
 Building and testing need only Node.js and npm.
 
@@ -53,16 +53,24 @@ flowchart TD
     Prepare -->|"creates queues"| SQS
     Runtime --> DynamoDB
     Runtime --> SQS
+    Plan --> Poller["Local SQS poller"]
+    SQS --> Poller
+    Template --> Invoke["SAM Lambda server · localhost:3002"]
+    Poller -->|"SQS batch"| Invoke
+    Invoke --> Worker["Webhook Worker in Docker"]
+    Bundles --> Worker
+    Worker --> DynamoDB
+    Poller -->|"delete completed messages"| SQS
 ```
 
 1. The build bundles each function. Docker Compose starts DynamoDB Local without tables and [ElasticMQ](https://github.com/softwaremill/elasticmq), an SQS-compatible server, without queues, each with its web UI.
 2. Terraform plans with local archive names and local secrets, and exports the plan as JSON. The plan is **never applied**: it only serves as a machine-readable description of the tables, queues, functions, and routes defined in `terraform/`.
 3. A script creates the planned tables in DynamoDB Local and the planned queues in ElasticMQ, and generates a SAM template for the planned functions and routes. See [Local tables](#local-tables), [Local queues](#local-queues), and [Local functions](#local-functions).
-4. SAM serves the routes and runs each request's function in a container attached to the Compose network. The template is temporary, so no SAM template is maintained.
+4. SAM serves HTTP routes and a separate Lambda invocation endpoint, running functions in containers attached to the Compose network. A local poller consumes ElasticMQ and invokes workers through that endpoint. The template is temporary, so no SAM template is maintained.
 
 ## Usage
 
-Start the API from the repository root:
+Start the API and queue consumers from the repository root:
 
 ```bash
 npm run dev
@@ -70,9 +78,11 @@ npm run dev
 
 | Task | Command or action |
 |---|---|
-| Stop the API | Ctrl+C; the local services keep running |
+| Stop the API and workers | Ctrl+C stops both SAM servers and the poller; the local services keep running |
 | Pick up code, registry, table, or queue changes | Stop and rerun `npm run dev` |
 | Serve the API on another port | `npm run dev -- --port 3001` |
+| Use another Lambda invocation port | `DEV_LAMBDA_PORT=3003 npm run dev`; separate from the HTTP `--port` |
+| Observe worker routing | Watch `webhook_routed` logs in the terminal after sending a webhook |
 | Browse and edit items | Open <http://localhost:8001> |
 | Replay the delivery scenarios | `npm run simulate` in another terminal; see [Simulated gateways](simulated-gateways.md#usage) |
 | Query DynamoDB Local from the host | Add `--endpoint-url http://localhost:8000` to AWS CLI commands, such as `aws dynamodb scan --table-name <table> --endpoint-url http://localhost:8000` |
@@ -82,7 +92,7 @@ npm run dev
 | Erase all local data | `docker compose -f compose.dev.yaml down --volumes` |
 | Build without starting the API | `npm run build` |
 
-Run one API per checkout; checkouts on one machine share the local services. The first run downloads the function runtime and service images.
+Run one local environment per machine; checkouts share the local services and queue messages. The first run downloads the function runtime and service images.
 
 ### Local tables
 
@@ -104,7 +114,7 @@ Tables removed from Terraform stay in DynamoDB Local until its data is erased.
 |---|---|
 | Source | Every `aws_sqs_queue` in the Terraform plan |
 | Copied settings | Name, FIFO and content-based deduplication, visibility timeout, delivery delay, receive wait time, and the redrive policy; retention, encryption, and access policies are left out |
-| Dead-letter queue | The redrive policy points to the local queue with the dead-letter queue's name. The policy holds the dead-letter queue's ARN, which the plan knows only after that queue is first deployed, so until then the local queue has no dead-letter queue |
+| Dead-letter queue | Terraform exports target names and receive limits, so redrive points to the local dead-letter queue even before deployment |
 | Missing queue | Created |
 | Queue that matches its definition | Left untouched, with its messages |
 | Queue whose settings changed | Deleted and created again, which removes its messages |
@@ -117,19 +127,22 @@ Queues removed from Terraform stay in ElasticMQ until the local services stop.
 
 | Behavior | Detail |
 |---|---|
-| Source | Every `aws_lambda_function` and `aws_apigatewayv2_route` in the Terraform plan |
+| Source | Every `aws_lambda_function` and `aws_apigatewayv2_route` in the Terraform plan; queue consumers use `local_sqs_consumers`, an output derived from event source mappings |
 | Copied settings | Name, handler, runtime, memory, timeout, and environment variables; the code is the function's bundle in `dist/bundles/`, which Terraform uploads zipped |
 | Routes | Each route's method and path run the function with the same registry key, with payload format `2.0`, as deployed |
-| Undeployed functions and routes | Run locally, because nothing in the template depends on deployed resources |
+| Queue triggers | The poller receives batches from ElasticMQ and invokes SAM; completed records are deleted and failed records return after visibility timeout, then redrive after the receive limit |
+| Undeployed functions, routes, and mappings | Run locally using planned names, without deployed ARNs |
 | Secrets | Local values for the secrets `npm run dev` knows, such as the [simulated gateways'](simulated-gateways.md#setup), unless set before it runs; the deployment secrets file never applies locally |
 | DynamoDB and SQS endpoints | Every function gets `AWS_ENDPOINT_URL_DYNAMODB` and `AWS_ENDPOINT_URL_SQS`, so the AWS SDK sends DynamoDB requests to DynamoDB Local and SQS requests to ElasticMQ, and the code needs no local-only configuration |
 
 ### Local limitations
 
+- The local poller processes one batch at a time per mapping; it reproduces acknowledgement and retry behavior, not AWS poller scaling or concurrency between provider groups.
 - DynamoDB Local differs from the service in some behaviors, such as throughput limits; see the [DynamoDB Local usage notes](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.UsageNotes.html).
 - ElasticMQ implements the SQS API but differs in some behaviors; for example, a deleted queue's name can be reused at once, while SQS requires a 60-second wait.
 - Calls to other AWS services reach AWS. Other services and IAM permissions are not emulated.
 - Only the method and path of API Gateway routes apply locally; integration settings, such as the 30-second integration timeout, do not. A route without a method and path, such as `$default`, stops `npm run dev`.
+- SAM answers an unmatched route with 403 (`Missing Authentication Token`); the deployed HTTP API answers 404.
 - An environment variable that has no default and no local value, such as a new secret, must be exported as `TF_VAR_<NAME>` before `npm run dev`.
 
 ## Build output

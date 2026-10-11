@@ -33,8 +33,9 @@ Each test sits next to the module it covers and shares its name, such as `<modul
 | `src/**/<module>.test-d.ts` | Type tests, which pass only when type checking reports the expected errors | Vitest typecheck, through `tsc` |
 | `src/**/<module>.fixtures.ts` | Helpers shared by several test files, such as API Gateway test events | Imported by tests |
 | `build/<script>.test.mts` | Tests for the build tooling | Vitest |
+| `scripts/dev/<script>.test.mts` | Local queue configuration, SQS event conversion, and acknowledgement behavior | Vitest |
 
-`npm run build` type-checks every `.ts` file under `src/` and every `.mts` file under `build/`, including tests. No Lambda bundle contains test files, because each bundle starts from its entry file.
+`npm run build` type-checks every `.ts` file under `src/` and every `.mts` file under `build/` and `scripts/dev/`, including tests. No Lambda bundle contains test files, because each bundle starts from its entry file.
 
 ## Infrastructure checks
 

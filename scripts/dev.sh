@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Runs the HTTP API locally: each Lambda in a SAM container, with DynamoDB served by DynamoDB Local
-# and SQS by ElasticMQ.
+# Runs HTTP and queue-triggered Lambdas in SAM containers with DynamoDB Local and ElasticMQ.
 set -euo pipefail
 
 PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -42,7 +41,18 @@ docker compose -f "$PROJECT_ROOT/compose.dev.yaml" up --detach --wait
 
 # The plan can contain secrets, so it and everything made from it are deleted on exit.
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/lambda-dev.XXXXXXXX")"
-trap 'rm -rf -- "$WORK_DIR"' EXIT
+DEV_PIDS=()
+cleanup() {
+  trap - EXIT INT TERM
+  if ((${#DEV_PIDS[@]})); then
+    kill "${DEV_PIDS[@]}" 2>/dev/null || true
+    wait "${DEV_PIDS[@]}" 2>/dev/null || true
+  fi
+  rm -rf -- "$WORK_DIR"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Local secrets of the simulated gateways; the defaults must match the simulator's.
 GATEWAY_GLOBAL_SIGNING_SECRET="${GATEWAY_GLOBAL_SIGNING_SECRET:-local-gateway-global-secret}"
@@ -62,6 +72,17 @@ terraform -chdir="$PROJECT_ROOT/terraform" show -json "$WORK_DIR/local.tfplan" >
 # Create the planned tables and queues locally and generate the SAM template for the planned Lambdas.
 node "$PROJECT_ROOT/scripts/dev/prepare.mts" "$WORK_DIR/local.json" "$WORK_DIR/template.json"
 
-# Serve the API until Ctrl+C. Extra arguments, such as --port, pass through to SAM.
+# SAM exposes invocation but does not poll ElasticMQ; the local consumer supplies SQS batches.
+DEV_LAMBDA_PORT="${DEV_LAMBDA_PORT:-3002}"
+sam local start-lambda --template "$WORK_DIR/template.json" --docker-network "$DOCKER_NETWORK" \
+  --region us-east-1 --port "$DEV_LAMBDA_PORT" &
+DEV_PIDS+=("$!")
+node "$PROJECT_ROOT/scripts/dev/poll-sqs.mts" "$WORK_DIR/local.json" "http://127.0.0.1:$DEV_LAMBDA_PORT" &
+DEV_PIDS+=("$!")
+
+# Extra arguments, such as --port, pass through to the HTTP server only.
 sam local start-api --template "$WORK_DIR/template.json" --docker-network "$DOCKER_NETWORK" \
-  --region us-east-1 "$@"
+  --region us-east-1 "$@" &
+DEV_PIDS+=("$!")
+# If any component exits, stop the others before removing the template and plan.
+wait -n "${DEV_PIDS[@]}"

@@ -3,7 +3,12 @@
  * describes every resource in the Terraform configuration without applying anything, so local
  * resources can follow Terraform instead of a copy of its definitions.
  */
-export type TerraformPlan = { planned_values?: { root_module?: PlanModule } };
+export type TerraformPlan = {
+  planned_values?: {
+    root_module?: PlanModule;
+    outputs?: Record<string, { value?: unknown }>;
+  };
+};
 
 type PlanModule = { resources?: PlannedResource[]; child_modules?: PlanModule[] };
 
