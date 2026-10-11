@@ -51,14 +51,20 @@ A `role` missing from `lambda_roles` fails the plan, so a typo never deploys a f
 
 ## Environment variables
 
-Configuration and secrets reach a function as environment variables, and their values never live in the repository:
+Configuration and secrets reach a function as environment variables that Terraform sets, so the code never hardcodes them:
 
-1. In `terraform/`, declare a variable with the environment variable's name, marked `sensitive` when it holds a secret.
+1. In `terraform/`, pick the value's source:
+
+   | Value | Source | Example |
+   |---|---|---|
+   | Describes a resource Terraform manages | An attribute of that resource | A queue's name |
+   | Set per deployment | A variable with the environment variable's name, marked `sensitive` when it holds a secret, so its value never lives in the repository | A provider credential |
+
 2. Add it to the function in the `lambda_environments` local.
 3. Declare it in the environment schema under the group of code that uses it, and read it through `AppConfig`; see [Configuration](../architecture/code-structure.md#configuration).
-4. Give it a value for deployments, as in the [deployment setup](deployment.md#setup), and for local runs; see [Local limitations](development.md#local-limitations).
+4. Give a variable a value for deployments, as in the [deployment setup](deployment.md#setup), and for local runs; see [Local limitations](development.md#local-limitations). A resource attribute needs no value.
 
-A variable without a value fails the plan, so a deployment never runs without its configuration.
+A variable without a value fails the plan, so a deployment never runs without its configuration. Local runs read resource attributes from the plan, so prefer attributes set in the configuration, such as names: one known only after apply, such as an ARN or a queue URL, is missing locally until the resource is deployed.
 
 ## Lifecycle
 

@@ -1,6 +1,6 @@
 # Deployment
 
-Build every registered function and deploy it to AWS, with its HTTP routes and the DynamoDB tables. See [Development](development.md) for local runs and [Testing](testing.md) for automated checks.
+Build every registered function and deploy it to AWS, with its HTTP routes, the DynamoDB tables, and the SQS queues. See [Development](development.md) for local runs and [Testing](testing.md) for automated checks.
 
 ## Requirements
 
@@ -37,7 +37,7 @@ flowchart TD
     Secrets["Environment variable values"] --> Plan
     Plan --> Saved["Saved plan"]
     Saved --> Apply["Automatic apply"]
-    Apply --> AWS["Functions, HTTP API, and DynamoDB tables"]
+    Apply --> AWS["Functions, HTTP API, DynamoDB tables, and SQS queues"]
     Apply --> Outputs["Function details + endpoint URLs"]
 ```
 
@@ -65,21 +65,23 @@ To review the infrastructure changes first, run `terraform -chdir=terraform plan
 | Resource | Details |
 |---|---|
 | Functions | One Node.js 24 Lambda per registry entry, running `index.handler` with the IAM role its entry selects; see [Adding a Lambda](adding-a-lambda.md) |
-| Environment variables | Per function, from the values set during setup |
+| Environment variables | Per function, from the values set during setup and from the resources they describe, such as the queue name |
 | HTTP API | API Gateway HTTP API with an automatically deployed `$default` stage, and one route, proxy integration, and invocation permission per function |
 | DynamoDB tables | On-demand tables with their indexes and TTL; see the [data model](../architecture/data-model/) |
+| SQS queues | The webhook events FIFO queue and its dead-letter queue; see the [processing queue](../architecture/webhook-receipt.md#processing-queue) |
 | State bucket | The S3 bucket holding the Terraform state, managed by the same configuration |
 
 Terraform uploads each archive directly to Lambda and tracks its content hash, so only changed functions are updated.
 
 ### Calling the API
 
-Inspect the deployed URLs and functions:
+Inspect the deployed URLs, functions, and queues:
 
 ```bash
 terraform -chdir=terraform output lambda_endpoints
 terraform -chdir=terraform output lambda_functions
 terraform -chdir=terraform output -raw api_endpoint
+terraform -chdir=terraform output webhook_events_queue
 ```
 
 Call each route with the method and path registered in `lambdas.json`, substituting any path parameters. URLs have no stage prefix.

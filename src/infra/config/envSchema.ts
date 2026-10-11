@@ -10,4 +10,7 @@ export const envSchema = {
     GATEWAY_GLOBAL_SIGNING_SECRET: z.string().min(1),
     GATEWAY_BRAZIL_ACCESS_TOKEN: z.string().min(1),
   }),
+  queues: z.object({
+    WEBHOOK_EVENTS_QUEUE_NAME: z.string().min(1),
+  }),
 };

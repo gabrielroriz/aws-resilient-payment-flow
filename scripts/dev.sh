@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Runs the HTTP API locally: each Lambda in a SAM container, with DynamoDB served by DynamoDB Local.
+# Runs the HTTP API locally: each Lambda in a SAM container, with DynamoDB served by DynamoDB Local
+# and SQS by ElasticMQ.
 set -euo pipefail
 
 PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -36,7 +37,7 @@ for bundle in "$PROJECT_ROOT"/dist/bundles/*; do
   (cd "$bundle" && zip -q "$archive" index.js)
 done
 
-# Start DynamoDB Local and its admin UI. They outlive this script, so data stays between runs.
+# Start DynamoDB Local, ElasticMQ, and their UIs. They outlive this script, so data stays between runs.
 docker compose -f "$PROJECT_ROOT/compose.dev.yaml" up --detach --wait
 
 # The plan can contain secrets, so it and everything made from it are deleted on exit.
@@ -47,7 +48,7 @@ trap 'rm -rf -- "$WORK_DIR"' EXIT
 GATEWAY_GLOBAL_SIGNING_SECRET="${GATEWAY_GLOBAL_SIGNING_SECRET:-local-gateway-global-secret}"
 GATEWAY_BRAZIL_ACCESS_TOKEN="${GATEWAY_BRAZIL_ACCESS_TOKEN:-local-gateway-brazil-token}"
 
-# Plan, never apply: the plan only describes the tables, functions, and routes to run, so nothing
+# Plan, never apply: the plan only describes the tables, queues, functions, and routes to run, so nothing
 # has to be deployed first. -var values take precedence over a deployment secrets file, so the
 # local API always gets local secrets. Terraform's progress output is hidden; its errors still show.
 printf 'Planning Terraform for the local setup; the plan is never applied.\n'
@@ -58,7 +59,7 @@ terraform -chdir="$PROJECT_ROOT/terraform" plan -input=false -out="$WORK_DIR/loc
   -var="GATEWAY_BRAZIL_ACCESS_TOKEN=$GATEWAY_BRAZIL_ACCESS_TOKEN" >/dev/null
 terraform -chdir="$PROJECT_ROOT/terraform" show -json "$WORK_DIR/local.tfplan" >"$WORK_DIR/local.json"
 
-# Create the planned tables in DynamoDB Local and generate the SAM template for the planned Lambdas.
+# Create the planned tables and queues locally and generate the SAM template for the planned Lambdas.
 node "$PROJECT_ROOT/scripts/dev/prepare.mts" "$WORK_DIR/local.json" "$WORK_DIR/template.json"
 
 # Serve the API until Ctrl+C. Extra arguments, such as --port, pass through to SAM.

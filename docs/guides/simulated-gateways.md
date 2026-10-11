@@ -61,6 +61,6 @@ Each check prints ✓ or ✗ with the response it got, and the command fails whe
 
 ## Limitations
 
-- Checks read HTTP responses only; locally, the stored items can be inspected in dynamodb-admin. See [Development](development.md#usage).
+- Checks read HTTP responses only; locally, the stored items can be inspected in dynamodb-admin and the queued messages in the ElasticMQ UI. See [Development](development.md#usage).
 - Event processing is not implemented, so the scenarios cover receipt: a refund that arrives first is accepted, but no business effect is applied yet.
 - Secrets live in function environment variables and in Terraform state. Rotating one means redeploying, and the receiver holds one secret per gateway at a time.

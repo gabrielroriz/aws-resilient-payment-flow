@@ -71,4 +71,4 @@ A build test bundles every Lambda registered in `lambdas.json` with the producti
 
 ## Limitations
 
-Tests replace AWS services and the Lambda runtime, so they do not exercise API Gateway or DynamoDB. The [delivery simulator](simulated-gateways.md) checks webhook receipt end to end against a [local](development.md) or deployed API, and [TODO](../../TODO.md) lists planned coverage.
+Tests replace AWS services and the Lambda runtime, so they do not exercise API Gateway, DynamoDB, or SQS. The [delivery simulator](simulated-gateways.md) checks webhook receipt end to end against a [local](development.md) or deployed API, and [TODO](../../TODO.md) lists planned coverage.

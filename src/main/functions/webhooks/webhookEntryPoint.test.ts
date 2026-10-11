@@ -1,5 +1,6 @@
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
+import { SqsWebhookEventDispatcher } from "@infra/queues/SqsWebhookEventDispatcher";
 import { InMemoryWebhookProviderCatalog } from "@infra/webhooks/InMemoryWebhookProviderCatalog";
 import { invokeHttp } from "@main/adapters/lambdaHttpAdapter.fixtures";
 import { handler } from "@main/functions/webhooks/webhookEntryPoint";
@@ -28,11 +29,12 @@ function webhookTo(provider: string) {
   };
 }
 
-test("the webhook function stores an event from the provider named in the URL", async () => {
+test("the webhook function stores and dispatches an event from the provider named in the URL", async () => {
   vi.spyOn(InMemoryWebhookProviderCatalog.prototype, "find").mockImplementation((name) =>
     name === simulated.name ? simulated : undefined,
   );
   const putIfAbsent = vi.spyOn(DynamoClient.prototype, "putIfAbsent").mockResolvedValue({ created: true });
+  const dispatch = vi.spyOn(SqsWebhookEventDispatcher.prototype, "dispatch").mockResolvedValue();
 
   const response = await invokeHttp(handler, webhookTo("simulated"));
 
@@ -44,11 +46,13 @@ test("the webhook function stores an event from the provider named in the URL", 
   expect(item).toMatchObject({ PK: "simulated#evt_1", event_type: "payment.succeeded" });
   // The request body reaches storage byte for byte, as signature checks and reprocessing need.
   expect(gunzipSync(item.payload as Uint8Array).toString("utf8")).toBe(body);
+  expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ provider: "simulated", providerEventId: "evt_1" }));
 });
 
 test("the webhook function answers 404 for a provider it does not support and logs it under webhooks", async () => {
   const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
   const putIfAbsent = vi.spyOn(DynamoClient.prototype, "putIfAbsent");
+  const dispatch = vi.spyOn(SqsWebhookEventDispatcher.prototype, "dispatch");
 
   const response = await invokeHttp(handler, webhookTo("unknown"));
 
@@ -60,6 +64,7 @@ test("the webhook function answers 404 for a provider it does not support and lo
     },
   });
   expect(putIfAbsent).not.toHaveBeenCalled();
+  expect(dispatch).not.toHaveBeenCalled();
   expect(JSON.parse(consoleError.mock.calls[0][0])).toMatchObject({
     category: "webhooks",
     errorKind: "expected",

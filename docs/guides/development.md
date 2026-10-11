@@ -1,6 +1,6 @@
 # Development
 
-Run the API and its database on your machine, from the same Terraform definitions that deploy them. See [Testing](testing.md) for automated checks and [Deployment](deployment.md) for releases to AWS.
+Run the API, its database, and its queues on your machine, from the same Terraform definitions that deploy them. See [Testing](testing.md) for automated checks and [Deployment](deployment.md) for releases to AWS.
 
 ## Requirements
 
@@ -11,7 +11,7 @@ Run the API and its database on your machine, from the same Terraform definition
 | Docker with its daemon running, and Docker Compose v2 | Function containers and the local services |
 | Terraform matching the `required_version` in `terraform/`, Bash, and `zip` | Planning and packaging |
 | AWS credentials and network access | Reading the Terraform state, and AWS services that are not emulated locally |
-| Free local ports 3000, 8000, and 8001 | The API, DynamoDB Local, and dynamodb-admin |
+| Free local ports 3000, 8000, 8001, 9324, and 9325 | The API, DynamoDB Local, dynamodb-admin, ElasticMQ, and its UI |
 
 Building and testing need only Node.js and npm.
 
@@ -46,14 +46,18 @@ flowchart TD
     subgraph Compose["Docker Compose services"]
         DynamoDB["DynamoDB Local · localhost:8000"]
         Admin["dynamodb-admin · localhost:8001"] --> DynamoDB
+        SQS["ElasticMQ · localhost:9324"]
+        SqsAdmin["ElasticMQ UI · localhost:9325"] --> SQS
     end
     Prepare -->|"creates tables"| DynamoDB
+    Prepare -->|"creates queues"| SQS
     Runtime --> DynamoDB
+    Runtime --> SQS
 ```
 
-1. The build bundles each function, and Docker Compose starts dynamodb-admin and an empty DynamoDB Local.
-2. Terraform plans with local archive names and local secrets, and exports the plan as JSON. The plan is **never applied**: it only serves as a machine-readable description of the tables, functions, and routes defined in `terraform/`.
-3. A script creates the planned tables in DynamoDB Local and generates a SAM template for the planned functions and routes. See [Local tables](#local-tables) and [Local functions](#local-functions).
+1. The build bundles each function. Docker Compose starts DynamoDB Local without tables and [ElasticMQ](https://github.com/softwaremill/elasticmq), an SQS-compatible server, without queues, each with its web UI.
+2. Terraform plans with local archive names and local secrets, and exports the plan as JSON. The plan is **never applied**: it only serves as a machine-readable description of the tables, queues, functions, and routes defined in `terraform/`.
+3. A script creates the planned tables in DynamoDB Local and the planned queues in ElasticMQ, and generates a SAM template for the planned functions and routes. See [Local tables](#local-tables), [Local queues](#local-queues), and [Local functions](#local-functions).
 4. SAM serves the routes and runs each request's function in a container attached to the Compose network. The template is temporary, so no SAM template is maintained.
 
 ## Usage
@@ -67,12 +71,14 @@ npm run dev
 | Task | Command or action |
 |---|---|
 | Stop the API | Ctrl+C; the local services keep running |
-| Pick up code, registry, or table changes | Stop and rerun `npm run dev` |
+| Pick up code, registry, table, or queue changes | Stop and rerun `npm run dev` |
 | Serve the API on another port | `npm run dev -- --port 3001` |
 | Browse and edit items | Open <http://localhost:8001> |
 | Replay the delivery scenarios | `npm run simulate` in another terminal; see [Simulated gateways](simulated-gateways.md#usage) |
 | Query DynamoDB Local from the host | Add `--endpoint-url http://localhost:8000` to AWS CLI commands, such as `aws dynamodb scan --table-name <table> --endpoint-url http://localhost:8000` |
-| Stop the local services | `docker compose -f compose.dev.yaml down` |
+| Browse queues and their messages | Open <http://localhost:9325>; the message counts refresh live, and receiving a message counts toward its queue's redrive limit |
+| Query ElasticMQ from the host | Add `--endpoint-url http://localhost:9324` to AWS CLI commands, such as `aws sqs list-queues --endpoint-url http://localhost:9324` |
+| Stop the local services | `docker compose -f compose.dev.yaml down`; queued messages are lost |
 | Erase all local data | `docker compose -f compose.dev.yaml down --volumes` |
 | Build without starting the API | `npm run build` |
 
@@ -92,6 +98,21 @@ Run one API per checkout; checkouts on one machine share the local services. The
 
 Tables removed from Terraform stay in DynamoDB Local until its data is erased.
 
+### Local queues
+
+| Behavior | Detail |
+|---|---|
+| Source | Every `aws_sqs_queue` in the Terraform plan |
+| Copied settings | Name, FIFO and content-based deduplication, visibility timeout, delivery delay, receive wait time, and the redrive policy; retention, encryption, and access policies are left out |
+| Dead-letter queue | The redrive policy points to the local queue with the dead-letter queue's name. The policy holds the dead-letter queue's ARN, which the plan knows only after that queue is first deployed, so until then the local queue has no dead-letter queue |
+| Missing queue | Created |
+| Queue that matches its definition | Left untouched, with its messages |
+| Queue whose settings changed | Deleted and created again, which removes its messages |
+| Storage | Memory: queues and messages are lost when the local services stop, and `npm run dev` creates the queues again |
+| Queue URLs | Follow the host of each request, so functions get URLs on the Compose network and host tools get `localhost` URLs |
+
+Queues removed from Terraform stay in ElasticMQ until the local services stop.
+
 ### Local functions
 
 | Behavior | Detail |
@@ -101,11 +122,12 @@ Tables removed from Terraform stay in DynamoDB Local until its data is erased.
 | Routes | Each route's method and path run the function with the same registry key, with payload format `2.0`, as deployed |
 | Undeployed functions and routes | Run locally, because nothing in the template depends on deployed resources |
 | Secrets | Local values for the secrets `npm run dev` knows, such as the [simulated gateways'](simulated-gateways.md#setup), unless set before it runs; the deployment secrets file never applies locally |
-| DynamoDB endpoint | Every function gets `AWS_ENDPOINT_URL_DYNAMODB`, so the AWS SDK sends DynamoDB requests to DynamoDB Local and the code needs no local-only configuration |
+| DynamoDB and SQS endpoints | Every function gets `AWS_ENDPOINT_URL_DYNAMODB` and `AWS_ENDPOINT_URL_SQS`, so the AWS SDK sends DynamoDB requests to DynamoDB Local and SQS requests to ElasticMQ, and the code needs no local-only configuration |
 
 ### Local limitations
 
 - DynamoDB Local differs from the service in some behaviors, such as throughput limits; see the [DynamoDB Local usage notes](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.UsageNotes.html).
+- ElasticMQ implements the SQS API but differs in some behaviors; for example, a deleted queue's name can be reused at once, while SQS requires a 60-second wait.
 - Calls to other AWS services reach AWS. Other services and IAM permissions are not emulated.
 - Only the method and path of API Gateway routes apply locally; integration settings, such as the 30-second integration timeout, do not. A route without a method and path, such as `$default`, stops `npm run dev`.
 - An environment variable that has no default and no local value, such as a new secret, must be exported as `TF_VAR_<NAME>` before `npm run dev`.

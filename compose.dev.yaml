@@ -36,6 +36,37 @@ services:
       dynamodb:
         condition: service_healthy
 
+  # SQS-compatible queues. Starts without queues; npm run dev creates the ones Terraform defines.
+  sqs:
+    image: softwaremill/elasticmq-native:1.7.1
+    # Queue URLs take the host of each request, so the Lambdas get URLs with this service's name and
+    # host tools get localhost URLs. Queues and messages live in memory and end with the container.
+    command: -Dnode-address.host=*
+    ports:
+      - "127.0.0.1:9324:9324"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null 'http://localhost:9324/?Action=ListQueues'"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  # Web UI for browsing queues and sending, receiving, and deleting their messages. It receives
+  # messages only on request, so browsing never counts toward a queue's redrive limit.
+  sqs-admin:
+    image: softwaremill/elasticmq-ui:1.7.1
+    environment:
+      # Its own port, since the API takes the image's default of 3000.
+      PORT: 9325
+      SQS_ENDPOINT: http://sqs:9324
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+    ports:
+      - "127.0.0.1:9325:9325"
+    depends_on:
+      sqs:
+        condition: service_healthy
+
 volumes:
   dynamodb-data:
 

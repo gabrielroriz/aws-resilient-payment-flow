@@ -9,13 +9,15 @@
 [![Amazon API Gateway](https://img.shields.io/badge/Amazon_API_Gateway-FF4F8B?style=flat)](https://aws.amazon.com/api-gateway/)
 [![AWS SAM](https://img.shields.io/badge/AWS_SAM-FF9900?style=flat)](https://aws.amazon.com/serverless/sam/)
 [![Amazon DynamoDB](https://img.shields.io/badge/Amazon_DynamoDB-4053D6?style=flat)](https://aws.amazon.com/dynamodb/)
+[![Amazon SQS](https://img.shields.io/badge/Amazon_SQS-FF4F8B?style=flat)](https://aws.amazon.com/sqs/)
 [![AWS SDK for JavaScript](https://img.shields.io/badge/AWS_SDK_for_JavaScript-FF9900?style=flat)](https://aws.amazon.com/sdk-for-javascript/)
 [![Zod](https://img.shields.io/badge/Zod-3E67B1?style=flat&logo=zod&logoColor=white)](https://zod.dev/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
+[![ElasticMQ](https://img.shields.io/badge/ElasticMQ-555555?style=flat)](https://github.com/softwaremill/elasticmq)
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/gabrielroriz/aws-resilient-payment-flow/actions/workflows/ci.yml)
 
 > [!IMPORTANT]
-> **Under development.** Webhooks are already received, authenticated, and recorded exactly once; turning them into business effects is not built yet. See [Progress](#progress).
+> **Under development.** Webhooks are already received, authenticated, recorded exactly once, and queued for processing; turning them into business effects is not built yet. See [Progress](#progress).
 
 Subscription payments reach this platform as webhooks from external payment providers. This project builds the AWS backend that turns those webhooks into correct, auditable business outcomes (payment records, customer access, financial records, and notifications) across several gateways, currencies, and countries, and demonstrates them with simulated providers, failure scenarios, and load tests.
 
@@ -58,12 +60,15 @@ flowchart LR
     subgraph Built["Built"]
         Receive["Receive: authenticate and record each event once"]
         Log[("Event log")]
+        Queue@{ shape: h-cyl, label: "Processing queue" }
     end
     subgraph Planned["Planned"]
         Process["Process: apply each business effect once"]
         Reconcile["Reconcile with provider history"]
     end
     Receive --> Log
+    Receive --> Queue
+    Queue --> Process
     Log --> Process
     Process --> Effects["Payments, access, ledger, notifications"]
     Reconcile --> Log
@@ -74,7 +79,7 @@ flowchart LR
 | Record before acknowledging | Each webhook is authenticated and stored once, keyed by its provider and event ID, before the provider gets a response. A repeated delivery is recognized and recorded instead of stored again, and no acknowledged event is lost. | Built |
 | Translate at the edge | An adapter per provider absorbs its authentication, vocabulary, and formats, so the rest of the system sees one event model and a new gateway changes no business rule. | Built |
 | Keep the full history | Each event keeps its exact payload and every repeated delivery, and will keep its processing attempts and business effects, so operators can trace and safely reprocess it. | Partly built |
-| Act after acknowledging | Business effects run separately from receipt, so acknowledgments stay fast and a slow dependency never makes providers retry. | Planned |
+| Act after acknowledging | Receipt queues each stored event and business effects run from that queue, separately from receipt, so acknowledgments stay fast and a slow dependency never makes providers retry. | Partly built |
 | Make every effect idempotent | Each business effect carries a key that identifies it, so retries, recovery, and reprocessing never repeat a completed one. | Planned |
 | Follow the order events happened | Events about the same payment or subscription are applied in the order the provider says they occurred, so a late event cannot reverse a newer outcome. | Planned |
 | Prove it by simulation | Simulated gateways with different formats deliver events in the patterns of the acceptance scenarios, against a local or deployed environment. | Built for receipt |
@@ -87,7 +92,7 @@ flowchart LR
 | Local environment | Done | Running the API, its database, and the simulator from the same infrastructure definitions, without deploying |
 | Webhook receipt | Done | At receipt: duplicate delivery, provider retry, overlapping gateway identifiers, forged requests, and malformed events |
 | Simulated gateways and delivery simulator | Done | Replaying those scenarios against a local or deployed API |
-| Event processing and business effects | Planned | Out-of-order delivery, partial failure, and downstream outage |
+| Event processing and business effects | In progress | Out-of-order delivery, partial failure, and downstream outage; events are queued for processing |
 | Recovery, reprocessing, and reconciliation | Planned | Defect recovery and missing events |
 | Real gateways in test environments | Planned | Equivalent events from real gateways following the same business rules |
 | Currencies, country pricing, and localization | Planned | Currency precision, historical reporting, and localized notifications |
@@ -109,10 +114,10 @@ Use Node.js 24 and npm, then install the dependencies with `npm ci`. Local runs 
 - [Requirements](docs/requirements.md): the problem, scope, quality targets, and acceptance scenarios.
 - **Architecture**: how the system is built.
   - [Code structure](docs/architecture/code-structure.md): hexagonal layers, dependency injection, configuration, and errors.
-  - [Webhook receipt](docs/architecture/webhook-receipt.md): how webhooks are authenticated, recorded, and answered.
+  - [Webhook receipt](docs/architecture/webhook-receipt.md): how webhooks are authenticated, recorded, queued for processing, and answered.
   - [Data model](docs/architecture/data-model/): access patterns, keys, and items of each DynamoDB table.
 - **Guides**: how to work on the project.
-  - [Development](docs/guides/development.md): running the API and its database locally.
+  - [Development](docs/guides/development.md): running the API, its database, and its queues locally.
   - [Testing](docs/guides/testing.md): running and writing automated tests.
   - [Deployment](docs/guides/deployment.md): deploying to AWS and calling the API.
   - [Simulated gateways](docs/guides/simulated-gateways.md): the test gateways and the delivery simulator.

@@ -1,5 +1,6 @@
-// The Lambdas' environment variables. Each one is a Terraform variable of the same name, so its
-// value can be set with TF_VAR_<NAME> and never lives in the repository.
+// The Lambdas' environment variables. Values set per deployment, such as secrets, are Terraform
+// variables of the same name, so they can be set with TF_VAR_<NAME> and never live in the
+// repository; the others come from the resources Terraform manages.
 
 variable "GATEWAY_GLOBAL_SIGNING_SECRET" {
   type        = string
@@ -19,6 +20,7 @@ locals {
     webhook_entry_point = {
       GATEWAY_GLOBAL_SIGNING_SECRET = var.GATEWAY_GLOBAL_SIGNING_SECRET
       GATEWAY_BRAZIL_ACCESS_TOKEN   = var.GATEWAY_BRAZIL_ACCESS_TOKEN
+      WEBHOOK_EVENTS_QUEUE_NAME     = aws_sqs_queue.webhook_events.name
     }
   }
 }

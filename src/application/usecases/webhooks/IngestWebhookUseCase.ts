@@ -2,6 +2,7 @@ import { MalformedWebhookEvent } from "@application/errors/application/webhooks/
 import { WebhookAuthenticationFailed } from "@application/errors/application/webhooks/WebhookAuthenticationFailed";
 import { WebhookProviderNotFound } from "@application/errors/application/webhooks/WebhookProviderNotFound";
 import { Clock } from "@application/ports/Clock";
+import { WebhookEventDispatcher } from "@application/ports/webhooks/WebhookEventDispatcher";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { WebhookProviderCatalog } from "@application/ports/webhooks/WebhookProviderCatalog";
@@ -10,14 +11,16 @@ import { Injectable } from "@kernel/decorators/injectable";
 /**
  * Ingests a webhook from any supported provider. The provider named in the request checks that
  * the webhook is authentic and reads its event, and the event is stored once with its exact
- * payload, so a repeated delivery is recognized and recorded instead of stored again. Ingestion
- * applies no business effects, which keeps the acknowledgment fast.
+ * payload, so a repeated delivery is recognized and recorded instead of stored again. The event
+ * is then dispatched for processing: ingestion applies no business effects, which keeps the
+ * acknowledgment fast.
  */
-@Injectable(WebhookProviderCatalog, WebhookEventRepository, Clock)
+@Injectable(WebhookProviderCatalog, WebhookEventRepository, WebhookEventDispatcher, Clock)
 export class IngestWebhookUseCase {
   constructor(
     private readonly providerCatalog: WebhookProviderCatalog,
     private readonly events: WebhookEventRepository,
+    private readonly dispatcher: WebhookEventDispatcher,
     private readonly clock: Clock,
   ) {}
 
@@ -53,6 +56,10 @@ export class IngestWebhookUseCase {
     if (!created) {
       await this.events.recordDuplicateDelivery(event, { receivedAt, requestId });
     }
+
+    // Repeated deliveries are dispatched too: when dispatching fails, the provider gets an error
+    // and retries, and only that retry can still dispatch the already stored event.
+    await this.dispatcher.dispatch(event);
 
     return { provider: event.provider, providerEventId: event.providerEventId, duplicate: !created };
   }

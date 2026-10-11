@@ -11,11 +11,25 @@ import * as z from "zod";
 @Injectable()
 export class AppConfig {
   get webhooks(): AppConfig.Webhooks {
-    const env = parseGroup("webhooks", envSchema.webhooks);
+    const env = this.parseGroup("webhooks", envSchema.webhooks);
     return {
       gatewayGlobal: { signingSecret: env.GATEWAY_GLOBAL_SIGNING_SECRET },
       gatewayBrazil: { accessToken: env.GATEWAY_BRAZIL_ACCESS_TOKEN },
     };
+  }
+
+  get queues(): AppConfig.Queues {
+    const env = this.parseGroup("queues", envSchema.queues);
+    return { webhookEvents: { name: env.WEBHOOK_EVENTS_QUEUE_NAME } };
+  }
+
+  // Parsing on every read costs microseconds and keeps no state, so tests can change the environment.
+  private parseGroup<Schema extends z.ZodType>(group: string, schema: Schema): z.output<Schema> {
+    const result = schema.safeParse(process.env);
+    if (!result.success) {
+      throw new Error(`Invalid environment variables for ${group}:\n${z.prettifyError(result.error)}`);
+    }
+    return result.data;
   }
 }
 
@@ -31,13 +45,10 @@ export namespace AppConfig {
       accessToken: string;
     };
   };
-}
 
-// Parsing on every read costs microseconds and keeps no state, so tests can change the environment.
-function parseGroup<Schema extends z.ZodType>(group: string, schema: Schema): z.output<Schema> {
-  const result = schema.safeParse(process.env);
-  if (!result.success) {
-    throw new Error(`Invalid environment variables for ${group}:\n${z.prettifyError(result.error)}`);
-  }
-  return result.data;
+  /** The SQS queues the function sends messages to, by name. */
+  export type Queues = {
+    /** Queue of stored webhook events waiting to be processed. */
+    webhookEvents: { name: string };
+  };
 }

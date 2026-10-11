@@ -1,4 +1,5 @@
 import { Clock } from "@application/ports/Clock";
+import { WebhookEventDispatcher } from "@application/ports/webhooks/WebhookEventDispatcher";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { WebhookProviderCatalog } from "@application/ports/webhooks/WebhookProviderCatalog";
@@ -40,13 +41,19 @@ function setup({ provider = fakeProvider(), stored }: { provider?: WebhookProvid
   const recordDuplicateDelivery = vi.fn(async () => {});
   // Receipt only creates events and records duplicates; no other repository operation is called.
   const events = { create, recordDuplicateDelivery } as Partial<WebhookEventRepository> as WebhookEventRepository;
+  const dispatcher = { dispatch: vi.fn(async (_event: WebhookEventRepository.EventId) => {}) } satisfies WebhookEventDispatcher;
 
-  return { useCase: new IngestWebhookUseCase(providerCatalog, events, clock), create, recordDuplicateDelivery };
+  return {
+    useCase: new IngestWebhookUseCase(providerCatalog, events, dispatcher, clock),
+    create,
+    recordDuplicateDelivery,
+    dispatch: dispatcher.dispatch,
+  };
 }
 
-test("ingest stores a new event with the provider's name, the receipt time, and the exact payload", async () => {
+test("ingest stores a new event with the provider's name, the receipt time, and the exact payload, then dispatches it", async () => {
   const provider = fakeProvider();
-  const { useCase, create, recordDuplicateDelivery } = setup({ provider });
+  const { useCase, create, recordDuplicateDelivery, dispatch } = setup({ provider });
 
   await expect(useCase.execute({ provider: "simulated", requestId: "req-1", request })).resolves.toEqual({
     provider: "simulated",
@@ -56,23 +63,20 @@ test("ingest stores a new event with the provider's name, the receipt time, and 
 
   expect(provider.authenticate).toHaveBeenCalledWith(request);
   expect(provider.parse).toHaveBeenCalledWith(request);
-  expect(create).toHaveBeenCalledWith({
-    ...parsedEvent,
-    provider: "simulated",
-    receivedAt: now,
-    payload: request.rawBody,
-  });
+  const stored = { ...parsedEvent, provider: "simulated", receivedAt: now, payload: request.rawBody };
+  expect(create).toHaveBeenCalledWith(stored);
   expect(recordDuplicateDelivery).not.toHaveBeenCalled();
+  expect(dispatch).toHaveBeenCalledWith(stored);
 });
 
-test("ingest records a repeated delivery against the stored event instead of storing it again", async () => {
+test("ingest records a repeated delivery against the stored event instead of storing it again, and dispatches it again", async () => {
   const stored: WebhookEventRepository.Event = {
     ...parsedEvent,
     provider: "simulated",
     receivedAt: new Date("2026-10-10T09:59:00.000Z"),
     payload: request.rawBody,
   };
-  const { useCase, recordDuplicateDelivery } = setup({ stored });
+  const { useCase, recordDuplicateDelivery, dispatch } = setup({ stored });
 
   await expect(useCase.execute({ provider: "simulated", requestId: "req-2", request })).resolves.toEqual({
     provider: "simulated",
@@ -81,10 +85,21 @@ test("ingest records a repeated delivery against the stored event instead of sto
   });
 
   expect(recordDuplicateDelivery).toHaveBeenCalledWith(stored, { receivedAt: now, requestId: "req-2" });
+  // The earlier delivery may have failed to dispatch, so the stored event is dispatched again.
+  expect(dispatch).toHaveBeenCalledWith(stored);
+});
+
+test("ingest fails when the event cannot be dispatched, so the provider retries the stored event", async () => {
+  const { useCase, create, dispatch } = setup();
+  const failure = new Error("queue unavailable");
+  dispatch.mockRejectedValue(failure);
+
+  await expect(useCase.execute({ provider: "simulated", requestId: "req-1", request })).rejects.toBe(failure);
+  expect(create).toHaveBeenCalled();
 });
 
 test("ingest rejects a provider that is not supported and stores nothing", async () => {
-  const { useCase, create } = setup();
+  const { useCase, create, dispatch } = setup();
 
   await expect(useCase.execute({ provider: "stripe", requestId: "req-1", request })).rejects.toThrow(
     expect.objectContaining({
@@ -97,11 +112,12 @@ test("ingest rejects a provider that is not supported and stores nothing", async
     }),
   );
   expect(create).not.toHaveBeenCalled();
+  expect(dispatch).not.toHaveBeenCalled();
 });
 
 test("ingest rejects an unauthenticated webhook without reading or storing it", async () => {
   const provider = fakeProvider({ authenticate: vi.fn(async () => false) });
-  const { useCase, create } = setup({ provider });
+  const { useCase, create, dispatch } = setup({ provider });
 
   await expect(useCase.execute({ provider: "simulated", requestId: "req-1", request })).rejects.toThrow(
     expect.objectContaining({
@@ -114,11 +130,12 @@ test("ingest rejects an unauthenticated webhook without reading or storing it", 
   );
   expect(provider.parse).not.toHaveBeenCalled();
   expect(create).not.toHaveBeenCalled();
+  expect(dispatch).not.toHaveBeenCalled();
 });
 
 test("ingest rejects an authenticated webhook whose body is not a provider event", async () => {
   const provider = fakeProvider({ parse: vi.fn(() => undefined) });
-  const { useCase, create } = setup({ provider });
+  const { useCase, create, dispatch } = setup({ provider });
 
   await expect(useCase.execute({ provider: "simulated", requestId: "req-1", request })).rejects.toThrow(
     // The provider really sent it, so its adapter likely needs updating.
@@ -131,4 +148,5 @@ test("ingest rejects an authenticated webhook whose body is not a provider event
     }),
   );
   expect(create).not.toHaveBeenCalled();
+  expect(dispatch).not.toHaveBeenCalled();
 });
