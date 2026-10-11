@@ -8,6 +8,7 @@ locals {
   lambda_roles = {
     default             = aws_iam_role.lambda_default.arn
     webhook_entry_point = aws_iam_role.webhook_entry_point.arn
+    webhook_worker      = aws_iam_role.webhook_worker.arn
   }
   # Lets the Lambda service run functions with a role; shared by every Lambda role.
   lambda_assume_role_policy = jsonencode({
@@ -34,6 +35,16 @@ resource "aws_iam_role" "lambda_default" {
 resource "aws_iam_role" "webhook_entry_point" {
   name               = "webhook-entry-point-role"
   assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role" "webhook_worker" {
+  name               = "webhook-worker-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "webhook_worker_logs" {
+  role       = aws_iam_role.webhook_worker.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 resource "aws_lambda_function" "all_lambdas" {

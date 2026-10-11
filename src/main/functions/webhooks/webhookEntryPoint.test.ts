@@ -10,6 +10,7 @@ import { expect, test, vi } from "vitest";
 // Stands in for a gateway adapter: it accepts requests that carry the expected signature header.
 const simulated: WebhookProvider = {
   name: "simulated",
+  process: vi.fn(async () => {}),
   authenticate: async ({ headers }) => headers["x-signature"] === "valid",
   parse: ({ rawBody }) => {
     const body = JSON.parse(rawBody);
@@ -47,6 +48,7 @@ test("the webhook function stores and dispatches an event from the provider name
   // The request body reaches storage byte for byte, as signature checks and reprocessing need.
   expect(gunzipSync(item.payload as Uint8Array).toString("utf8")).toBe(body);
   expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ provider: "simulated", providerEventId: "evt_1" }));
+  expect(simulated.process).not.toHaveBeenCalled();
 });
 
 test("the webhook function answers 404 for a provider it does not support and logs it under webhooks", async () => {
@@ -65,9 +67,12 @@ test("the webhook function answers 404 for a provider it does not support and lo
   });
   expect(putIfAbsent).not.toHaveBeenCalled();
   expect(dispatch).not.toHaveBeenCalled();
-  expect(JSON.parse(consoleError.mock.calls[0][0])).toMatchObject({
+  const failure = JSON.parse(consoleError.mock.calls[0][0]);
+  expect(failure).toMatchObject({
     category: "webhooks",
     errorKind: "expected",
     errorCode: "WEBHOOK_PROVIDER_NOT_FOUND",
+    errorName: "WebhookProviderNotFound",
   });
+  expect(failure).not.toHaveProperty("errorStack");
 });

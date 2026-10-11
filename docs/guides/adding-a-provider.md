@@ -1,15 +1,16 @@
 # Adding a provider
 
-Support a new payment gateway by adding an adapter that authenticates its webhooks and reads its events into the shared event model. Adding a provider changes no business rule, route, or other provider. See [Webhook receipt](../architecture/webhook-receipt.md) for how adapters are used.
+Support a new payment gateway with one adapter that authenticates and parses incoming webhooks and processes stored events. The shared registry supplies receipt adapters through `find` and dispatches stored events through `route`, so each gateway is registered once. See [Webhook receipt](../architecture/webhook-receipt.md) and [Webhook processing](../architecture/webhook-processing.md) for the two stages.
 
 ## Steps
 
 1. Implement the `WebhookProvider` port in `src/infra/webhooks/<provider>/`, decorated with `@Injectable(...)` listing its constructor dependencies. Its `name` is the provider's path segment, as in `POST /webhooks/<provider>`.
 2. In `authenticate`, verify the provider's signature or credentials against `rawBody`, the body exactly as received. Read credentials from `AppConfig`, and declare them as environment variables of the webhook function; see [Environment variables](adding-a-lambda.md#environment-variables).
 3. In `parse`, map the provider's event into the fields below, or return `undefined` when the body is not one of the provider's events.
-4. List the adapter in the `@Injectable` decorator of the provider registry, `InMemoryWebhookProviderRegistry`.
-5. Add tests next to the adapter, covering authentic, forged, and malformed requests. See [Writing tests](testing.md#writing-tests).
-6. For a simulated provider, also teach the delivery simulator to send its format; see [Simulated gateways](simulated-gateways.md).
+4. Implement `process` on the same adapter. It receives the original stored event and must reject on failure so SQS retries. Future business effects must be idempotent; do not authenticate the stored webhook again.
+5. List the adapter in the `@Injectable` decorator of `InMemoryWebhookProviderRegistry`. This registers it for both receipt and worker routing. Keep constructors free of credential reads: authentication reads credentials only when receipt calls it.
+6. Add tests for authentication, malformed requests, routing, and processor failures. See [Writing tests](testing.md#writing-tests).
+7. For a simulated provider, also teach the delivery simulator to send its format; see [Simulated gateways](simulated-gateways.md).
 
 ## Mapping an event
 

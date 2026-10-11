@@ -1,6 +1,6 @@
 # Deployment
 
-Build every registered function and deploy it to AWS, with its HTTP routes, the DynamoDB tables, and the SQS queues. See [Development](development.md) for local runs and [Testing](testing.md) for automated checks.
+Build every registered function and deploy it to AWS, with its HTTP routes, DynamoDB tables, SQS queues, and event source mappings. See [Development](development.md) for local runs and [Testing](testing.md) for automated checks.
 
 ## Requirements
 
@@ -37,7 +37,7 @@ flowchart TD
     Secrets["Environment variable values"] --> Plan
     Plan --> Saved["Saved plan"]
     Saved --> Apply["Automatic apply"]
-    Apply --> AWS["Functions, HTTP API, DynamoDB tables, and SQS queues"]
+    Apply --> AWS["Functions, HTTP API, DynamoDB, SQS queues and worker mappings"]
     Apply --> Outputs["Function details + endpoint URLs"]
 ```
 
@@ -66,9 +66,10 @@ To review the infrastructure changes first, run `terraform -chdir=terraform plan
 |---|---|
 | Functions | One Node.js 24 Lambda per registry entry, running `index.handler` with the IAM role its entry selects; see [Adding a Lambda](adding-a-lambda.md) |
 | Environment variables | Per function, from the values set during setup and from the resources they describe, such as the queue name |
-| HTTP API | API Gateway HTTP API with an automatically deployed `$default` stage, and one route, proxy integration, and invocation permission per function |
+| HTTP API | API Gateway HTTP API with an automatically deployed `$default` stage, and one route, proxy integration, and invocation permission per HTTP function; queue workers have no HTTP endpoint |
 | DynamoDB tables | On-demand tables with their indexes and TTL; see the [data model](../architecture/data-model/) |
 | SQS queues | The webhook events FIFO queue and its dead-letter queue; see the [processing queue](../architecture/webhook-receipt.md#processing-queue) |
+| SQS event source mappings | Invoke the webhook worker with partial batch responses; its role permits queue consumption, stored event reads, and execution logs |
 | State bucket | The S3 bucket holding the Terraform state, managed by the same configuration |
 
 Terraform uploads each archive directly to Lambda and tracks its content hash, so only changed functions are updated.
@@ -93,4 +94,4 @@ Call each route with the method and path registered in `lambdas.json`, substitut
 | Integration timeout | 30 seconds, even if the function timeout is longer |
 | Unmatched route | HTTP 404 |
 
-Functions must respond within the integration timeout; longer work needs asynchronous processing. Other event sources and service permissions need additional configuration.
+HTTP functions must respond within the integration timeout; longer work needs asynchronous processing. The webhook worker runs asynchronously from SQS; see [Webhook processing](../architecture/webhook-processing.md).

@@ -1,4 +1,5 @@
 import { Clock } from "@application/ports/Clock";
+import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { AppConfig } from "@infra/config/AppConfig";
 import { Injectable } from "@kernel/decorators/injectable";
@@ -54,6 +55,16 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider {
       occurredAt: new Date(event.created * 1000),
       subject: subjectOf(event.data.object),
     };
+  }
+
+  async process(event: WebhookEventRepository.Event): Promise<void> {
+    // Receipt already authenticated the stored event; processing needs no signing credentials.
+    console.info(JSON.stringify({
+      logType: "webhook_routed",
+      provider: this.name,
+      providerEventId: event.providerEventId,
+      eventType: event.eventType,
+    }));
   }
 }
 

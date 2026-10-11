@@ -11,5 +11,12 @@
     "timeout": 30,
     "http_method": "POST",
     "path": "/webhooks/{provider}"
+  },
+  "webhook_worker": {
+    "entry": "src/main/functions/webhooks/webhookWorker.ts",
+    "trigger": "sqs",
+    "role": "webhook_worker",
+    "memory_size": 512,
+    "timeout": 30
   }
 }

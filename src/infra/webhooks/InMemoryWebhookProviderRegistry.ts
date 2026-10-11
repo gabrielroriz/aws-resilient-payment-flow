@@ -1,19 +1,24 @@
+import { WebhookEventNotFound } from "@application/errors/application/webhooks/WebhookEventNotFound";
+import { WebhookProviderAlreadyRegistered } from "@application/errors/application/webhooks/WebhookProviderAlreadyRegistered";
+import { WebhookProviderNotFound } from "@application/errors/application/webhooks/WebhookProviderNotFound";
+import { ErrorKind } from "@application/errors/enums/ErrorKind";
+import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { WebhookProviderRegistry } from "@application/ports/webhooks/WebhookProviderRegistry";
 import { GatewayBrazilWebhookProvider } from "@infra/webhooks/gatewayBrazil/GatewayBrazilWebhookProvider";
 import { GatewayGlobalWebhookProvider } from "@infra/webhooks/gatewayGlobal/GatewayGlobalWebhookProvider";
 import { Injectable } from "@kernel/decorators/injectable";
 
-/** The supported webhook providers. To add one, list its adapter in `@Injectable` below. */
-@Injectable(GatewayGlobalWebhookProvider, GatewayBrazilWebhookProvider)
+/** One provider registration supports both receipt and queued-event routing. */
+@Injectable(WebhookEventRepository, GatewayGlobalWebhookProvider, GatewayBrazilWebhookProvider)
 export class InMemoryWebhookProviderRegistry implements WebhookProviderRegistry {
   private readonly byName = new Map<string, WebhookProvider>();
 
-  constructor(...providers: WebhookProvider[]) {
+  constructor(private readonly events: WebhookEventRepository, ...providers: WebhookProvider[]) {
     for (const provider of providers) {
       // A second adapter with the same name would silently take over the first one's webhooks.
       if (this.byName.has(provider.name)) {
-        throw new Error(`Duplicate webhook provider name: ${provider.name}`);
+        throw new WebhookProviderAlreadyRegistered(provider.name);
       }
       this.byName.set(provider.name, provider);
     }
@@ -21,5 +26,21 @@ export class InMemoryWebhookProviderRegistry implements WebhookProviderRegistry 
 
   find(name: string): WebhookProvider | undefined {
     return this.byName.get(name);
+  }
+
+  async route(id: WebhookEventRepository.EventId): Promise<void> {
+    // The queue carries only the identity; processing always uses the exact payload receipt stored.
+    const event = await this.events.get(id);
+    if (!event) {
+      // Missing records can reflect a transient read or a broken dispatch; never acknowledge them.
+      throw new WebhookEventNotFound(id);
+    }
+
+    const provider = this.find(event.provider);
+    if (!provider) {
+      // A stored event was already accepted, so a missing provider is a configuration problem.
+      throw new WebhookProviderNotFound(event.provider, ErrorKind.UNEXPECTED);
+    }
+    await provider.process(event);
   }
 }

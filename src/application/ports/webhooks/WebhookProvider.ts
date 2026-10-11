@@ -2,8 +2,8 @@ import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEvent
 
 /**
  * Driven port for one payment provider's webhooks. Providers differ in how they authenticate
- * requests and shape their events, so each has an adapter that turns its requests into the
- * event fields the core works with.
+ * requests and shape their events, so each adapter owns receipt and queued-event processing.
+ * The entry point authenticates and parses; the worker processes the stored event separately.
  */
 export abstract class WebhookProvider {
   /** Identifies the provider in webhook URLs and stored events, such as `stripe`. */
@@ -17,6 +17,9 @@ export abstract class WebhookProvider {
    * event the provider sends, such as when its ID or type is missing.
    */
   abstract parse(request: WebhookProvider.Request): WebhookProvider.Event | undefined;
+
+  /** Processes a stored event; repeated deliveries must not repeat any business effects. */
+  abstract process(event: WebhookEventRepository.Event): Promise<void>;
 }
 
 export namespace WebhookProvider {

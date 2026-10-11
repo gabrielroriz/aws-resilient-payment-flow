@@ -8,18 +8,20 @@ Driving adapters turn platform events into calls on the core. Whenever the core 
 
 ![Hexagonal architecture: use cases in the center, ports in the middle ring, adapters in the outer ring, and external systems outside](images/hexagonal-architecture.svg)
 
-The two inner rings live in `src/application`; the outer ring is split between `src/main/adapters` on the driving side and `src/infra` on the driven side. `lambdaHttpAdapter` calls controllers through the `Controller` contract, which makes that contract the driving port; the abstract classes in `application/ports/` are the driven ports. Gray italic segments are examples of port categories rather than existing classes.
+The two inner rings live in `src/application`; the outer ring is split between `src/main/adapters` on the driving side and `src/infra` on the driven side. `lambdaHttpAdapter` uses the `Controller` contract and `lambdaSqsAdapter` uses `MessageHandler`; these contracts are the driving ports. The abstract classes in `application/ports/` are the driven ports. Gray italic segments are examples of port categories rather than existing classes.
 
 A request travels from the platform event through the core to the outside world:
 
 ```mermaid
 flowchart TD
     Event["API Gateway event"]
+    QueueEvent["SQS batch"]
     subgraph Driving["Driving side: src/main/adapters"]
         HttpAdapter["lambdaHttpAdapter"]
+        SqsAdapter["lambdaSqsAdapter"]
     end
     subgraph Core["Application core: src/application"]
-        Controller["Controller"] --> UseCase["Use case"]
+        Controller["Controller / MessageHandler"] --> UseCase["Use case"]
         UseCase --> Port["Port"]
     end
     subgraph Driven["Driven side: src/infra"]
@@ -30,6 +32,8 @@ flowchart TD
 
     Event --> HttpAdapter
     HttpAdapter --> Controller
+    QueueEvent --> SqsAdapter
+    SqsAdapter --> Controller
     Port -. implemented by .-> Adapter
     Adapter --> External
     Entry -. binds port to adapter .-> Adapter
@@ -52,13 +56,13 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 |---|---|
 | `application/usecases/<area>/` | One business operation per class; depends on ports and other application code |
 | `application/ports/` | Abstract classes describing what the core needs from outside, such as time, storage, or providers; ports of one area share a folder, such as `ports/webhooks/` |
-| `application/controller/<area>/` | Turns a transport-neutral `Controller.Request` into a use case call and a `Controller.Response` |
-| `application/contracts/` | Shapes shared across layers, such as the `Controller` contract |
+| `application/controller/<area>/` | Validates transport-neutral HTTP requests or queue bodies and calls a use case, or a port directly when that port performs the whole operation, such as the webhook worker routing through the provider registry |
+| `application/contracts/` | Shapes shared across layers, such as `Controller` and `MessageHandler` |
 | `application/errors/` | Error codes and the base classes mapped to responses |
 | `infra/<concern>/` | Adapter classes implementing ports, grouped by concern, such as `infra/clock/`, `infra/webhooks/`, or `infra/repositories/<entity>/` |
 | `infra/<service>/` | Shared clients and helpers for one external service, such as `infra/dynamodb/`; they implement no port and are reused by adapters |
 | `infra/config/` | `AppConfig` and its environment schema; see [Configuration](#configuration) |
-| `main/adapters/` | Converts Lambda events into controller calls and maps results and errors to responses |
+| `main/adapters/` | Converts Lambda events into controller calls and maps results and errors to HTTP responses or SQS batch failures |
 | `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler`; entries of one area share a folder, such as `functions/webhooks/` |
 | `kernel/di/`, `kernel/decorators/` | The dependency injection registry and `@Injectable` |
@@ -212,6 +216,8 @@ Adapters read environment variables through `AppConfig`, injected like any other
 
 ## Errors
 
+HTTP errors follow the mapping below. Both driving adapters log the same error metadata. The FIFO SQS adapter adds message ID, group, receive count, and queue ARN, then returns failed and unprocessed records for retry regardless of the error's status or kind; see [Webhook processing](webhook-processing.md#delivery-and-failures).
+
 `lambdaHttpAdapter` parses JSON request bodies and returns JSON responses. Errors become `{ "success": false, "error": { "code", "message" } }`:
 
 | Thrown | Use for | Response |
@@ -220,23 +226,26 @@ Adapters read environment variables through `AppConfig`, injected like any other
 | `ApplicationError` subclass | Failures raised from the controller down, such as a business rule a use case enforces | Its `statusCode`, code, and message |
 | Anything else | Failures nobody anticipated, such as a storage outage or a defect | `500` with `INTERNAL_SERVER_ERROR`; details only in logs |
 
-Both base classes extend `BaseError`. Each subclass passes its details to the constructor, which also sets `name` from the class name; `HttpError` sets the `http` category itself. Declare each application error in the area folder it belongs to, such as `errors/application/webhooks/`:
+All defined errors extend `BaseError`, which sets `name` from the class name. HTTP transport errors extend `HttpError`, which sets the `http` category; queue transport errors live under `errors/queue/` and use the `queue` category. Errors raised from controllers, use cases, or domain adapters extend `ApplicationError` and belong in their area folder, such as `errors/application/webhooks/`:
 
 | Detail | Meaning |
 |---|---|
-| `statusCode` | HTTP status of the response |
+| `statusCode` | HTTP status of the response; ignored by the SQS adapter |
 | `code` | Stable machine-readable code, from the `ErrorCode` enum |
-| `category` | Area the error belongs to, from the `ErrorCategory` enum, such as `webhooks`; always `http` for an `HttpError` |
+| `category` | Area the error belongs to, from the `ErrorCategory` enum, such as `webhooks`, `http`, or `queue` |
 | `kind` | `expected` when the error is part of normal operation, such as a forged webhook; `unexpected` when it needs attention, such as an event a supported provider sent that cannot be read |
 
-Every error is logged as one JSON line, so monitoring can count errors by category, kind, and code:
+An error can be shared across receipt and processing while its kind varies by context. `WebhookProviderNotFound` defaults to expected for public requests; the registry's routing operation marks it unexpected because an accepted event should have a registered provider. Codes identify failures, while kinds describe whether they need investigation.
+
+Every error caught by a driving adapter is logged as one JSON line, so monitoring can count errors by category, kind, and code. Errors during dependency initialization are reported by the Lambda runtime before the adapter runs.
 
 | Field | Value |
 |---|---|
-| `logType` | `application_error` |
+| `logType` | `application_error` for HTTP; `queue_message_error` for SQS |
 | `category` | The error's category; absent for errors the application does not define, which the route and function still identify |
 | `errorKind` | The error's kind; `unexpected` for errors the application does not define |
 | `errorCode` | The error's code; `INTERNAL_SERVER_ERROR` for errors the application does not define |
 | `errorName`, `errorMessage` | The error's class name and message |
 | `errorStack` | Present only for unexpected errors |
-| `requestId`, `route` | API Gateway request ID and route key |
+| `requestId`, `route` | API Gateway request ID and route key; HTTP only |
+| `messageId`, `messageGroupId`, `receiveCount`, `eventSourceARN` | SQS record identity, group, receive count, and source queue; SQS only |

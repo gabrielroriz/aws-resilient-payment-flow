@@ -99,3 +99,16 @@ resource "aws_iam_role_policy" "webhook_events_write" {
     ]
   })
 }
+
+resource "aws_iam_role_policy" "webhook_events_read" {
+  name = "webhook-events-read"
+  role = aws_iam_role.webhook_worker.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:GetItem"]
+      Resource = aws_dynamodb_table.webhook_events.arn
+    }]
+  })
+}

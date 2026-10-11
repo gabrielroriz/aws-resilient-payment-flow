@@ -36,6 +36,17 @@ Each test sits next to the module it covers and shares its name, such as `<modul
 
 `npm run build` type-checks every `.ts` file under `src/` and every `.mts` file under `build/`, including tests. No Lambda bundle contains test files, because each bundle starts from its entry file.
 
+## Infrastructure checks
+
+The tests under `terraform/tests/` use a mocked AWS provider to check worker triggers, HTTP isolation, visibility timeout, and local mapping settings without creating AWS resources. They require Terraform with its provider initialized and the local archives that `npm run dev` packages. After that setup, run:
+
+```bash
+terraform -chdir=terraform validate
+terraform -chdir=terraform test
+```
+
+These checks do not validate permissions against a live AWS account. See [Deployment](deployment.md) for provisioning and [Development](development.md) for exercising SAM and ElasticMQ together.
+
 ## How it works
 
 [`vitest.config.mjs`](../../vitest.config.mjs) compiles tests the same way the deployed Lambdas are compiled:

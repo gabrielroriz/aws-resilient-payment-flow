@@ -1,13 +1,13 @@
 # Adding a Lambda
 
-Each Lambda is an entry file that wires one controller into the HTTP adapter, registered with its route in [`lambdas.json`](../../lambdas.json). See [Code structure](../architecture/code-structure.md) for the layers and dependency injection rules.
+Each Lambda is an entry file that wires a controller into its driving adapter, registered with its trigger in [`lambdas.json`](../../lambdas.json). See [Code structure](../architecture/code-structure.md) for the layers and dependency injection rules.
 
 ## Steps
 
 1. If the use case needs something external, define a port as an abstract class in `src/application/ports/` and implement it in `src/infra/<concern>/` with `@Injectable()`. See [Ports and contracts](../architecture/code-structure.md#ports-and-contracts) for the rules.
 2. Add the use case in `src/application/usecases/<area>/`, decorated with `@Injectable(...)` listing its constructor dependencies.
-3. Add a controller in `src/application/controller/<area>/` that implements `Controller` and calls the use case.
-4. Add the entry in `src/main/functions/`: bind each port to its adapter, then export `handler = lambdaHttpAdapter(registry.resolve(YourController))`. Use the [health function](../../src/main/functions/health.ts) as the template, and see [Binding several ports](../architecture/code-structure.md#binding-several-ports) when the function needs more than one adapter.
+3. Add a controller in `src/application/controller/<area>/` that calls the use case. HTTP controllers implement `Controller`; queue controllers implement the transport-neutral `MessageHandler` contract.
+4. Add the entry in `src/main/functions/`: bind each port to its adapter, then export `handler = lambdaHttpAdapter(registry.resolve(YourController))` for HTTP, or use `lambdaSqsAdapter` for FIFO queues. Use the [health function](../../src/main/functions/health.ts) as the HTTP template, and see [Binding several ports](../architecture/code-structure.md#binding-several-ports) when the function needs more than one adapter.
 5. Register the entry in `lambdas.json`; see [Registry fields](#registry-fields).
 6. Add tests next to the new files, such as a `.test.ts` file beside the use case that passes fake ports to its constructor. See [Test layout](testing.md#test-layout).
 
@@ -31,12 +31,15 @@ Each Lambda is an entry file that wires one controller into the HTTP adapter, re
 | `role` | IAM role the function runs with, by its name in the Terraform `lambda_roles` local; see [Permissions](#permissions) | `default`, which grants no access to AWS services |
 | `memory_size` | Memory in MB | `1024` |
 | `timeout` | Function timeout in seconds | `300` |
+| `trigger` | `http` creates API resources; `sqs` uses a Terraform event source mapping without an HTTP route | `http` |
 | `http_method` | Client method: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, or `ANY` | `ANY` |
 | `path` | Route beginning with `/`; parameters such as `/<resource>/{id}` are supported | `/<function_name>` |
 
-Method and path pairs must be unique. API Gateway always invokes the function with `POST`, whatever the route's method.
+For `sqs`, omit `http_method` and `path`, add a consumer to the Terraform `sqs_consumers` local, and grant receive, delete, and queue-attribute permissions for its queue. Enable `ReportBatchItemFailures` on the mapping and give the queue a visibility timeout of at least six times the function timeout. The local poller uses exported mapping settings automatically; see [Development](development.md#local-functions).
 
-Handlers receive payload format `2.0` events. `lambdaHttpAdapter` passes the path parameters, query parameters, headers, request ID, parsed JSON body, and raw body to the controller, decoding the body first when API Gateway base64-encodes it. Routes have no API Gateway authentication; a function that needs it authenticates requests itself.
+HTTP method and path pairs must be unique. API Gateway always invokes the function with `POST`, whatever the route's method.
+
+HTTP handlers receive payload format `2.0` events. `lambdaHttpAdapter` passes the path parameters, query parameters, headers, request ID, parsed JSON body, and raw body to the controller, decoding the body first when API Gateway base64-encodes it. Routes have no API Gateway authentication; a function that needs it authenticates requests itself.
 
 ## Permissions
 
@@ -68,4 +71,4 @@ A variable without a value fails the plan, so a deployment never runs without it
 
 ## Lifecycle
 
-Build and test before [deploying](deployment.md). Terraform manages the function, route, and invocation permission together. Removing an entry deletes its function; renaming a key can replace it.
+Build and test before [deploying](deployment.md). Terraform manages the function and its HTTP resources or queue event source mapping together. Removing an entry deletes its function; renaming a key can replace it.

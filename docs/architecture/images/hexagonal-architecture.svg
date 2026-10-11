@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 800" width="1100" height="800" role="img" aria-labelledby="title desc">
   <title id="title">Hexagonal architecture of the payment flow Lambdas</title>
-  <desc id="desc">Three concentric hexagons. The center holds use cases. The middle ring holds ports: controllers as the driving port, and driven ports such as Clock. The outer ring holds adapters: lambdaHttpAdapter on the driving side, and driven adapters such as SystemClock. API Gateway, payment providers, the system clock, and AWS services sit outside.</desc>
+  <desc id="desc">Three concentric hexagons. The center holds use cases for health, webhook receipt, and routing. The middle ring holds driving contracts Controller and MessageHandler, and driven ports such as Clock. The outer ring holds lambdaHttpAdapter and lambdaSqsAdapter on the driving side, and driven adapters such as SystemClock. API Gateway, SQS, payment providers, the system clock, and AWS services sit outside.</desc>
   <style>
     .bg { fill: #ffffff; }
     .edge { fill: none; stroke: #1f2328; stroke-width: 2; stroke-linejoin: round; }
@@ -57,18 +57,21 @@
   </g>
 
   <!-- Core -->
-  <text class="ring core-label" x="550" y="433">Use cases</text>
-  <text class="name" x="550" y="459">GetHealthUseCase</text>
-  <text class="path" x="550" y="481">src/application/usecases</text>
+  <text class="ring core-label" x="550" y="417">Use cases</text>
+  <text class="name" x="550" y="443">GetHealthUseCase</text>
+  <text class="name" x="550" y="467">IngestWebhookUseCase</text>
+  <text class="path" x="550" y="491">src/application/usecases</text>
 
   <!-- Upper left: driving side -->
   <g transform="translate(403.6 365.5) rotate(-60)">
-    <text class="name" y="-4">Controllers</text>
-    <text class="role" y="14">(driving port)</text>
+    <text class="name" y="-14">Controller</text>
+    <text class="name" y="4">MessageHandler</text>
+    <text class="role" y="22">(driving contracts)</text>
   </g>
   <g transform="translate(332.5 324.4) rotate(-60)">
-    <text class="name" y="-4">lambdaHttpAdapter</text>
-    <text class="role" y="14">(driving adapter)</text>
+    <text class="name" y="-14">lambdaHttpAdapter</text>
+    <text class="name" y="4">lambdaSqsAdapter</text>
+    <text class="role" y="22">(driving adapters)</text>
   </g>
 
   <!-- Top: example provider port -->
@@ -112,6 +115,7 @@
     <rect x="122" y="196" width="56" height="56" rx="12" fill="#8250df"/>
     <path class="icon-ink" d="M139 212 l-8 12 l8 12 M161 212 l8 12 l-8 12 M143 224 h14 M152 219 l5 5 l-5 5"/>
     <text class="actor" x="150" y="278">API Gateway</text>
+    <text class="actor" x="150" y="300">SQS</text>
   </g>
 
   <g>

@@ -27,13 +27,17 @@ function fakeProvider(overrides: Partial<WebhookProvider> = {}) {
     name: "simulated",
     authenticate: vi.fn(async () => true),
     parse: vi.fn((): WebhookProvider.Event | undefined => parsedEvent),
+    process: vi.fn(async () => {}),
     ...overrides,
   };
 }
 
 // `stored` is the event an earlier delivery already stored, making this delivery a duplicate.
 function setup({ provider = fakeProvider(), stored }: { provider?: WebhookProvider; stored?: WebhookEventRepository.Event } = {}) {
-  const providerRegistry: WebhookProviderRegistry = { find: (name) => (name === provider.name ? provider : undefined) };
+  const providerRegistry: WebhookProviderRegistry = {
+    find: (name) => (name === provider.name ? provider : undefined),
+    route: vi.fn(async () => { throw new Error("Receipt must not route events synchronously"); }),
+  };
   const create = vi.fn(
     async (event: WebhookEventRepository.Event): Promise<WebhookEventRepository.CreateResult> =>
       stored ? { created: false, event: stored } : { created: true, event },
@@ -63,6 +67,7 @@ test("ingest stores a new event with the provider's name, the receipt time, and 
 
   expect(provider.authenticate).toHaveBeenCalledWith(request);
   expect(provider.parse).toHaveBeenCalledWith(request);
+  expect(provider.process).not.toHaveBeenCalled();
   const stored = { ...parsedEvent, provider: "simulated", receivedAt: now, payload: request.rawBody };
   expect(create).toHaveBeenCalledWith(stored);
   expect(recordDuplicateDelivery).not.toHaveBeenCalled();

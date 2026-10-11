@@ -35,7 +35,7 @@ All items of an event share its `event_key`, so one `Query` returns the whole ev
 | [Effect](#effect) | `EFFECT#{effect}` | When a business effect of the event completes or fails |
 | [Delivery](#delivery) | `DELIVERY#{received_at}#{request_id}` | On each duplicate delivery |
 
-Webhook receipt writes events and deliveries. Attempts and effects belong to event processing, which is not built yet.
+Webhook receipt writes events and deliveries. The [worker](../webhook-processing.md) reads events and routes them to gateway-specific classes; recording processing attempts and business effects is not implemented yet.
 
 Timestamps are UTC ISO 8601 strings with fixed millisecond precision, so they sort correctly in keys. `expires_at` is the exception: DynamoDB TTL requires a number of epoch seconds.
 

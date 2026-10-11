@@ -1,3 +1,4 @@
+import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { AppConfig } from "@infra/config/AppConfig";
 import { Injectable } from "@kernel/decorators/injectable";
@@ -46,6 +47,16 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider {
         ? { type: "payment", id: event.payment.id }
         : event.subscription && { type: "subscription", id: event.subscription.id },
     };
+  }
+
+  async process(event: WebhookEventRepository.Event): Promise<void> {
+    // Routing is observable without logging payment payloads or claiming business effects occurred.
+    console.info(JSON.stringify({
+      logType: "webhook_routed",
+      provider: this.name,
+      providerEventId: event.providerEventId,
+      eventType: event.eventType,
+    }));
   }
 }
 

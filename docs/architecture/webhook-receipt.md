@@ -42,13 +42,14 @@ Errors use the response shape and log fields described in [Errors](code-structur
 
 ## Provider adapters
 
-Each supported provider has an adapter that implements the `WebhookProvider` port, and the provider registry finds it by the name in the path.
+Each supported provider has one adapter that implements the `WebhookProvider` port. Receipt calls the registry's `find` method using the HTTP path, then calls `authenticate` and `parse` on that adapter. The [worker](webhook-processing.md) calls the registry's `route` method with the queued event identity; the registry loads the stored event, selects the provider, and awaits `process` in the worker's own Lambda execution environment.
 
 | Adapter member | Responsibility |
 |---|---|
 | `name` | The provider's path segment, also recorded with each of its events |
 | `authenticate` | Proves the request comes from the provider, checking its signature or credentials against the body exactly as received |
 | `parse` | Reads the event ID, event type, occurrence time, and affected payment or subscription, or reports that the body is not one of the provider's events |
+| `process` | Receives the stored event from the worker; receipt never calls it |
 
 Providers differ in authentication, vocabulary, and payload formats; their adapters absorb those differences, so the rest of the system sees one event model. See [Adding a provider](../guides/adding-a-provider.md), and [Simulated gateways](../guides/simulated-gateways.md) for two providers with deliberately different shapes.
 
@@ -61,22 +62,25 @@ flowchart LR
     Queue@{ shape: h-cyl, label: "webhook_events.fifo" }
     DLQ@{ shape: h-cyl, label: "webhook_events_dlq.fifo" }
     Receipt["Webhook receipt"] -->|"provider and event ID"| Queue
-    Queue --> Processing["Processing (planned)"]
+    Queue --> Worker["Webhook Worker"]
+    Worker --> Registry["Provider registry: route"]
+    Registry --> Store["Read stored event"]
+    Store --> Processor["Gateway adapter: process"]
     Queue -->|"after 5 receives"| DLQ
 ```
 
 | Setting | Value | Effect |
 |---|---|---|
 | Message body | `{ "provider", "providerEventId" }` | Processing reads the stored event, so the table stays the single source of truth and payload size never matters |
-| Message group | The provider name | Each provider's events are delivered in the order they were received, and one provider's messages never wait behind another's |
-| Deduplication ID | A digest of the provider and event ID | SQS drops a repeated dispatch of the same event within five minutes; processing must ignore later ones |
+| Message group | The provider name | Each provider's events are delivered in receipt order; separate groups allow concurrent batches |
+| Deduplication ID | A digest of the provider and event ID | SQS drops a repeated dispatch within five minutes; later dispatches can route again, so future business effects must be idempotent |
 | Redrive | To the dead-letter queue after 5 receives | A message that keeps failing stops holding back its provider's later events |
-| Retention | Four days, the SQS default; 14 days in the dead-letter queue | Moved messages keep their original enqueue time, so the dead-letter queue keeps them longer |
+| Retention | Four days, the SQS default; 14 days in the dead-letter queue | FIFO messages get a new enqueue time when moved to the dead-letter queue |
 
 ## Limitations
 
 - Bodies must be JSON; other formats are rejected with 400 before reaching the provider adapter.
 - Every provider's credentials are validated together, so one missing credential answers every provider's webhooks with 500 until it is configured.
-- Nothing consumes the queue yet, so its messages expire after four days; the events stay in the table.
+- The [worker](webhook-processing.md) consumes and routes events to gateway-specific classes; those classes currently log routing without applying business effects.
 - One message group per provider means each provider's events are processed one batch at a time, and a failing message holds back its provider's later events until it moves to the dead-letter queue.
 - The queue orders events by receipt, not by when the provider says they occurred.

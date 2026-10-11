@@ -20,6 +20,14 @@ export async function extractAndValidateLambdas(root: string): Promise<LambdaReg
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(name)) {
       throw new Error(`Invalid Lambda name: ${name}`);
     }
+    // Terraform creates HTTP resources only for `http` functions, so a route on a queue worker
+    // would be silently ignored.
+    if (config?.trigger !== undefined && !['http', 'sqs'].includes(config.trigger)) {
+      throw new Error(`Invalid trigger for ${name}: expected http or sqs`);
+    }
+    if (config?.trigger === 'sqs' && (config.http_method !== undefined || config.path !== undefined)) {
+      throw new Error(`SQS Lambda ${name} must not declare an HTTP route.`);
+    }
     // Catch invalid entry paths here; esbuild checks file availability and imports later.
     const entry: unknown = config?.entry;
     if (typeof entry !== 'string' || !entry.startsWith('src/') ||

@@ -1,6 +1,11 @@
 locals {
+  http_lambdas = {
+    for name, function in aws_lambda_function.all_lambdas : name => function
+    if lookup(local.lambdas[name], "trigger", "http") == "http"
+  }
   lambda_paths = {
     for name, config in local.lambdas : name => lookup(config, "path", "/${name}")
+    if lookup(config, "trigger", "http") == "http"
   }
 }
 
@@ -20,7 +25,7 @@ resource "aws_apigatewayv2_stage" "default" {
 
 // Integrate Lambdas with API Gateway
 resource "aws_apigatewayv2_integration" "lambda" {
-  for_each = aws_lambda_function.all_lambdas
+  for_each = local.http_lambdas
 
   api_id           = aws_apigatewayv2_api.lambdas.id
   integration_type = "AWS_PROXY"
@@ -33,7 +38,7 @@ resource "aws_apigatewayv2_integration" "lambda" {
 
 // Route methods and paths come from the shared Lambda registry.
 resource "aws_apigatewayv2_route" "lambda" {
-  for_each = aws_lambda_function.all_lambdas
+  for_each = local.http_lambdas
 
   api_id             = aws_apigatewayv2_api.lambdas.id
   route_key          = "${lookup(local.lambdas[each.key], "http_method", "ANY")} ${local.lambda_paths[each.key]}"
@@ -43,7 +48,7 @@ resource "aws_apigatewayv2_route" "lambda" {
 
 // Allow API Gateway to invoke the Lambda functions
 resource "aws_lambda_permission" "api_gateway" {
-  for_each = aws_lambda_function.all_lambdas
+  for_each = local.http_lambdas
 
   statement_id  = "AllowApiGatewayInvoke"
   action        = "lambda:InvokeFunction"
@@ -59,9 +64,9 @@ output "api_endpoint" {
 }
 
 output "lambda_endpoints" {
-  description = "HTTP endpoint for each registered Lambda (method and path configured in lambdas.json)"
+  description = "HTTP endpoints for registered HTTP Lambdas (method and path configured in lambdas.json)"
   value = {
-    for name, function in aws_lambda_function.all_lambdas :
+    for name, function in local.http_lambdas :
     name => "${aws_apigatewayv2_api.lambdas.api_endpoint}${local.lambda_paths[name]}"
   }
 }
