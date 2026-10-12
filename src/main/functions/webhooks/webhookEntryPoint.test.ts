@@ -31,6 +31,8 @@ function webhookTo(provider: string) {
 }
 
 test("the webhook function stores and dispatches an event from the provider named in the URL", async () => {
+  // A name unlike the deployed one shows that the function reads the table from configuration.
+  vi.stubEnv("WEBHOOK_EVENTS_TABLE_NAME", "configured_events");
   vi.spyOn(InMemoryWebhookProviderRegistry.prototype, "find").mockImplementation((name) =>
     name === simulated.name ? simulated : undefined,
   );
@@ -43,7 +45,8 @@ test("the webhook function stores and dispatches an event from the provider name
     statusCode: 200,
     body: { provider: "simulated", providerEventId: "evt_1", duplicate: false },
   });
-  const item = putIfAbsent.mock.calls[0][1];
+  const [table, item] = putIfAbsent.mock.calls[0];
+  expect(table).toBe("configured_events");
   expect(item).toMatchObject({ PK: "simulated#evt_1", event_type: "payment.succeeded" });
   // The request body reaches storage byte for byte, as signature checks and reprocessing need.
   expect(gunzipSync(item.payload as Uint8Array).toString("utf8")).toBe(body);

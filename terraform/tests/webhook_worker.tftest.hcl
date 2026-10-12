@@ -29,4 +29,11 @@ run "worker_event_source" {
     condition     = output.local_sqs_redrive["webhook_events.fifo"].queueName == "webhook_events_dlq.fifo" && output.local_sqs_redrive["webhook_events.fifo"].maxReceiveCount == 5
     error_message = "Local redrive must remain available before deploying the dead-letter queue."
   }
+  assert {
+    condition = alltrue([
+      for name in ["webhook_entry_point", "webhook_worker"] :
+      aws_lambda_function.all_lambdas[name].environment[0].variables.WEBHOOK_EVENTS_TABLE_NAME == aws_dynamodb_table.webhook_events.name
+    ])
+    error_message = "Receipt and the worker must read the webhook events table Terraform provisions."
+  }
 }

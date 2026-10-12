@@ -21,6 +21,10 @@ locals {
       GATEWAY_GLOBAL_SIGNING_SECRET = var.GATEWAY_GLOBAL_SIGNING_SECRET
       GATEWAY_BRAZIL_ACCESS_TOKEN   = var.GATEWAY_BRAZIL_ACCESS_TOKEN
       WEBHOOK_EVENTS_QUEUE_NAME     = aws_sqs_queue.webhook_events.name
+      WEBHOOK_EVENTS_TABLE_NAME     = aws_dynamodb_table.webhook_events.name
+    }
+    webhook_worker = {
+      WEBHOOK_EVENTS_TABLE_NAME = aws_dynamodb_table.webhook_events.name
     }
   }
 }

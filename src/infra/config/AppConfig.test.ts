@@ -17,6 +17,12 @@ test("AppConfig reads the queue names", () => {
   expect(new AppConfig().queues).toEqual({ webhookEvents: { name: "webhook_events.fifo" } });
 });
 
+test("AppConfig reads the table names", () => {
+  vi.stubEnv("WEBHOOK_EVENTS_TABLE_NAME", "webhook_events");
+
+  expect(new AppConfig().tables).toEqual({ webhookEvents: { name: "webhook_events" } });
+});
+
 test("AppConfig names the group and the variable that fail validation", () => {
   vi.stubEnv("GATEWAY_GLOBAL_SIGNING_SECRET", "signing-secret");
   vi.stubEnv("GATEWAY_BRAZIL_ACCESS_TOKEN", "");

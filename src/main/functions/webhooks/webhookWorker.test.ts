@@ -5,7 +5,14 @@ import { GatewayGlobalWebhookProvider } from "@infra/webhooks/gatewayGlobal/Gate
 import { sqsEvent } from "@main/adapters/lambdaSqsAdapter.fixtures";
 import { handler } from "@main/functions/webhooks/webhookWorker";
 import { gzipSync } from "node:zlib";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
+
+// A name unlike the deployed one shows that the worker reads the table from configuration.
+const tableName = "configured_events";
+
+beforeEach(() => {
+  vi.stubEnv("WEBHOOK_EVENTS_TABLE_NAME", tableName);
+});
 
 test.each([
   ["gatewayGlobal", GatewayGlobalWebhookProvider, GatewayBrazilWebhookProvider],
@@ -26,7 +33,7 @@ test.each([
   });
 
   await expect(handler(sqsEvent({ provider, providerEventId: "evt_1" }))).resolves.toEqual({ batchItemFailures: [] });
-  expect(get).toHaveBeenCalledWith("webhook_events", { PK: `${provider}#evt_1`, SK: "META" });
+  expect(get).toHaveBeenCalledWith(tableName, { PK: `${provider}#evt_1`, SK: "META" });
   expect(process).toHaveBeenCalledWith(expect.objectContaining({ provider, providerEventId: "evt_1", payload }));
   expect(otherProcess).not.toHaveBeenCalled();
   expect(authenticate).not.toHaveBeenCalled();
@@ -58,7 +65,7 @@ test("the registry rejects an unknown stored provider with the shared error and 
   await expect(handler(sqsEvent({ provider: "unknown", providerEventId: "evt" }))).resolves.toEqual({
     batchItemFailures: [{ itemIdentifier: "message-0" }],
   });
-  expect(get).toHaveBeenCalledWith("webhook_events", { PK: "unknown#evt", SK: "META" });
+  expect(get).toHaveBeenCalledWith(tableName, { PK: "unknown#evt", SK: "META" });
   expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
     category: "webhooks", errorKind: "unexpected", errorCode: "WEBHOOK_PROVIDER_NOT_FOUND",
     errorName: "ErrorWebhookProviderNotFound", errorMessage: "Unknown webhook provider: unknown",

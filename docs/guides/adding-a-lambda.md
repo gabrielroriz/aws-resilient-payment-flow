@@ -60,7 +60,7 @@ Configuration and secrets reach a function as environment variables that Terrafo
 
    | Value | Source | Example |
    |---|---|---|
-   | Describes a resource Terraform manages | An attribute of that resource | A queue's name |
+   | Describes a resource Terraform manages | An attribute of that resource | A queue's or table's name |
    | Set per deployment | A variable with the environment variable's name, marked `sensitive` when it holds a secret, so its value never lives in the repository | A provider credential |
 
 2. Add it to the function in the `lambda_environments` local.

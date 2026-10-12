@@ -1,8 +1,16 @@
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
+import { AppConfig } from "@infra/config/AppConfig";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
 import { DynamoWebhookEventRepository } from "@infra/repositories/webhook-event/DynamoWebhookEventRepository";
 import { gunzipSync } from "node:zlib";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
+
+// A name unlike the deployed one shows that the table comes from configuration.
+const tableName = "configured_events";
+
+beforeEach(() => {
+  vi.stubEnv("WEBHOOK_EVENTS_TABLE_NAME", tableName);
+});
 
 const event: WebhookEventRepository.Event = {
   provider: "stripe",
@@ -19,7 +27,7 @@ const eventExpiresAt = Date.parse("2027-01-08T10:00:01Z") / 1000;
 
 function setup() {
   const dynamo = new DynamoClient();
-  return { dynamo, repository: new DynamoWebhookEventRepository(dynamo) };
+  return { dynamo, repository: new DynamoWebhookEventRepository(dynamo, new AppConfig()) };
 }
 
 // The item that create writes for `event`, standing in for what DynamoDB would return.
@@ -45,7 +53,7 @@ test("create stores the event item with its index keys, compressed payload, and 
   await expect(repository.create(event)).resolves.toEqual({ created: true, event });
 
   const [table, item, partitionKey] = putIfAbsent.mock.calls[0];
-  expect([table, partitionKey]).toEqual(["webhook_events", "PK"]);
+  expect([table, partitionKey]).toEqual([tableName, "PK"]);
   expect(item).toMatchObject({
     PK: "stripe#evt_1",
     SK: "META",
@@ -87,7 +95,7 @@ test("get reads the event item, or returns undefined when it does not exist", as
 
   await expect(repository.get(event)).resolves.toEqual(event);
   await expect(repository.get({ provider: "stripe", providerEventId: "evt_missing" })).resolves.toBeUndefined();
-  expect(get).toHaveBeenCalledWith("webhook_events", { PK: "stripe#evt_1", SK: "META" });
+  expect(get).toHaveBeenCalledWith(tableName, { PK: "stripe#evt_1", SK: "META" });
 });
 
 test("recordDuplicateDelivery stores a delivery item that expires with the event", async () => {
@@ -96,7 +104,7 @@ test("recordDuplicateDelivery stores a delivery item that expires with the event
 
   await repository.recordDuplicateDelivery(event, { receivedAt: new Date("2026-10-10T10:05:00.000Z"), requestId: "req-2" });
 
-  expect(put).toHaveBeenCalledWith("webhook_events", {
+  expect(put).toHaveBeenCalledWith(tableName, {
     PK: "stripe#evt_1",
     SK: "DELIVERY#2026-10-10T10:05:00.000Z#req-2",
     received_at: "2026-10-10T10:05:00.000Z",
@@ -160,7 +168,7 @@ test("getTrace returns the event with its attempts, effects, and deliveries", as
     deliveries: [{ receivedAt: new Date("2026-10-10T10:05:00.000Z"), requestId: "req-2" }],
   });
   expect(queryAll.mock.calls[0][0]).toEqual({
-    TableName: "webhook_events",
+    TableName: tableName,
     KeyConditionExpression: "PK = :key",
     ExpressionAttributeValues: { ":key": "stripe#evt_1" },
   });
@@ -227,7 +235,7 @@ test("listReceived queries every shard of every provider and merges them in rece
   ]);
   // The interval excludes its end: the last millisecond queried is just before `to`.
   expect(queryAll.mock.calls[0][0]).toEqual({
-    TableName: "webhook_events",
+    TableName: tableName,
     IndexName: "GSI1",
     KeyConditionExpression: "GSI1PK = :shard AND received_at BETWEEN :from AND :to",
     ExpressionAttributeValues: {
@@ -283,7 +291,7 @@ test("listBySubject queries GSI2 for the subject and returns its events", async 
   const { payload, ...summary } = event;
   expect(events).toEqual([summary]);
   expect(queryAll.mock.calls[0][0]).toEqual({
-    TableName: "webhook_events",
+    TableName: tableName,
     IndexName: "GSI2",
     KeyConditionExpression: "GSI2PK = :subject",
     ExpressionAttributeValues: { ":subject": "stripe#payment#pi_1" },

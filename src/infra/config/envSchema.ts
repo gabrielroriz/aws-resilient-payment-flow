@@ -13,4 +13,7 @@ export const envSchema = {
   queues: z.object({
     WEBHOOK_EVENTS_QUEUE_NAME: z.string().min(1),
   }),
+  tables: z.object({
+    WEBHOOK_EVENTS_TABLE_NAME: z.string().min(1),
+  }),
 };

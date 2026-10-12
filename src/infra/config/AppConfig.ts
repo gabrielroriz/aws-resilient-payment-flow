@@ -23,6 +23,11 @@ export class AppConfig {
     return { webhookEvents: { name: env.WEBHOOK_EVENTS_QUEUE_NAME } };
   }
 
+  get tables(): AppConfig.Tables {
+    const env = this.parseGroup("tables", envSchema.tables);
+    return { webhookEvents: { name: env.WEBHOOK_EVENTS_TABLE_NAME } };
+  }
+
   // Parsing on every read costs microseconds and keeps no state, so tests can change the environment.
   private parseGroup<Schema extends z.ZodType>(group: string, schema: Schema): z.output<Schema> {
     const result = schema.safeParse(process.env);
@@ -49,6 +54,12 @@ export namespace AppConfig {
   /** The SQS queues the function sends messages to, by name. */
   export type Queues = {
     /** Queue of stored webhook events waiting to be processed. */
+    webhookEvents: { name: string };
+  };
+
+  /** The DynamoDB tables the function reads or writes, by name. */
+  export type Tables = {
+    /** Table of received webhook events and their history. */
     webhookEvents: { name: string };
   };
 }

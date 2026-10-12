@@ -1,6 +1,6 @@
 # Webhook events table
 
-The `webhook_events` DynamoDB table records the webhook events received from payment providers. It detects repeated deliveries and keeps each event's history, including its processing attempts and business effects, so operators can trace and reprocess events as the [requirements](../../requirements.md) describe. Terraform provisions it, and a repository adapter implements its access patterns behind the webhook events port.
+The `webhook_events` DynamoDB table records the webhook events received from payment providers. It detects repeated deliveries and keeps each event's history, including its processing attempts and business effects, so operators can trace and reprocess events as the [requirements](../../requirements.md) describe. Terraform provisions it and gives the functions that use it its name in `WEBHOOK_EVENTS_TABLE_NAME`, and a repository adapter implements its access patterns behind the webhook events port.
 
 ## Access patterns
 
