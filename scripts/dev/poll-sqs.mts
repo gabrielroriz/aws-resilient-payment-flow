@@ -1,7 +1,8 @@
 import { GetQueueAttributesCommand, GetQueueUrlCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { readFile } from 'node:fs/promises';
 import { setTimeout } from 'node:timers/promises';
-import { consumersFromPlan, consumeBatch, type Invoke } from './sqs-consumers.mts';
+import { consumersFromPlan, consumeBatch } from './sqs-consumers.mts';
+import type { Invoke } from './sqs-consumers.types.mts';
 
 const [planFile, lambdaEndpoint] = process.argv.slice(2);
 if (!planFile || !lambdaEndpoint) {

@@ -1,14 +1,7 @@
 import { DeleteMessageBatchCommand, ReceiveMessageCommand, type SQSClient, type Message } from '@aws-sdk/client-sqs';
-import type { SQSEvent, SQSRecord } from 'aws-lambda';
-import type { TerraformPlan } from './terraform-plan.mts';
-
-export type LocalConsumer = {
-  function_name: string;
-  queue_name: string;
-  batch_size: number;
-  enabled: boolean;
-  function_response_types: string[];
-};
+import type { SQSRecord } from 'aws-lambda';
+import type { Invoke, LocalConsumer, QueueSource } from './sqs-consumers.types.mts';
+import type { TerraformPlan } from './terraform-plan.types.mts';
 
 /** Terraform exports settings from its actual mappings, using names that exist before deployment. */
 export function consumersFromPlan(plan: TerraformPlan): LocalConsumer[] {
@@ -25,9 +18,6 @@ export function consumersFromPlan(plan: TerraformPlan): LocalConsumer[] {
     return consumer;
   }).filter(({ enabled }) => enabled);
 }
-
-export type QueueSource = { url: string; arn: string; region: string };
-export type Invoke = (functionName: string, event: SQSEvent) => Promise<unknown>;
 
 /** One local delivery: failed invocations leave the entire batch for visibility timeout and redrive. */
 export async function consumeBatch(sqs: SQSClient, consumer: LocalConsumer, source: QueueSource, invoke: Invoke): Promise<void> {

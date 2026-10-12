@@ -4,33 +4,12 @@ import {
   GetQueueAttributesCommand,
   GetQueueUrlCommand,
   QueueDoesNotExist,
-  type QueueAttributeName,
   type SQSClient,
 } from '@aws-sdk/client-sqs';
-import { plannedResources, type TerraformPlan } from './terraform-plan.mts';
-
-/** A queue as the local SQS service should have it. */
-export type LocalQueue = {
-  name: string;
-  /** Attributes the queue is created with, apart from its redrive policy. */
-  attributes: Partial<Record<QueueAttributeName, string>>;
-  /** Where messages go after too many receives, naming the dead-letter queue by its queue name. */
-  deadLetter?: { queueName: string; maxReceiveCount: number };
-};
-
-/** What happened to a local queue when it was brought in line with its definition. */
-export type SyncResult = 'created' | 'unchanged' | 'recreated';
-
-// Planned values of an aws_sqs_queue resource. Values known only after apply are missing.
-type QueueValues = {
-  name: string;
-  fifo_queue: boolean;
-  content_based_deduplication: boolean;
-  visibility_timeout_seconds: number;
-  delay_seconds: number;
-  receive_wait_time_seconds: number;
-  redrive_policy?: string | null;
-};
+import type { SyncResult } from './local-resources.types.mts';
+import type { LocalQueue, QueueValues } from './sqs-queues.types.mts';
+import { plannedResources } from './terraform-plan.mts';
+import type { TerraformPlan } from './terraform-plan.types.mts';
 
 /**
  * Converts every SQS queue in a Terraform plan into the queue to create in the local SQS service,

@@ -1,5 +1,6 @@
 import { DeleteMessageBatchCommand, ReceiveMessageCommand, type SQSClient } from '@aws-sdk/client-sqs';
-import { consumeBatch, consumersFromPlan, type LocalConsumer } from './sqs-consumers.mts';
+import { consumeBatch, consumersFromPlan } from './sqs-consumers.mts';
+import type { LocalConsumer } from './sqs-consumers.types.mts';
 import { expect, test, vi } from 'vitest';
 
 const consumer: LocalConsumer = {

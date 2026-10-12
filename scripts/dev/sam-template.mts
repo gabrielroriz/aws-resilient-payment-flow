@@ -1,44 +1,7 @@
 import path from 'node:path';
-import { plannedResources, type PlannedResource, type TerraformPlan } from './terraform-plan.mts';
-
-/** A SAM template for local HTTP routes and direct invocations of queue workers. */
-export type SamTemplate = {
-  AWSTemplateFormatVersion: '2010-09-09';
-  Transform: 'AWS::Serverless-2016-10-31';
-  Resources: Record<string, SamFunction>;
-};
-
-type SamFunction = {
-  Type: 'AWS::Serverless::Function';
-  Properties: {
-    FunctionName: string;
-    CodeUri: string;
-    Handler: string;
-    Runtime: string;
-    MemorySize: number;
-    Timeout: number;
-    Environment: { Variables: Record<string, string> };
-    Events: Record<string, { Type: 'HttpApi'; Properties: { Method: string; Path: string } }>;
-  };
-};
-
-// Planned values of the aws_lambda_function and aws_apigatewayv2_route resources.
-type FunctionValues = {
-  function_name: string;
-  handler: string;
-  runtime: string;
-  memory_size: number;
-  timeout: number;
-  environment?: { variables?: Record<string, string> | null }[] | null;
-};
-type RouteValues = { route_key: string };
-
-export type SamTemplateOptions = {
-  /** The build's bundle directory, with one folder of code per function name. */
-  bundlesDir: string;
-  /** Variables added to every function's environment, overriding planned ones. */
-  environment: Record<string, string>;
-};
+import type { FunctionValues, RouteValues, SamFunction, SamTemplate, SamTemplateOptions } from './sam-template.types.mts';
+import { plannedResources } from './terraform-plan.mts';
+import type { PlannedResource, TerraformPlan } from './terraform-plan.types.mts';
 
 /**
  * Builds a SAM template with every planned Lambda and the routes of HTTP functions. SAM's

@@ -5,51 +5,14 @@ import {
   DescribeTimeToLiveCommand,
   ResourceNotFoundException,
   UpdateTimeToLiveCommand,
-  type AttributeDefinition,
-  type CreateTableCommandInput,
   type DynamoDBClient,
   type KeySchemaElement,
-  type KeyType,
   type Projection,
-  type ProjectionType,
-  type ScalarAttributeType,
 } from '@aws-sdk/client-dynamodb';
-import { plannedResources, type TerraformPlan } from './terraform-plan.mts';
-
-/** A table as DynamoDB Local should have it: the request that creates it and its TTL attribute. */
-export type LocalTable = { input: CreateTableCommandInput; ttlAttribute?: string };
-
-/** What happened to a local table when it was brought in line with its definition. */
-export type SyncResult = 'created' | 'unchanged' | 'recreated';
-
-// Planned values of an aws_dynamodb_table resource.
-type TableValues = {
-  name: string;
-  hash_key: string;
-  range_key?: string | null;
-  attribute: { name: string; type: ScalarAttributeType }[];
-  global_secondary_index?: IndexValues[] | null;
-  local_secondary_index?: IndexValues[] | null;
-  ttl?: { attribute_name: string; enabled: boolean }[] | null;
-};
-
-type IndexValues = {
-  name: string;
-  hash_key?: string;
-  range_key?: string | null;
-  key_schema?: { attribute_name: string; key_type: KeyType }[] | null;
-  projection_type: ProjectionType;
-  non_key_attributes?: string[] | null;
-};
-
-// Fields shared by table requests and table descriptions, which are compared with each other.
-type IndexDefinition = { IndexName?: string; KeySchema?: KeySchemaElement[]; Projection?: Projection };
-type TableDefinition = {
-  AttributeDefinitions?: AttributeDefinition[];
-  KeySchema?: KeySchemaElement[];
-  GlobalSecondaryIndexes?: IndexDefinition[];
-  LocalSecondaryIndexes?: IndexDefinition[];
-};
+import type { IndexDefinition, IndexValues, LocalTable, TableDefinition, TableValues } from './dynamodb-tables.types.mts';
+import type { SyncResult } from './local-resources.types.mts';
+import { plannedResources } from './terraform-plan.mts';
+import type { TerraformPlan } from './terraform-plan.types.mts';
 
 /**
  * Converts every DynamoDB table in a Terraform plan into the request that creates it in DynamoDB
