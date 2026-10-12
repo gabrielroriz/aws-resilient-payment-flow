@@ -57,10 +57,8 @@ trap cleanup EXIT # Cleanup on exit, including Ctrl+C and kill.
 trap 'exit 130' INT 
 trap 'exit 143' TERM
 
-# Plan, never apply: the plan only describes the tables, queues, functions, and routes to run, so nothing
-# has to be deployed first. -var-file values take precedence over the deployment secrets file, which
-# Terraform loads automatically, so the local API always gets local secrets. The -var-file path is
-# relative to -chdir. Terraform's progress output is hidden; its errors still show.
+# Plan, never apply: the plan only describes what to run, so nothing has to be deployed first.
+# -var-file overrides the auto-loaded deployment secrets, so the local API gets local secrets.
 printf 'Planning Terraform for the local setup; the plan is never applied.\n'
 terraform -chdir="$PROJECT_ROOT/terraform" init -input=false >/dev/null
 terraform -chdir="$PROJECT_ROOT/terraform" plan -input=false -out="$WORK_DIR/local.tfplan" \
