@@ -27,20 +27,21 @@ fi
 cd "$PROJECT_ROOT"
 npm run build
 
-# Terraform plans need each function's archive to exist; the "local" version leaves deployment
-# archives untouched.
+# Terraform plans need each function's archive to exist; 
+# the "local" version leaves deployment archives untouched.
 for bundle in "$PROJECT_ROOT"/dist/bundles/*; do
   name="${bundle##*/}"
   archive="$PROJECT_ROOT/dist/${name}_local.zip"
   rm -f -- "$archive"
-  (cd "$bundle" && zip -q "$archive" index.js)
+  (cd "$bundle" && zip -q "$archive" index.js) # -q stands for "quiet", to avoid printing the list of files in the archive.
 done
 
-# Start DynamoDB Local, ElasticMQ, and their UIs. They outlive this script, so data stays between runs.
+# Start DynamoDB Local, ElasticMQ, and their UIs. 
+# They outlive this script, so data stays between runs.
 docker compose -f "$PROJECT_ROOT/compose.dev.yaml" up --detach --wait
 
 # The plan can contain secrets, so it and everything made from it are deleted on exit.
-WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/lambda-dev.XXXXXXXX")"
+WORK_DIR="$(mktemp --directory "${TMPDIR:-/tmp}/lambda-dev.XXXXXXXX")"
 DEV_PIDS=()
 cleanup() {
   trap - EXIT INT TERM
@@ -50,8 +51,10 @@ cleanup() {
   fi
   rm -rf -- "$WORK_DIR"
 }
-trap cleanup EXIT
-trap 'exit 130' INT
+trap cleanup EXIT # Cleanup on exit, including Ctrl+C and kill.
+# https://tldp.org/LDP/abs/html/exitcodes.html
+# Turn Ctrl+C and kill into exit codes 130 and 143, so the cleanup trap runs.
+trap 'exit 130' INT 
 trap 'exit 143' TERM
 
 # Local secrets of the simulated gateways; the defaults must match the simulator's.
