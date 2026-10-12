@@ -8,6 +8,8 @@
 # Local variable values can contain secrets
 *.tfvars
 *.tfvars.json
+# Local-only secrets npm run dev uses, safe to share
+!terraform/secrets.local.tfvars
 
 # Saved plans (use these extensions when saving plans)
 *.tfplan

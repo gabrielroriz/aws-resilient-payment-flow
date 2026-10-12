@@ -132,7 +132,7 @@ Queues removed from Terraform stay in ElasticMQ until the local services stop.
 | Routes | Each route's method and path run the function with the same registry key, with payload format `2.0`, as deployed |
 | Queue triggers | The poller receives batches from ElasticMQ and invokes SAM; completed records are deleted and failed records return after visibility timeout, then redrive after the receive limit |
 | Undeployed functions, routes, and mappings | Run locally using planned names, without deployed ARNs |
-| Secrets | Local values for the secrets `npm run dev` knows, such as the [simulated gateways'](simulated-gateways.md#setup), unless set before it runs; the deployment secrets file never applies locally |
+| Secrets | Local values from [`terraform/secrets.local.tfvars`](../../terraform/secrets.local.tfvars), such as the [simulated gateways'](simulated-gateways.md#setup); they take precedence over the deployment secrets file, which never applies to a secret they set |
 | DynamoDB and SQS endpoints | Every function gets `AWS_ENDPOINT_URL_DYNAMODB` and `AWS_ENDPOINT_URL_SQS`, so the AWS SDK sends DynamoDB requests to DynamoDB Local and SQS requests to ElasticMQ, and the code needs no local-only configuration |
 
 ### Local limitations
@@ -143,7 +143,7 @@ Queues removed from Terraform stay in ElasticMQ until the local services stop.
 - Calls to other AWS services reach AWS. Other services and IAM permissions are not emulated.
 - Only the method and path of API Gateway routes apply locally; integration settings, such as the 30-second integration timeout, do not. A route without a method and path, such as `$default`, stops `npm run dev`.
 - SAM answers an unmatched route with 403 (`Missing Authentication Token`); the deployed HTTP API answers 404.
-- An environment variable that has no default and no local value, such as a new secret, must be exported as `TF_VAR_<NAME>` before `npm run dev`.
+- An environment variable that has no default, such as a new secret, needs a local value in `terraform/secrets.local.tfvars`. Without one, `npm run dev` uses the deployed value when the deployment secrets file or `TF_VAR_<NAME>` sets it, and otherwise fails to plan.
 
 ## Build output
 

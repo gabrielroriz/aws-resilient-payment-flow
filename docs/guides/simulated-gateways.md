@@ -17,7 +17,7 @@ Simulated payment gateways stand in for real providers in tests: each sends webh
 | `GATEWAY_GLOBAL_SIGNING_SECRET` | `gatewayGlobal` | `local-gateway-global-secret` |
 | `GATEWAY_BRAZIL_ACCESS_TOKEN` | `gatewayBrazil` | `local-gateway-brazil-token` |
 
-The webhook function and the simulator read the same variables. Locally, `npm run dev` gives the function these values, using the defaults when they are unset. A deployed function gets the values set during the [deployment setup](deployment.md#setup); export the same values before simulating against it.
+The webhook function and the simulator read the same variables. Locally, `npm run dev` gives the function the local defaults from [`terraform/secrets.local.tfvars`](../../terraform/secrets.local.tfvars), so the simulator needs no setup. A deployed function gets the values set during the [deployment setup](deployment.md#setup); export the same values before simulating against it.
 
 ## How the gateways differ
 
