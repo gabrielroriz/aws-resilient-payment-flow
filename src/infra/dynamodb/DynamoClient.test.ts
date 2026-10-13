@@ -16,7 +16,9 @@ test("putIfAbsent writes the item only when its key is free", async () => {
   const client = new DynamoClient();
   const send = stubSend(client).mockResolvedValue({});
 
-  await expect(client.putIfAbsent("events", { PK: "stripe#evt_1", SK: "META" }, "PK")).resolves.toEqual({
+  await expect(
+    client.putIfAbsent("events", { PK: "stripe#evt_1", SK: "META" }, "PK"),
+  ).resolves.toEqual({
     created: true,
   });
 
@@ -35,10 +37,16 @@ test("putIfAbsent returns the stored item, converted to a plain object, when the
   const client = new DynamoClient();
   const stored = { PK: "stripe#evt_1", SK: "META", expires_at: 1767866401 };
   stubSend(client).mockRejectedValue(
-    new ConditionalCheckFailedException({ message: "taken", $metadata: {}, Item: marshall(stored) }),
+    new ConditionalCheckFailedException({
+      message: "taken",
+      $metadata: {},
+      Item: marshall(stored),
+    }),
   );
 
-  await expect(client.putIfAbsent("events", { PK: "stripe#evt_1", SK: "META" }, "PK")).resolves.toEqual({
+  await expect(
+    client.putIfAbsent("events", { PK: "stripe#evt_1", SK: "META" }, "PK"),
+  ).resolves.toEqual({
     created: false,
     existing: stored,
   });
@@ -57,7 +65,11 @@ test("queryAll follows every page", async () => {
   const send = stubSend(client)
     .mockResolvedValueOnce({ Items: [{ n: 1 }], LastEvaluatedKey: { PK: "a", SK: "1" } })
     .mockResolvedValueOnce({ Items: [{ n: 2 }] });
-  const input = { TableName: "events", KeyConditionExpression: "PK = :key", ExpressionAttributeValues: { ":key": "a" } };
+  const input = {
+    TableName: "events",
+    KeyConditionExpression: "PK = :key",
+    ExpressionAttributeValues: { ":key": "a" },
+  };
 
   await expect(client.queryAll(input)).resolves.toEqual([{ n: 1 }, { n: 2 }]);
 

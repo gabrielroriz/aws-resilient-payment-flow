@@ -41,7 +41,9 @@ async function storedEventItem() {
 // Answers each query with the items listed under its partition key value.
 function stubQueries(dynamo: DynamoClient, itemsByKey: Record<string, DynamoClient.Item[]>) {
   return vi.spyOn(dynamo, "queryAll").mockImplementation(async (input) => {
-    const key = Object.values(input.ExpressionAttributeValues ?? {}).find((value) => String(value) in itemsByKey);
+    const key = Object.values(input.ExpressionAttributeValues ?? {}).find(
+      (value) => String(value) in itemsByKey,
+    );
     return (itemsByKey[String(key)] ?? []) as never;
   });
 }
@@ -82,7 +84,10 @@ test("create leaves an event without a subject out of GSI2", async () => {
 
 test("create returns the stored event when the event already exists", async () => {
   const { dynamo, repository } = setup();
-  vi.spyOn(dynamo, "putIfAbsent").mockResolvedValue({ created: false, existing: await storedEventItem() });
+  vi.spyOn(dynamo, "putIfAbsent").mockResolvedValue({
+    created: false,
+    existing: await storedEventItem(),
+  });
 
   const retry = { ...event, receivedAt: new Date("2026-10-10T10:05:00.000Z") };
 
@@ -91,10 +96,15 @@ test("create returns the stored event when the event already exists", async () =
 
 test("get reads the event item, or returns undefined when it does not exist", async () => {
   const { dynamo, repository } = setup();
-  const get = vi.spyOn(dynamo, "get").mockResolvedValueOnce(await storedEventItem()).mockResolvedValueOnce(undefined);
+  const get = vi
+    .spyOn(dynamo, "get")
+    .mockResolvedValueOnce(await storedEventItem())
+    .mockResolvedValueOnce(undefined);
 
   await expect(repository.get(event)).resolves.toEqual(event);
-  await expect(repository.get({ provider: "stripe", providerEventId: "evt_missing" })).resolves.toBeUndefined();
+  await expect(
+    repository.get({ provider: "stripe", providerEventId: "evt_missing" }),
+  ).resolves.toBeUndefined();
   expect(get).toHaveBeenCalledWith(tableName, { PK: "stripe#evt_1", SK: "META" });
 });
 
@@ -102,7 +112,10 @@ test("recordDuplicateDelivery stores a delivery item that expires with the event
   const { dynamo, repository } = setup();
   const put = vi.spyOn(dynamo, "put").mockResolvedValue();
 
-  await repository.recordDuplicateDelivery(event, { receivedAt: new Date("2026-10-10T10:05:00.000Z"), requestId: "req-2" });
+  await repository.recordDuplicateDelivery(event, {
+    receivedAt: new Date("2026-10-10T10:05:00.000Z"),
+    requestId: "req-2",
+  });
 
   expect(put).toHaveBeenCalledWith(tableName, {
     PK: "stripe#evt_1",
@@ -172,7 +185,9 @@ test("getTrace returns the event with its attempts, effects, and deliveries", as
     KeyConditionExpression: "PK = :key",
     ExpressionAttributeValues: { ":key": "stripe#evt_1" },
   });
-  await expect(repository.getTrace({ provider: "stripe", providerEventId: "evt_missing" })).resolves.toBeUndefined();
+  await expect(
+    repository.getTrace({ provider: "stripe", providerEventId: "evt_missing" }),
+  ).resolves.toBeUndefined();
 });
 
 test("listReceived queries every shard of every provider and merges them in receipt order", async () => {
@@ -223,16 +238,18 @@ test("listReceived queries every shard of every provider and merges them in rece
       subject: { type: "payment", id: "pi_1" },
     },
   ]);
-  expect(queryAll.mock.calls.map(([input]) => input.ExpressionAttributeValues?.[":shard"])).toEqual([
-    "stripe#0",
-    "stripe#1",
-    "stripe#2",
-    "stripe#3",
-    "simulated#0",
-    "simulated#1",
-    "simulated#2",
-    "simulated#3",
-  ]);
+  expect(queryAll.mock.calls.map(([input]) => input.ExpressionAttributeValues?.[":shard"])).toEqual(
+    [
+      "stripe#0",
+      "stripe#1",
+      "stripe#2",
+      "stripe#3",
+      "simulated#0",
+      "simulated#1",
+      "simulated#2",
+      "simulated#3",
+    ],
+  );
   // The interval excludes its end: the last millisecond queried is just before `to`.
   expect(queryAll.mock.calls[0][0]).toEqual({
     TableName: tableName,
@@ -268,7 +285,9 @@ test("listReceived returns nothing for an empty interval without querying", asyn
   const queryAll = stubQueries(dynamo, {});
   const instant = new Date("2026-10-10T00:00:00.000Z");
 
-  await expect(repository.listReceived({ providers: ["stripe"], from: instant, to: instant })).resolves.toEqual([]);
+  await expect(
+    repository.listReceived({ providers: ["stripe"], from: instant, to: instant }),
+  ).resolves.toEqual([]);
   expect(queryAll).not.toHaveBeenCalled();
 });
 
@@ -286,7 +305,10 @@ test("listBySubject queries GSI2 for the subject and returns its events", async 
     ],
   });
 
-  const events = await repository.listBySubject({ provider: "stripe", subject: { type: "payment", id: "pi_1" } });
+  const events = await repository.listBySubject({
+    provider: "stripe",
+    subject: { type: "payment", id: "pi_1" },
+  });
 
   const { payload, ...summary } = event;
   expect(events).toEqual([summary]);

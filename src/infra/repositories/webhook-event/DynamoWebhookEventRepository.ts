@@ -22,7 +22,9 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
 
   async create(event: WebhookEventRepository.Event): Promise<WebhookEventRepository.CreateResult> {
     const result = await this.dynamo.putIfAbsent(this.table, this.toEventItem(event), "PK");
-    return result.created ? { created: true, event } : { created: false, event: fromEventItem(result.existing) };
+    return result.created
+      ? { created: true, event }
+      : { created: false, event: fromEventItem(result.existing) };
   }
 
   async get(id: WebhookEventRepository.EventId): Promise<WebhookEventRepository.Event | undefined> {
@@ -47,7 +49,9 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     await this.dynamo.put(this.table, item);
   }
 
-  async getTrace(id: WebhookEventRepository.EventId): Promise<WebhookEventRepository.Trace | undefined> {
+  async getTrace(
+    id: WebhookEventRepository.EventId,
+  ): Promise<WebhookEventRepository.Trace | undefined> {
     const items = await this.dynamo.queryAll<DynamoWebhookEventRepository.TraceItem>({
       TableName: this.table,
       KeyConditionExpression: "PK = :key",
@@ -55,7 +59,8 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     });
 
     const event = items.find(
-      (item): item is DynamoWebhookEventRepository.EventItem => item.SK === DynamoWebhookEventRepository.EVENT_SK,
+      (item): item is DynamoWebhookEventRepository.EventItem =>
+        item.SK === DynamoWebhookEventRepository.EVENT_SK,
     );
     if (!event) {
       return undefined;
@@ -68,7 +73,8 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       event: fromEventItem(event),
       attempts: ofType<DynamoWebhookEventRepository.AttemptItem>("ATTEMPT").map(fromAttemptItem),
       effects: ofType<DynamoWebhookEventRepository.EffectItem>("EFFECT").map(fromEffectItem),
-      deliveries: ofType<DynamoWebhookEventRepository.DeliveryItem>("DELIVERY").map(fromDeliveryItem),
+      deliveries:
+        ofType<DynamoWebhookEventRepository.DeliveryItem>("DELIVERY").map(fromDeliveryItem),
     };
   }
 
@@ -131,7 +137,9 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
 
   // Every item of an event expires with the event, so TTL never leaves a partial trace behind.
   private expiresAt(eventReceivedAt: Date): number {
-    return Math.floor(eventReceivedAt.getTime() / 1000) + DynamoWebhookEventRepository.RETENTION_SECONDS;
+    return (
+      Math.floor(eventReceivedAt.getTime() / 1000) + DynamoWebhookEventRepository.RETENTION_SECONDS
+    );
   }
 
   private toEventItem(event: WebhookEventRepository.Event): DynamoWebhookEventRepository.EventItem {
@@ -156,7 +164,6 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
   }
 }
 
-
 export namespace DynamoWebhookEventRepository {
   // The event itself; the other items of its collection share its `PK`.
   export type EventItem = {
@@ -180,7 +187,10 @@ export namespace DynamoWebhookEventRepository {
     EventItem,
     "PK" | "provider" | "event_type" | "occurred_at" | "received_at" | "subject_type" | "subject_id"
   >;
-  export type SubjectItem = Pick<EventItem, "PK" | "provider" | "event_type" | "occurred_at" | "received_at">;
+  export type SubjectItem = Pick<
+    EventItem,
+    "PK" | "provider" | "event_type" | "occurred_at" | "received_at"
+  >;
 
   export type AttemptItem = {
     PK: string;
@@ -220,7 +230,9 @@ function eventKey({ provider, providerEventId }: WebhookEventRepository.EventId)
   return joinKey(provider, providerEventId);
 }
 
-function fromReceivedItem(item: DynamoWebhookEventRepository.ReceivedItem): WebhookEventRepository.Summary {
+function fromReceivedItem(
+  item: DynamoWebhookEventRepository.ReceivedItem,
+): WebhookEventRepository.Summary {
   return {
     provider: item.provider,
     // Index items carry the table key, which is the provider followed by its event ID.
@@ -239,7 +251,9 @@ function fromEventItem(item: DynamoWebhookEventRepository.EventItem): WebhookEve
   return { ...fromReceivedItem(item), payload: gunzipSync(item.payload).toString("utf8") };
 }
 
-function fromAttemptItem(item: DynamoWebhookEventRepository.AttemptItem): WebhookEventRepository.Attempt {
+function fromAttemptItem(
+  item: DynamoWebhookEventRepository.AttemptItem,
+): WebhookEventRepository.Attempt {
   return {
     attemptId: item.attempt_id,
     startedAt: new Date(item.started_at),
@@ -251,7 +265,9 @@ function fromAttemptItem(item: DynamoWebhookEventRepository.AttemptItem): Webhoo
   };
 }
 
-function fromEffectItem(item: DynamoWebhookEventRepository.EffectItem): WebhookEventRepository.Effect {
+function fromEffectItem(
+  item: DynamoWebhookEventRepository.EffectItem,
+): WebhookEventRepository.Effect {
   return {
     effect: item.effect,
     status: item.status,
@@ -260,6 +276,8 @@ function fromEffectItem(item: DynamoWebhookEventRepository.EffectItem): WebhookE
   };
 }
 
-function fromDeliveryItem(item: DynamoWebhookEventRepository.DeliveryItem): WebhookEventRepository.Delivery {
+function fromDeliveryItem(
+  item: DynamoWebhookEventRepository.DeliveryItem,
+): WebhookEventRepository.Delivery {
   return { receivedAt: new Date(item.received_at), requestId: item.request_id };
 }

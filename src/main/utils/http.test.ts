@@ -56,7 +56,12 @@ test("buildHttpResponse sends only the status code when the body is undefined", 
 
 test("buildHttpResponse keeps falsy bodies other than undefined", () => {
   // Only undefined means "no body"; null, 0, false, and "" are valid JSON payloads.
-  for (const [value, body] of [[null, "null"], [0, "0"], [false, "false"], ["", '""']]) {
+  for (const [value, body] of [
+    [null, "null"],
+    [0, "0"],
+    [false, "false"],
+    ["", '""'],
+  ]) {
     expect(buildHttpResponse(200, value)).toMatchObject({ body });
   }
 });

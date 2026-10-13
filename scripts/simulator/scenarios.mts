@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { gateways, type Credentials, type SimulatedEvent, type SimulatedGateway } from './gateways.mts';
+import {
+  gateways,
+  type Credentials,
+  type SimulatedEvent,
+  type SimulatedGateway,
+} from './gateways.mts';
 
 // One observed outcome, compared with what the scenario expects.
 export type Check = { gateway: string; step: string; passed: boolean; detail: string };
@@ -23,20 +28,31 @@ const RETRY_DELAY_MS = 3000;
 export const scenarios: Scenario[] = [
   {
     name: 'duplicate-delivery',
-    description: 'The same event delivered three times is stored once, and every delivery is acknowledged.',
+    description:
+      'The same event delivered three times is stored once, and every delivery is acknowledged.',
     run: (baseUrl) =>
       forEachGateway(async (gateway) => {
         const body = gateway.render(newEvent('payment.paid'));
         return [
-          check(gateway, 'first delivery', await deliver(baseUrl, gateway, body), { status: 200, duplicate: false }),
-          check(gateway, 'second delivery', await deliver(baseUrl, gateway, body), { status: 200, duplicate: true }),
-          check(gateway, 'third delivery', await deliver(baseUrl, gateway, body), { status: 200, duplicate: true }),
+          check(gateway, 'first delivery', await deliver(baseUrl, gateway, body), {
+            status: 200,
+            duplicate: false,
+          }),
+          check(gateway, 'second delivery', await deliver(baseUrl, gateway, body), {
+            status: 200,
+            duplicate: true,
+          }),
+          check(gateway, 'third delivery', await deliver(baseUrl, gateway, body), {
+            status: 200,
+            duplicate: true,
+          }),
         ];
       }),
   },
   {
     name: 'provider-retry',
-    description: 'A delivery whose acknowledgment times out is retried without storing the event twice.',
+    description:
+      'A delivery whose acknowledgment times out is retried without storing the event twice.',
     run: (baseUrl) =>
       forEachGateway(async (gateway) => {
         const body = gateway.render(newEvent('payment.paid'));
@@ -44,8 +60,13 @@ export const scenarios: Scenario[] = [
         await sleep(RETRY_DELAY_MS);
         return [
           // The retry is a duplicate when the unacknowledged delivery was stored, and new otherwise.
-          check(gateway, 'retry after the timeout', await deliver(baseUrl, gateway, body), { status: 200 }),
-          check(gateway, 'later retry', await deliver(baseUrl, gateway, body), { status: 200, duplicate: true }),
+          check(gateway, 'retry after the timeout', await deliver(baseUrl, gateway, body), {
+            status: 200,
+          }),
+          check(gateway, 'later retry', await deliver(baseUrl, gateway, body), {
+            status: 200,
+            duplicate: true,
+          }),
         ];
       }),
   },
@@ -55,23 +76,37 @@ export const scenarios: Scenario[] = [
     run: async (baseUrl) => {
       const shared = newEvent('payment.paid');
       return forEachGateway(async (gateway) => [
-        check(gateway, `event ${shared.eventId}`, await deliver(baseUrl, gateway, gateway.render(shared)), {
-          status: 200,
-          duplicate: false,
-        }),
+        check(
+          gateway,
+          `event ${shared.eventId}`,
+          await deliver(baseUrl, gateway, gateway.render(shared)),
+          {
+            status: 200,
+            duplicate: false,
+          },
+        ),
       ]);
     },
   },
   {
     name: 'out-of-order',
-    description: 'A refund delivered before its payment is accepted, and so is the payment that follows it.',
+    description:
+      'A refund delivered before its payment is accepted, and so is the payment that follows it.',
     run: (baseUrl) =>
       forEachGateway(async (gateway) => {
         const payment = newEvent('payment.paid', { occurredAt: new Date(Date.now() - 60_000) });
         const refund = newEvent('payment.refunded', { paymentId: payment.paymentId });
         return [
-          check(gateway, 'refund first', await deliver(baseUrl, gateway, gateway.render(refund)), { status: 200, duplicate: false }),
-          check(gateway, 'payment after it', await deliver(baseUrl, gateway, gateway.render(payment)), { status: 200, duplicate: false }),
+          check(gateway, 'refund first', await deliver(baseUrl, gateway, gateway.render(refund)), {
+            status: 200,
+            duplicate: false,
+          }),
+          check(
+            gateway,
+            'payment after it',
+            await deliver(baseUrl, gateway, gateway.render(payment)),
+            { status: 200, duplicate: false },
+          ),
         ];
       }),
   },
@@ -84,22 +119,38 @@ export const scenarios: Scenario[] = [
         const checks: Check[] = [];
         for (const credentials of gateway.forgeries) {
           const outcome = await deliver(baseUrl, gateway, body, { credentials });
-          checks.push(check(gateway, `${credentials} credentials`, outcome, { status: 401, code: 'WEBHOOK_AUTHENTICATION_FAILED' }));
+          checks.push(
+            check(gateway, `${credentials} credentials`, outcome, {
+              status: 401,
+              code: 'WEBHOOK_AUTHENTICATION_FAILED',
+            }),
+          );
         }
         // Had a rejected delivery been stored, this authentic one would be a duplicate.
-        checks.push(check(gateway, 'authentic delivery after them', await deliver(baseUrl, gateway, body), { status: 200, duplicate: false }));
+        checks.push(
+          check(gateway, 'authentic delivery after them', await deliver(baseUrl, gateway, body), {
+            status: 200,
+            duplicate: false,
+          }),
+        );
         return checks;
       }),
   },
   {
     name: 'malformed-event',
-    description: "An authentic webhook that is not one of the gateway's events is rejected as malformed.",
+    description:
+      "An authentic webhook that is not one of the gateway's events is rejected as malformed.",
     run: (baseUrl) =>
       forEachGateway(async (gateway) => [
-        check(gateway, 'event without an ID', await deliver(baseUrl, gateway, '{"unexpected":true}'), {
-          status: 400,
-          code: 'WEBHOOK_MALFORMED_EVENT',
-        }),
+        check(
+          gateway,
+          'event without an ID',
+          await deliver(baseUrl, gateway, '{"unexpected":true}'),
+          {
+            status: 400,
+            code: 'WEBHOOK_MALFORMED_EVENT',
+          },
+        ),
       ]),
   },
 ];
@@ -108,13 +159,24 @@ export const scenarios: Scenario[] = [
 const runId = randomUUID().slice(0, 8);
 let sequence = 0;
 
-function newEvent(kind: SimulatedEvent['kind'], overrides: Partial<SimulatedEvent> = {}): SimulatedEvent {
+function newEvent(
+  kind: SimulatedEvent['kind'],
+  overrides: Partial<SimulatedEvent> = {},
+): SimulatedEvent {
   sequence += 1;
-  return { eventId: `evt_${runId}_${sequence}`, kind, paymentId: `pay_${runId}_${sequence}`, occurredAt: new Date(), ...overrides };
+  return {
+    eventId: `evt_${runId}_${sequence}`,
+    kind,
+    paymentId: `pay_${runId}_${sequence}`,
+    occurredAt: new Date(),
+    ...overrides,
+  };
 }
 
 // Gateways run side by side, as real providers do; each one's steps stay in order.
-async function forEachGateway(steps: (gateway: SimulatedGateway) => Promise<Check[]>): Promise<Check[]> {
+async function forEachGateway(
+  steps: (gateway: SimulatedGateway) => Promise<Check[]>,
+): Promise<Check[]> {
   return (await Promise.all(gateways.map(steps))).flat();
 }
 
@@ -141,13 +203,20 @@ async function deliver(
   }
 }
 
-function check(gateway: SimulatedGateway, step: string, outcome: Outcome, expected: Expected): Check {
+function check(
+  gateway: SimulatedGateway,
+  step: string,
+  outcome: Outcome,
+  expected: Expected,
+): Check {
   const passed =
     !('timedOut' in outcome) &&
     outcome.status === expected.status &&
     (expected.duplicate === undefined || outcome.body.duplicate === expected.duplicate) &&
     (expected.code === undefined || outcome.body.error?.code === expected.code);
-  const detail = passed ? describe(outcome) : `${describe(outcome)}; expected ${describe(expected)}`;
+  const detail = passed
+    ? describe(outcome)
+    : `${describe(outcome)}; expected ${describe(expected)}`;
   return { gateway: gateway.name, step, passed, detail };
 }
 
@@ -157,5 +226,7 @@ function describe(outcome: Outcome | Expected): string {
   }
   const duplicate = 'body' in outcome ? outcome.body.duplicate : outcome.duplicate;
   const code = 'body' in outcome ? outcome.body.error?.code : outcome.code;
-  return [`HTTP ${outcome.status}`, duplicate !== undefined && `duplicate=${duplicate}`, code].filter(Boolean).join(' ');
+  return [`HTTP ${outcome.status}`, duplicate !== undefined && `duplicate=${duplicate}`, code]
+    .filter(Boolean)
+    .join(' ');
 }

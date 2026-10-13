@@ -7,7 +7,9 @@ import { Injectable } from "@kernel/decorators/injectable";
 export class WebhookEntryPointController implements Controller<IngestWebhookUseCase.Output> {
   constructor(private readonly ingestWebhookUseCase: IngestWebhookUseCase) {}
 
-  async handle(request: Controller.Request): Promise<Controller.Response<IngestWebhookUseCase.Output>> {
+  async handle(
+    request: Controller.Request,
+  ): Promise<Controller.Response<IngestWebhookUseCase.Output>> {
     const output = await this.ingestWebhookUseCase.execute({
       provider: request.params.provider ?? "",
       requestId: request.requestId,

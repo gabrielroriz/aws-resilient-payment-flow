@@ -59,7 +59,11 @@ export class IngestWebhookUseCase {
     // and retries, and only that retry can still dispatch the already stored event.
     await this.dispatcher.dispatch(event);
 
-    return { provider: event.provider, providerEventId: event.providerEventId, duplicate: !created };
+    return {
+      provider: event.provider,
+      providerEventId: event.providerEventId,
+      duplicate: !created,
+    };
   }
 }
 

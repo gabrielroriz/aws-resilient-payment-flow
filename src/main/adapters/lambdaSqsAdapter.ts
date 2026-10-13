@@ -14,16 +14,22 @@ export function lambdaSqsAdapter(handler: MessageHandler) {
         if (body === undefined) throw new ErrorQueueMalformedMessage();
         await handler.handle(body);
       } catch (error) {
-        console.error(JSON.stringify({
-          logType: "queue_message_error",
-          messageId: record.messageId,
-          messageGroupId: record.attributes.MessageGroupId,
-          receiveCount: record.attributes.ApproximateReceiveCount,
-          eventSourceARN: record.eventSourceARN,
-          ...errorLogFields(error),
-        }));
+        console.error(
+          JSON.stringify({
+            logType: "queue_message_error",
+            messageId: record.messageId,
+            messageGroupId: record.attributes.MessageGroupId,
+            receiveCount: record.attributes.ApproximateReceiveCount,
+            eventSourceARN: record.eventSourceARN,
+            ...errorLogFields(error),
+          }),
+        );
         // Stop at the first failure: acknowledging later messages would break FIFO ordering.
-        return { batchItemFailures: event.Records.slice(index).map(({ messageId }) => ({ itemIdentifier: messageId })) };
+        return {
+          batchItemFailures: event.Records.slice(index).map(({ messageId }) => ({
+            itemIdentifier: messageId,
+          })),
+        };
       }
     }
     return { batchItemFailures: [] };

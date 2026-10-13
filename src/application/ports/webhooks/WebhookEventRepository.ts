@@ -3,9 +3,13 @@
 export abstract class WebhookEventRepository {
   // Stores a newly received event once. When an event with the same identity already exists,
   // nothing is written and the stored event is returned instead, marking a duplicate delivery.
-  abstract create(event: WebhookEventRepository.Event): Promise<WebhookEventRepository.CreateResult>;
+  abstract create(
+    event: WebhookEventRepository.Event,
+  ): Promise<WebhookEventRepository.CreateResult>;
 
-  abstract get(id: WebhookEventRepository.EventId): Promise<WebhookEventRepository.Event | undefined>;
+  abstract get(
+    id: WebhookEventRepository.EventId,
+  ): Promise<WebhookEventRepository.Event | undefined>;
 
   // Records another delivery of an event that `create` reported as already stored.
   abstract recordDuplicateDelivery(
@@ -14,13 +18,19 @@ export abstract class WebhookEventRepository {
   ): Promise<void>;
 
   // Returns the event with its processing attempts, business effects, and duplicate deliveries.
-  abstract getTrace(id: WebhookEventRepository.EventId): Promise<WebhookEventRepository.Trace | undefined>;
+  abstract getTrace(
+    id: WebhookEventRepository.EventId,
+  ): Promise<WebhookEventRepository.Trace | undefined>;
 
   // Lists events received in a time interval, oldest first.
-  abstract listReceived(query: WebhookEventRepository.ReceivedQuery): Promise<WebhookEventRepository.Summary[]>;
+  abstract listReceived(
+    query: WebhookEventRepository.ReceivedQuery,
+  ): Promise<WebhookEventRepository.Summary[]>;
 
   // Lists the events of one business subject in the order the provider says they occurred.
-  abstract listBySubject(query: WebhookEventRepository.SubjectQuery): Promise<WebhookEventRepository.Summary[]>;
+  abstract listBySubject(
+    query: WebhookEventRepository.SubjectQuery,
+  ): Promise<WebhookEventRepository.Summary[]>;
 }
 
 export namespace WebhookEventRepository {

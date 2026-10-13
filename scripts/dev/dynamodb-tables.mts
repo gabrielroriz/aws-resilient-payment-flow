@@ -9,7 +9,13 @@ import {
   type KeySchemaElement,
   type Projection,
 } from '@aws-sdk/client-dynamodb';
-import type { IndexDefinition, IndexValues, LocalTable, TableDefinition, TableValues } from './dynamodb-tables.types.mts';
+import type {
+  IndexDefinition,
+  IndexValues,
+  LocalTable,
+  TableDefinition,
+  TableValues,
+} from './dynamodb-tables.types.mts';
 import type { SyncResult } from './local-resources.types.mts';
 import { plannedResources } from './terraform-plan.mts';
 import type { TerraformPlan } from './terraform-plan.types.mts';
@@ -19,7 +25,9 @@ import type { TerraformPlan } from './terraform-plan.types.mts';
 // lacks, such as DescribeContinuousBackups. Only what changes how requests behave is kept;
 // capacity, backups, and encryption mean nothing locally.
 export function tablesFromPlan(plan: TerraformPlan): LocalTable[] {
-  return plannedResources<TableValues>(plan, 'aws_dynamodb_table').map((resource) => toLocalTable(resource.values));
+  return plannedResources<TableValues>(plan, 'aws_dynamodb_table').map((resource) =>
+    toLocalTable(resource.values),
+  );
 }
 
 // Makes DynamoDB Local match a table definition. A table whose keys, indexes, or TTL differ is
@@ -53,14 +61,20 @@ function toLocalTable(table: TableValues): LocalTable {
       TableName: table.name,
       // DynamoDB Local ignores capacity, so on-demand mode avoids carrying throughput settings over.
       BillingMode: 'PAY_PER_REQUEST',
-      AttributeDefinitions: table.attribute.map(({ name, type }) => ({ AttributeName: name, AttributeType: type })),
+      AttributeDefinitions: table.attribute.map(({ name, type }) => ({
+        AttributeName: name,
+        AttributeType: type,
+      })),
       KeySchema: keySchema(table.hash_key, table.range_key),
       GlobalSecondaryIndexes: nonEmpty(
         table.global_secondary_index?.map((index) => ({
           IndexName: index.name,
           // Terraform declares index keys either as key_schema blocks or as hash_key and range_key.
           KeySchema: index.key_schema?.length
-            ? index.key_schema.map(({ attribute_name, key_type }) => ({ AttributeName: attribute_name, KeyType: key_type }))
+            ? index.key_schema.map(({ attribute_name, key_type }) => ({
+                AttributeName: attribute_name,
+                KeyType: key_type,
+              }))
             : keySchema(index.hash_key, index.range_key),
           Projection: projection(index),
         })),
@@ -78,7 +92,10 @@ function toLocalTable(table: TableValues): LocalTable {
   };
 }
 
-function keySchema(hashKey: string | undefined, rangeKey: string | null | undefined): KeySchemaElement[] {
+function keySchema(
+  hashKey: string | undefined,
+  rangeKey: string | null | undefined,
+): KeySchemaElement[] {
   const schema: KeySchemaElement[] = [{ AttributeName: hashKey, KeyType: 'HASH' }];
   // Terraform reports an absent sort key as an empty string.
   if (rangeKey) {
@@ -88,7 +105,10 @@ function keySchema(hashKey: string | undefined, rangeKey: string | null | undefi
 }
 
 function projection(index: IndexValues): Projection {
-  return { ProjectionType: index.projection_type, NonKeyAttributes: nonEmpty(index.non_key_attributes) };
+  return {
+    ProjectionType: index.projection_type,
+    NonKeyAttributes: nonEmpty(index.non_key_attributes),
+  };
 }
 
 // DynamoDB rejects empty lists where Terraform reports empty blocks, so they are left out.
@@ -96,11 +116,19 @@ function nonEmpty<T>(items: T[] | null | undefined): T[] | undefined {
   return items?.length ? items : undefined;
 }
 
-async function currentSchema(client: DynamoDBClient, TableName: string | undefined): Promise<string | undefined> {
+async function currentSchema(
+  client: DynamoDBClient,
+  TableName: string | undefined,
+): Promise<string | undefined> {
   try {
     const { Table } = await client.send(new DescribeTableCommand({ TableName }));
-    const { TimeToLiveDescription: ttl } = await client.send(new DescribeTimeToLiveCommand({ TableName }));
-    return schemaOf(Table ?? {}, ttl?.TimeToLiveStatus === 'ENABLED' ? ttl.AttributeName : undefined);
+    const { TimeToLiveDescription: ttl } = await client.send(
+      new DescribeTimeToLiveCommand({ TableName }),
+    );
+    return schemaOf(
+      Table ?? {},
+      ttl?.TimeToLiveStatus === 'ENABLED' ? ttl.AttributeName : undefined,
+    );
   } catch (error) {
     if (error instanceof ResourceNotFoundException) {
       return undefined;
@@ -112,7 +140,8 @@ async function currentSchema(client: DynamoDBClient, TableName: string | undefin
 // The settings DynamoDB Local enforces, in a canonical form: descriptions list attributes and
 // indexes in any order and carry status fields that requests do not have.
 function schemaOf(table: TableDefinition, ttlAttribute: string | undefined): string {
-  const keys = (schema: KeySchemaElement[] = []) => schema.map(({ AttributeName, KeyType }) => [AttributeName, KeyType]);
+  const keys = (schema: KeySchemaElement[] = []) =>
+    schema.map(({ AttributeName, KeyType }) => [AttributeName, KeyType]);
   const indexes = (list: IndexDefinition[] = []) =>
     list
       .map(({ IndexName, KeySchema, Projection }) =>
@@ -125,7 +154,9 @@ function schemaOf(table: TableDefinition, ttlAttribute: string | undefined): str
       )
       .sort();
   return JSON.stringify({
-    attributes: (table.AttributeDefinitions ?? []).map(({ AttributeName, AttributeType }) => `${AttributeName}:${AttributeType}`).sort(),
+    attributes: (table.AttributeDefinitions ?? [])
+      .map(({ AttributeName, AttributeType }) => `${AttributeName}:${AttributeType}`)
+      .sort(),
     keys: keys(table.KeySchema),
     globalIndexes: indexes(table.GlobalSecondaryIndexes),
     localIndexes: indexes(table.LocalSecondaryIndexes),

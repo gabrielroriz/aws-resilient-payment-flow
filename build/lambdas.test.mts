@@ -22,10 +22,17 @@ test('HTTP and SQS functions are accepted, with http as the default trigger', as
 
 test('an unknown trigger is rejected', async () => {
   const root = await registryOf({ worker: { entry: 'src/worker.ts', trigger: 'sns' } });
-  await expect(extractAndValidateLambdas(root)).rejects.toThrow('Invalid trigger for worker: expected http or sqs');
+  await expect(extractAndValidateLambdas(root)).rejects.toThrow(
+    'Invalid trigger for worker: expected http or sqs',
+  );
 });
 
-test.each([{ http_method: 'POST' }, { path: '/worker' }])('an SQS function with an HTTP route is rejected: %j', async (route) => {
-  const root = await registryOf({ worker: { entry: 'src/worker.ts', trigger: 'sqs', ...route } });
-  await expect(extractAndValidateLambdas(root)).rejects.toThrow('SQS Lambda worker must not declare an HTTP route.');
-});
+test.each([{ http_method: 'POST' }, { path: '/worker' }])(
+  'an SQS function with an HTTP route is rejected: %j',
+  async (route) => {
+    const root = await registryOf({ worker: { entry: 'src/worker.ts', trigger: 'sqs', ...route } });
+    await expect(extractAndValidateLambdas(root)).rejects.toThrow(
+      'SQS Lambda worker must not declare an HTTP route.',
+    );
+  },
+);

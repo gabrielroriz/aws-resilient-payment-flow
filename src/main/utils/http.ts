@@ -4,7 +4,10 @@ import type { APIGatewayProxyResultV2 } from "aws-lambda";
 
 // Returns the request body as the client sent it. API Gateway base64-encodes bodies it does not
 // treat as text, such as form posts, so those are decoded back to the original text.
-export function decodeHttpBody(body: string | undefined, isBase64Encoded: boolean): string | undefined {
+export function decodeHttpBody(
+  body: string | undefined,
+  isBase64Encoded: boolean,
+): string | undefined {
   if (body === undefined || !isBase64Encoded) {
     return body;
   }

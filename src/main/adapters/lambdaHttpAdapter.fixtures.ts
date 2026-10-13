@@ -16,7 +16,10 @@ export function httpEvent(overrides: Partial<APIGatewayProxyEventV2> = {}): APIG
 }
 
 // Calls a handler with a test event and parses its JSON body, so tests assert on plain values.
-export async function invokeHttp(handler: HttpHandler, overrides?: Partial<APIGatewayProxyEventV2>) {
+export async function invokeHttp(
+  handler: HttpHandler,
+  overrides?: Partial<APIGatewayProxyEventV2>,
+) {
   const response = await handler(httpEvent(overrides));
   // API Gateway also accepts a bare string as a response, but the adapter always builds an object.
   if (typeof response === "string") {

@@ -20,7 +20,10 @@ export class DynamoClient {
     marshallOptions: { removeUndefinedValues: true },
   });
 
-  async get<T extends DynamoClient.Item>(table: string, key: DynamoClient.Item): Promise<T | undefined> {
+  async get<T extends DynamoClient.Item>(
+    table: string,
+    key: DynamoClient.Item,
+  ): Promise<T | undefined> {
     const { Item } = await this.document.send(new GetCommand({ TableName: table, Key: key }));
     return Item as T | undefined;
   }
@@ -61,7 +64,9 @@ export class DynamoClient {
     const items: T[] = [];
     let startKey: DynamoClient.Item | undefined;
     do {
-      const page = await this.document.send(new QueryCommand({ ...input, ExclusiveStartKey: startKey }));
+      const page = await this.document.send(
+        new QueryCommand({ ...input, ExclusiveStartKey: startKey }),
+      );
       items.push(...((page.Items ?? []) as T[]));
       startKey = page.LastEvaluatedKey;
     } while (startKey);

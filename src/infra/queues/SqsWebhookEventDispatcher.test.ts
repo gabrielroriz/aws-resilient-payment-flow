@@ -21,11 +21,15 @@ function stubSend(dispatcher: SqsWebhookEventDispatcher) {
   const send = vi.spyOn(dispatcher.sqs, "send") as unknown as MockInstance<
     (command: GetQueueUrlCommand | SendMessageCommand) => Promise<unknown>
   >;
-  return send.mockImplementation(async (command) => (command instanceof GetQueueUrlCommand ? { QueueUrl: queueUrl } : {}));
+  return send.mockImplementation(async (command) =>
+    command instanceof GetQueueUrlCommand ? { QueueUrl: queueUrl } : {},
+  );
 }
 
 function sentMessages(send: ReturnType<typeof stubSend>) {
-  return send.mock.calls.map(([command]) => command).filter((command) => command instanceof SendMessageCommand);
+  return send.mock.calls
+    .map(([command]) => command)
+    .filter((command) => command instanceof SendMessageCommand);
 }
 
 test("dispatch sends the event's identity to the provider's message group of the configured FIFO queue", async () => {
@@ -51,9 +55,9 @@ test("dispatch fails, naming the variable, when the queue name is not configured
   const dispatcher = newDispatcher();
   const send = stubSend(dispatcher);
 
-  await expect(dispatcher.dispatch({ provider: "gatewayGlobal", providerEventId: "evt_1" })).rejects.toThrow(
-    /WEBHOOK_EVENTS_QUEUE_NAME/,
-  );
+  await expect(
+    dispatcher.dispatch({ provider: "gatewayGlobal", providerEventId: "evt_1" }),
+  ).rejects.toThrow(/WEBHOOK_EVENTS_QUEUE_NAME/);
   expect(send).not.toHaveBeenCalled();
 });
 
@@ -64,7 +68,9 @@ test("dispatch looks the queue up once and reuses its URL", async () => {
   await dispatcher.dispatch({ provider: "gatewayGlobal", providerEventId: "evt_1" });
   await dispatcher.dispatch({ provider: "gatewayGlobal", providerEventId: "evt_2" });
 
-  expect(send.mock.calls.filter(([command]) => command instanceof GetQueueUrlCommand)).toHaveLength(1);
+  expect(send.mock.calls.filter(([command]) => command instanceof GetQueueUrlCommand)).toHaveLength(
+    1,
+  );
   expect(sentMessages(send).map((command) => command.input.QueueUrl)).toEqual([queueUrl, queueUrl]);
 });
 
@@ -77,7 +83,9 @@ test("dispatch gives an event the same deduplication ID every time, distinct fro
   // Providers reuse each other's event IDs, which must not make SQS drop the other event.
   await dispatcher.dispatch({ provider: "gatewayBrazil", providerEventId: "evt_1" });
 
-  const [first, repeated, otherProvider] = sentMessages(send).map((command) => command.input.MessageDeduplicationId);
+  const [first, repeated, otherProvider] = sentMessages(send).map(
+    (command) => command.input.MessageDeduplicationId,
+  );
   expect(repeated).toBe(first);
   expect(otherProvider).not.toBe(first);
 });

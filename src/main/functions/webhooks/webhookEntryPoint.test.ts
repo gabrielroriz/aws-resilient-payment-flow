@@ -14,7 +14,11 @@ const simulated: WebhookProvider = {
   authenticate: async ({ headers }) => headers["x-signature"] === "valid",
   parse: ({ rawBody }) => {
     const body = JSON.parse(rawBody);
-    return { providerEventId: body.id, eventType: body.type, occurredAt: new Date(body.created_at) };
+    return {
+      providerEventId: body.id,
+      eventType: body.type,
+      occurredAt: new Date(body.created_at),
+    };
   },
 };
 
@@ -36,7 +40,9 @@ test("the webhook function stores and dispatches an event from the provider name
   vi.spyOn(InMemoryWebhookProviderRegistry.prototype, "find").mockImplementation((name) =>
     name === simulated.name ? simulated : undefined,
   );
-  const putIfAbsent = vi.spyOn(DynamoClient.prototype, "putIfAbsent").mockResolvedValue({ created: true });
+  const putIfAbsent = vi
+    .spyOn(DynamoClient.prototype, "putIfAbsent")
+    .mockResolvedValue({ created: true });
   const dispatch = vi.spyOn(SqsWebhookEventDispatcher.prototype, "dispatch").mockResolvedValue();
 
   const response = await invokeHttp(handler, webhookTo("simulated"));
@@ -50,7 +56,9 @@ test("the webhook function stores and dispatches an event from the provider name
   expect(item).toMatchObject({ PK: "simulated#evt_1", event_type: "payment.succeeded" });
   // The request body reaches storage byte for byte, as signature checks and reprocessing need.
   expect(gunzipSync(item.payload as Uint8Array).toString("utf8")).toBe(body);
-  expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ provider: "simulated", providerEventId: "evt_1" }));
+  expect(dispatch).toHaveBeenCalledWith(
+    expect.objectContaining({ provider: "simulated", providerEventId: "evt_1" }),
+  );
   expect(simulated.process).not.toHaveBeenCalled();
 });
 

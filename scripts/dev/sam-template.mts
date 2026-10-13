@@ -1,5 +1,11 @@
 import path from 'node:path';
-import type { FunctionValues, RouteValues, SamFunction, SamTemplate, SamTemplateOptions } from './sam-template.types.mts';
+import type {
+  FunctionValues,
+  RouteValues,
+  SamFunction,
+  SamTemplate,
+  SamTemplateOptions,
+} from './sam-template.types.mts';
 import { plannedResources } from './terraform-plan.mts';
 import type { PlannedResource, TerraformPlan } from './terraform-plan.types.mts';
 
@@ -12,7 +18,9 @@ export function samTemplateFromPlan(plan: TerraformPlan, options: SamTemplateOpt
   for (const { index, values } of plannedResources<FunctionValues>(plan, 'aws_lambda_function')) {
     const logicalId = logicalIdOf(values.function_name);
     if (logicalId in resources) {
-      throw new Error(`Lambdas "${resources[logicalId].Properties.FunctionName}" and "${values.function_name}" get the same SAM logical ID.`);
+      throw new Error(
+        `Lambdas "${resources[logicalId].Properties.FunctionName}" and "${values.function_name}" get the same SAM logical ID.`,
+      );
     }
     resources[logicalId] = {
       Type: 'AWS::Serverless::Function',
@@ -26,7 +34,9 @@ export function samTemplateFromPlan(plan: TerraformPlan, options: SamTemplateOpt
         Runtime: values.runtime,
         MemorySize: values.memory_size,
         Timeout: values.timeout,
-        Environment: { Variables: { ...values.environment?.[0]?.variables, ...options.environment } },
+        Environment: {
+          Variables: { ...values.environment?.[0]?.variables, ...options.environment },
+        },
         Events: {},
       },
     };
@@ -41,12 +51,21 @@ export function samTemplateFromPlan(plan: TerraformPlan, options: SamTemplateOpt
     }
     const [method, routePath] = values.route_key.split(' ');
     if (!routePath) {
-      throw new Error(`Route "${values.route_key}" has no method and path, which local routes need.`);
+      throw new Error(
+        `Route "${values.route_key}" has no method and path, which local routes need.`,
+      );
     }
-    events[`Route${Object.keys(events).length + 1}`] = { Type: 'HttpApi', Properties: { Method: method, Path: routePath } };
+    events[`Route${Object.keys(events).length + 1}`] = {
+      Type: 'HttpApi',
+      Properties: { Method: method, Path: routePath },
+    };
   }
 
-  return { AWSTemplateFormatVersion: '2010-09-09', Transform: 'AWS::Serverless-2016-10-31', Resources: resources };
+  return {
+    AWSTemplateFormatVersion: '2010-09-09',
+    Transform: 'AWS::Serverless-2016-10-31',
+    Resources: resources,
+  };
 }
 
 // Template logical IDs are alphanumeric, so names such as webhook_entry_point become WebhookEntryPoint.

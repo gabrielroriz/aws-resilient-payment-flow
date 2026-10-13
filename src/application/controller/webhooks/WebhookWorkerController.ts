@@ -10,10 +10,18 @@ export class WebhookWorkerController implements MessageHandler {
   constructor(private readonly providerRegistry: WebhookProviderRegistry) {}
 
   async handle(body: unknown): Promise<void> {
-    if (!isObject(body) || typeof body.provider !== "string" || !body.provider.trim() ||
-        typeof body.providerEventId !== "string" || !body.providerEventId.trim()) {
+    if (
+      !isObject(body) ||
+      typeof body.provider !== "string" ||
+      !body.provider.trim() ||
+      typeof body.providerEventId !== "string" ||
+      !body.providerEventId.trim()
+    ) {
       throw new ErrorWebhookMalformedMessage();
     }
-    await this.providerRegistry.route({ provider: body.provider, providerEventId: body.providerEventId });
+    await this.providerRegistry.route({
+      provider: body.provider,
+      providerEventId: body.providerEventId,
+    });
   }
 }

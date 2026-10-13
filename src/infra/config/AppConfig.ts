@@ -30,7 +30,9 @@ export class AppConfig {
   private parseGroup<Schema extends z.ZodType>(group: string, schema: Schema): z.output<Schema> {
     const result = schema.safeParse(process.env);
     if (!result.success) {
-      throw new Error(`Invalid environment variables for ${group}:\n${z.prettifyError(result.error)}`);
+      throw new Error(
+        `Invalid environment variables for ${group}:\n${z.prettifyError(result.error)}`,
+      );
     }
     return result.data;
   }

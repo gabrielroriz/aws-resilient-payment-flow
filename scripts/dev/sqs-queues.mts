@@ -16,14 +16,18 @@ import type { TerraformPlan } from './terraform-plan.types.mts';
 // requests behave is kept; retention, encryption, and access policies mean nothing locally.
 export function queuesFromPlan(plan: TerraformPlan): LocalQueue[] {
   // Named targets remain known even when the deployed redrive policy contains an unknown ARN.
-  const redrive = plan.planned_values?.outputs?.local_sqs_redrive?.value as Record<string, LocalQueue['deadLetter']> | undefined;
+  const redrive = plan.planned_values?.outputs?.local_sqs_redrive?.value as
+    Record<string, LocalQueue['deadLetter']> | undefined;
   const queues = plannedResources<QueueValues>(plan, 'aws_sqs_queue').map(({ values }) => {
     const queue = toLocalQueue(values);
     queue.deadLetter = redrive?.[queue.name] ?? queue.deadLetter;
     return queue;
   });
   const deadLetterNames = new Set(queues.flatMap((queue) => queue.deadLetter?.queueName ?? []));
-  return [...queues.filter((queue) => deadLetterNames.has(queue.name)), ...queues.filter((queue) => !deadLetterNames.has(queue.name))];
+  return [
+    ...queues.filter((queue) => deadLetterNames.has(queue.name)),
+    ...queues.filter((queue) => !deadLetterNames.has(queue.name)),
+  ];
 }
 
 // Makes the local SQS service match a queue definition. A queue whose attributes differ is deleted
@@ -35,7 +39,9 @@ export async function syncQueue(client: SQSClient, queue: LocalQueue): Promise<S
     // The planned redrive policy names the deployed dead-letter queue; locally it is the local one.
     const deadLetterQueue = await currentQueue(client, queue.deadLetter.queueName);
     if (!deadLetterQueue) {
-      throw new Error(`Dead-letter queue ${queue.deadLetter.queueName} of ${queue.name} is not in the Terraform plan.`);
+      throw new Error(
+        `Dead-letter queue ${queue.deadLetter.queueName} of ${queue.name} is not in the Terraform plan.`,
+      );
     }
     attributes.RedrivePolicy = JSON.stringify({
       deadLetterTargetArn: deadLetterQueue.attributes.QueueArn,
@@ -81,7 +87,9 @@ function toLocalQueue(queue: QueueValues): LocalQueue {
 async function currentQueue(client: SQSClient, QueueName: string) {
   try {
     const { QueueUrl } = await client.send(new GetQueueUrlCommand({ QueueName }));
-    const { Attributes = {} } = await client.send(new GetQueueAttributesCommand({ QueueUrl, AttributeNames: ['All'] }));
+    const { Attributes = {} } = await client.send(
+      new GetQueueAttributesCommand({ QueueUrl, AttributeNames: ['All'] }),
+    );
     return { url: QueueUrl, attributes: Attributes };
   } catch (error) {
     if (error instanceof QueueDoesNotExist) {
@@ -99,7 +107,8 @@ function matches(current: Record<string, string>, defined: Record<string, string
     return JSON.stringify(parsed && [parsed.deadLetterTargetArn, Number(parsed.maxReceiveCount)]);
   };
   return (
-    Object.entries(defined).every(([name, value]) => name === 'RedrivePolicy' || current[name] === value) &&
-    redrive(current.RedrivePolicy) === redrive(defined.RedrivePolicy)
+    Object.entries(defined).every(
+      ([name, value]) => name === 'RedrivePolicy' || current[name] === value,
+    ) && redrive(current.RedrivePolicy) === redrive(defined.RedrivePolicy)
   );
 }

@@ -27,5 +27,8 @@ export namespace WebhookProvider {
   };
 
   // The event fields only the provider knows; the core adds the provider name, receipt time, and payload.
-  export type Event = Pick<WebhookEventRepository.Event, "providerEventId" | "eventType" | "occurredAt" | "subject">;
+  export type Event = Pick<
+    WebhookEventRepository.Event,
+    "providerEventId" | "eventType" | "occurredAt" | "subject"
+  >;
 }

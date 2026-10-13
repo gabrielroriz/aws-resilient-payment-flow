@@ -11,7 +11,12 @@ export async function extractAndValidateLambdas(root: string): Promise<LambdaReg
   // Terraform reads this same registry, keeping build targets and deployed functions aligned.
   const registry: unknown = JSON.parse(await readFile(path.join(root, 'lambdas.json'), 'utf8'));
 
-  if (!registry || Array.isArray(registry) || typeof registry !== 'object' || !Object.keys(registry).length) {
+  if (
+    !registry ||
+    Array.isArray(registry) ||
+    typeof registry !== 'object' ||
+    !Object.keys(registry).length
+  ) {
     throw new Error('lambdas.json must contain at least one Lambda.');
   }
 
@@ -25,13 +30,20 @@ export async function extractAndValidateLambdas(root: string): Promise<LambdaReg
     if (config?.trigger !== undefined && !['http', 'sqs'].includes(config.trigger)) {
       throw new Error(`Invalid trigger for ${name}: expected http or sqs`);
     }
-    if (config?.trigger === 'sqs' && (config.http_method !== undefined || config.path !== undefined)) {
+    if (
+      config?.trigger === 'sqs' &&
+      (config.http_method !== undefined || config.path !== undefined)
+    ) {
       throw new Error(`SQS Lambda ${name} must not declare an HTTP route.`);
     }
     // Catch invalid entry paths here; esbuild checks file availability and imports later.
     const entry: unknown = config?.entry;
-    if (typeof entry !== 'string' || !entry.startsWith('src/') ||
-        !entry.endsWith('.ts') || path.relative(root, path.resolve(root, entry)).startsWith('..')) {
+    if (
+      typeof entry !== 'string' ||
+      !entry.startsWith('src/') ||
+      !entry.endsWith('.ts') ||
+      path.relative(root, path.resolve(root, entry)).startsWith('..')
+    ) {
       throw new Error(`Invalid TypeScript entry for ${name}`);
     }
   }

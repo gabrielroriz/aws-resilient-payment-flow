@@ -44,7 +44,13 @@ const gatewayGlobal: SimulatedGateway = {
       data: {
         object: paid
           ? { object: 'payment', id: paymentId, amount: 1990, currency: 'usd', status: 'succeeded' }
-          : { object: 'refund', id: `re_${eventId}`, payment: paymentId, amount: 1990, currency: 'usd' },
+          : {
+              object: 'refund',
+              id: `re_${eventId}`,
+              payment: paymentId,
+              amount: 1990,
+              currency: 'usd',
+            },
       },
     });
   },
@@ -70,15 +76,26 @@ const gatewayBrazil: SimulatedGateway = {
       id: eventId,
       event: paid ? 'PAYMENT_RECEIVED' : 'PAYMENT_REFUNDED',
       // Brasília is UTC-3 all year, written without an offset.
-      dateCreated: new Date(occurredAt.getTime() - 3 * 3600_000).toISOString().slice(0, 19).replace('T', ' '),
-      payment: { object: 'payment', id: paymentId, value: 19.9, billingType: 'PIX', status: paid ? 'RECEIVED' : 'REFUNDED' },
+      dateCreated: new Date(occurredAt.getTime() - 3 * 3600_000)
+        .toISOString()
+        .slice(0, 19)
+        .replace('T', ' '),
+      payment: {
+        object: 'payment',
+        id: paymentId,
+        value: 19.9,
+        billingType: 'PIX',
+        status: paid ? 'RECEIVED' : 'REFUNDED',
+      },
     });
   },
   headers(_body, credentials = 'valid'): Record<string, string> {
     if (credentials === 'missing') {
       return {};
     }
-    return { 'gateway-brazil-access-token': credentials === 'forged' ? 'forged-token' : BRAZIL_TOKEN };
+    return {
+      'gateway-brazil-access-token': credentials === 'forged' ? 'forged-token' : BRAZIL_TOKEN,
+    };
   },
   // A static token has no timestamp, so it cannot be stale.
   forgeries: ['missing', 'forged'],

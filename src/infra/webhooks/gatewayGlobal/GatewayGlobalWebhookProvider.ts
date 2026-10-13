@@ -27,7 +27,9 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider {
   async authenticate({ rawBody, headers }: WebhookProvider.Request): Promise<boolean> {
     // A missing secret fails the request with a 5xx, so the gateway retries until it is configured.
     const { signingSecret } = this.config.webhooks.gatewayGlobal;
-    const signature = parseSignature(headerValue(headers, GatewayGlobalWebhookProvider.SIGNATURE_HEADER));
+    const signature = parseSignature(
+      headerValue(headers, GatewayGlobalWebhookProvider.SIGNATURE_HEADER),
+    );
     if (!signature) {
       return false;
     }
@@ -37,7 +39,9 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider {
       return false;
     }
 
-    const expected = createHmac("sha256", signingSecret).update(`${signature.timestamp}.${rawBody}`).digest("hex");
+    const expected = createHmac("sha256", signingSecret)
+      .update(`${signature.timestamp}.${rawBody}`)
+      .digest("hex");
     // While the gateway rotates its secret, it sends one signature per active secret.
     return signature.signatures.some((candidate) => constantTimeEqual(candidate, expected));
   }
@@ -57,12 +61,14 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider {
 
   async process(event: WebhookEventRepository.Event): Promise<void> {
     // Receipt already authenticated the stored event; processing needs no signing credentials.
-    console.info(JSON.stringify({
-      logType: "webhook_routed",
-      provider: this.name,
-      providerEventId: event.providerEventId,
-      eventType: event.eventType,
-    }));
+    console.info(
+      JSON.stringify({
+        logType: "webhook_routed",
+        provider: this.name,
+        providerEventId: event.providerEventId,
+        eventType: event.eventType,
+      }),
+    );
   }
 }
 
@@ -92,10 +98,14 @@ export namespace GatewayGlobalWebhookProvider {
 }
 
 // The parts of the signature header: `t=<Unix seconds>,v1=<hex signature>[,v1=...]`.
-function parseSignature(header: string | undefined): { timestamp: number; signatures: string[] } | undefined {
+function parseSignature(
+  header: string | undefined,
+): { timestamp: number; signatures: string[] } | undefined {
   const pairs = (header ?? "").split(",").map((pair) => pair.trim().split("="));
   const timestamp = pairs.find(([key]) => key === "t")?.[1];
-  const signatures = pairs.filter(([key, value]) => key === "v1" && value).map(([, value]) => value);
+  const signatures = pairs
+    .filter(([key, value]) => key === "v1" && value)
+    .map(([, value]) => value);
   if (!timestamp || !/^\d+$/.test(timestamp) || signatures.length === 0) {
     return undefined;
   }
@@ -107,7 +117,9 @@ const REVERSALS = ["refund", "chargeback"];
 
 // Payments and subscriptions are subjects themselves, and reversals affect the payment they
 // reverse; other objects affect no subject.
-function subjectOf(object: GatewayGlobalWebhookProvider.EventObject): WebhookProvider.Event["subject"] {
+function subjectOf(
+  object: GatewayGlobalWebhookProvider.EventObject,
+): WebhookProvider.Event["subject"] {
   if (object.object === "payment" || object.object === "subscription") {
     return { type: object.object, id: object.id };
   }

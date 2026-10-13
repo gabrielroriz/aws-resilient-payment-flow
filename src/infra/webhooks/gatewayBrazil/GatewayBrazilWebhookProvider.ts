@@ -49,12 +49,14 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider {
 
   async process(event: WebhookEventRepository.Event): Promise<void> {
     // Routing is observable without logging payment payloads or claiming business effects occurred.
-    console.info(JSON.stringify({
-      logType: "webhook_routed",
-      provider: this.name,
-      providerEventId: event.providerEventId,
-      eventType: event.eventType,
-    }));
+    console.info(
+      JSON.stringify({
+        logType: "webhook_routed",
+        provider: this.name,
+        providerEventId: event.providerEventId,
+        eventType: event.eventType,
+      }),
+    );
   }
 }
 
@@ -75,7 +77,13 @@ export namespace GatewayBrazilWebhookProvider {
       billingType: string;
       status: string;
     };
-    subscription?: { object: "subscription"; id: string; value: number; cycle: string; status: string };
+    subscription?: {
+      object: "subscription";
+      id: string;
+      value: number;
+      cycle: string;
+      status: string;
+    };
   };
 }
 
@@ -94,7 +102,9 @@ function isGatewayEvent(value: unknown): value is GatewayBrazilWebhookProvider.E
     isFilledString(value.id) &&
     isFilledString(value.event) &&
     typeof value.dateCreated === "string" &&
-    (value.payment === undefined || (isObject(value.payment) && isFilledString(value.payment.id))) &&
-    (value.subscription === undefined || (isObject(value.subscription) && isFilledString(value.subscription.id)))
+    (value.payment === undefined ||
+      (isObject(value.payment) && isFilledString(value.payment.id))) &&
+    (value.subscription === undefined ||
+      (isObject(value.subscription) && isFilledString(value.subscription.id)))
   );
 }

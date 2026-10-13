@@ -14,7 +14,10 @@ import { Injectable } from "@kernel/decorators/injectable";
 export class InMemoryWebhookProviderRegistry implements WebhookProviderRegistry {
   private readonly byName = new Map<string, WebhookProvider>();
 
-  constructor(private readonly events: WebhookEventRepository, ...providers: WebhookProvider[]) {
+  constructor(
+    private readonly events: WebhookEventRepository,
+    ...providers: WebhookProvider[]
+  ) {
     for (const provider of providers) {
       // A second adapter with the same name would silently take over the first one's webhooks.
       if (this.byName.has(provider.name)) {

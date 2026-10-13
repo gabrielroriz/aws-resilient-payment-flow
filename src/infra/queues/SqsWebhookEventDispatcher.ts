@@ -29,7 +29,9 @@ export class SqsWebhookEventDispatcher implements WebhookEventDispatcher {
         // SQS drops a message with the same ID sent within five minutes, such as one from a quick
         // provider retry. Provider event IDs may contain characters SQS rejects here, so the ID is
         // a digest of the event's identity.
-        MessageDeduplicationId: createHash("sha256").update(JSON.stringify([provider, providerEventId])).digest("hex"),
+        MessageDeduplicationId: createHash("sha256")
+          .update(JSON.stringify([provider, providerEventId]))
+          .digest("hex"),
       }),
     );
   }
