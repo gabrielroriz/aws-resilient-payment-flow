@@ -6,6 +6,8 @@
     "build": "tsc --noEmit && tsc -p build && tsc -p scripts/dev && node build/index.mts",
     "dev": "bash scripts/dev.sh",
     "deploy": "bash scripts/deploy.sh",
+    "format": "prettier --write \"**/*.{ts,mts,mjs}\"",
+    "format:check": "prettier --check \"**/*.{ts,mts,mjs}\"",
     "simulate": "node scripts/simulator/simulate.mts",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -18,6 +20,7 @@
     "@types/aws-lambda": "^8.10.164",
     "@types/node": "^24.19.1",
     "esbuild": "^0.28.2",
+    "prettier": "3.9.10",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vitest": "5.0.3"
