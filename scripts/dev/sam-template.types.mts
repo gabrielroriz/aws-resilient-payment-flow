@@ -1,4 +1,4 @@
-/** A SAM template for local HTTP routes and direct invocations of queue workers. */
+// A SAM template for local HTTP routes and direct invocations of queue workers.
 export type SamTemplate = {
   AWSTemplateFormatVersion: '2010-09-09';
   Transform: 'AWS::Serverless-2016-10-31';
@@ -31,8 +31,8 @@ export type FunctionValues = {
 export type RouteValues = { route_key: string };
 
 export type SamTemplateOptions = {
-  /** The build's bundle directory, with one folder of code per function name. */
+  // The build's bundle directory, with one folder of code per function name.
   bundlesDir: string;
-  /** Variables added to every function's environment, overriding planned ones. */
+  // Variables added to every function's environment, overriding planned ones.
   environment: Record<string, string>;
 };

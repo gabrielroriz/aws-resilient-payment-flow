@@ -1,11 +1,9 @@
-/**
- * Process-wide dependency container.
- *
- * `@Injectable` registers each class with its constructor dependencies, a function's
- * composition root binds ports to infrastructure adapters, and `resolve` builds the
- * graph. Instances are cached, so each Lambda execution environment builds every
- * object once and shares it across invocations.
- */
+// Process-wide dependency container.
+//
+// `@Injectable` registers each class with its constructor dependencies, a function's
+// composition root binds ports to infrastructure adapters, and `resolve` builds the
+// graph. Instances are cached, so each Lambda execution environment builds every
+// object once and shares it across invocations.
 export class Registry {
   private static instance: Registry | undefined;
 
@@ -31,7 +29,7 @@ export class Registry {
     this.providers.set(implementation, { implementation, dependencies });
   }
 
-  /** Point a port at the adapter that implements it. Bind before resolving dependents. */
+  // Point a port at the adapter that implements it. Bind before resolving dependents.
   bind<T>(port: Registry.Token<T>, adapter: Registry.Implementation<T>): void {
     this.bindings.set(port, adapter);
   }
@@ -61,13 +59,11 @@ export class Registry {
 }
 
 export namespace Registry {
-  /**
-   * A class usable as a DI token. Ports are abstract classes rather than interfaces
-   * because tokens must exist at runtime.
-   */
+  // A class usable as a DI token. Ports are abstract classes rather than interfaces
+  // because tokens must exist at runtime.
   export type Token<T = unknown> = abstract new (...args: any[]) => T;
 
-  /** A concrete class the registry can instantiate. */
+  // A concrete class the registry can instantiate.
   export type Implementation<T = unknown> = new (...args: any[]) => T;
 
   export type Provider = {

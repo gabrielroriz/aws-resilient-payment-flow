@@ -5,10 +5,8 @@ import { errorLogFields } from "@main/utils/errors";
 import { buildHttpResponse, decodeHttpBody, parseHttpBody } from "@main/utils/http";
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda";
 
-/**
- * Driving adapter for API Gateway HTTP API events (payload format 2.0). Converts the
- * event into a controller request and maps the result, or any error, to a response.
- */
+// Driving adapter for API Gateway HTTP API events (payload format 2.0). Converts the
+// event into a controller request and maps the result, or any error, to a response.
 export function lambdaHttpAdapter(controller: Controller) {
   return async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
     try {

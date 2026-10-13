@@ -8,11 +8,9 @@ import { headerValue } from "@kernel/utils/headers";
 import { isFilledString, isObject, parseJson } from "@kernel/utils/json";
 import { createHmac } from "node:crypto";
 
-/**
- * Simulated global card gateway, shaped like Stripe. Events arrive in an envelope with the object
- * they are about under `data.object`, times are Unix seconds, and amounts are integers in the
- * currency's minor unit. Each webhook is signed with HMAC-SHA256 over its timestamp and body.
- */
+// Simulated global card gateway, shaped like Stripe. Events arrive in an envelope with the object
+// they are about under `data.object`, times are Unix seconds, and amounts are integers in the
+// currency's minor unit. Each webhook is signed with HMAC-SHA256 over its timestamp and body.
 @Injectable(Clock, AppConfig)
 export class GatewayGlobalWebhookProvider implements WebhookProvider {
   readonly name = "gatewayGlobal";
@@ -69,31 +67,31 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider {
 }
 
 export namespace GatewayGlobalWebhookProvider {
-  /** The JSON body gatewayGlobal sends. */
+  // The JSON body gatewayGlobal sends.
   export type Event = {
     id: string;
     object: "event";
-    /** Such as `payment.succeeded` or `refund.created`. */
+    // Such as `payment.succeeded` or `refund.created`.
     type: string;
-    /** Unix seconds when the event happened. */
+    // Unix seconds when the event happened.
     created: number;
     data: { object: EventObject };
   };
 
-  /** The object an event is about, such as a payment, refund, chargeback, or subscription. */
+  // The object an event is about, such as a payment, refund, chargeback, or subscription.
   export type EventObject = {
     object: string;
     id: string;
-    /** The payment a refund or chargeback reverses. */
+    // The payment a refund or chargeback reverses.
     payment?: string;
-    /** Integer amount in the currency's minor unit, such as cents. */
+    // Integer amount in the currency's minor unit, such as cents.
     amount?: number;
-    /** Lowercase ISO 4217 code, such as `usd`. */
+    // Lowercase ISO 4217 code, such as `usd`.
     currency?: string;
   };
 }
 
-/** The parts of the signature header: `t=<Unix seconds>,v1=<hex signature>[,v1=...]`. */
+// The parts of the signature header: `t=<Unix seconds>,v1=<hex signature>[,v1=...]`.
 function parseSignature(header: string | undefined): { timestamp: number; signatures: string[] } | undefined {
   const pairs = (header ?? "").split(",").map((pair) => pair.trim().split("="));
   const timestamp = pairs.find(([key]) => key === "t")?.[1];

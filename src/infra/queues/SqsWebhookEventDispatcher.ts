@@ -5,10 +5,8 @@ import { AppConfig } from "@infra/config/AppConfig";
 import { Injectable } from "@kernel/decorators/injectable";
 import { createHash } from "node:crypto";
 
-/**
- * Dispatches webhook events to an SQS FIFO queue, from which processing receives them. Each
- * provider's events form one message group, so SQS delivers them in the order they were received.
- */
+// Dispatches webhook events to an SQS FIFO queue, from which processing receives them. Each
+// provider's events form one message group, so SQS delivers them in the order they were received.
 @Injectable(AppConfig)
 export class SqsWebhookEventDispatcher implements WebhookEventDispatcher {
   // The region comes from the Lambda environment, and locally so does the endpoint, which makes
@@ -48,6 +46,6 @@ export class SqsWebhookEventDispatcher implements WebhookEventDispatcher {
 }
 
 export namespace SqsWebhookEventDispatcher {
-  /** Body of each queued message, as JSON. */
+  // Body of each queued message, as JSON.
   export type Message = WebhookEventRepository.EventId;
 }

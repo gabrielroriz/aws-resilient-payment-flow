@@ -6,12 +6,10 @@ import { constantTimeEqual } from "@kernel/utils/crypto";
 import { headerValue } from "@kernel/utils/headers";
 import { isFilledString, isObject, parseJson } from "@kernel/utils/json";
 
-/**
- * Simulated Brazilian gateway, shaped like Asaas. Events are flat, with the payment or
- * subscription they affect at the top level, upper-case event names, Brasília local times without
- * an offset, and amounts in decimal reais without a currency field. Each webhook carries a static
- * access token instead of a signature.
- */
+// Simulated Brazilian gateway, shaped like Asaas. Events are flat, with the payment or
+// subscription they affect at the top level, upper-case event names, Brasília local times without
+// an offset, and amounts in decimal reais without a currency field. Each webhook carries a static
+// access token instead of a signature.
 @Injectable(AppConfig)
 export class GatewayBrazilWebhookProvider implements WebhookProvider {
   readonly name = "gatewayBrazil";
@@ -61,18 +59,18 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider {
 }
 
 export namespace GatewayBrazilWebhookProvider {
-  /** The JSON body gatewayBrazil sends. */
+  // The JSON body gatewayBrazil sends.
   export type Event = {
     id: string;
-    /** Such as `PAYMENT_RECEIVED` or `PAYMENT_REFUNDED`. */
+    // Such as `PAYMENT_RECEIVED` or `PAYMENT_REFUNDED`.
     event: string;
-    /** `YYYY-MM-DD HH:mm:ss` in Brasília time. */
+    // `YYYY-MM-DD HH:mm:ss` in Brasília time.
     dateCreated: string;
     payment?: {
       object: "payment";
       id: string;
       subscription?: string;
-      /** Decimal reais, such as `19.9`. */
+      // Decimal reais, such as `19.9`.
       value: number;
       billingType: string;
       status: string;

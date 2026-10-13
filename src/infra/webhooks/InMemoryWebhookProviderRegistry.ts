@@ -9,7 +9,7 @@ import { GatewayBrazilWebhookProvider } from "@infra/webhooks/gatewayBrazil/Gate
 import { GatewayGlobalWebhookProvider } from "@infra/webhooks/gatewayGlobal/GatewayGlobalWebhookProvider";
 import { Injectable } from "@kernel/decorators/injectable";
 
-/** One provider registration supports both receipt and queued-event routing. */
+// One provider registration supports both receipt and queued-event routing.
 @Injectable(WebhookEventRepository, GatewayGlobalWebhookProvider, GatewayBrazilWebhookProvider)
 export class InMemoryWebhookProviderRegistry implements WebhookProviderRegistry {
   private readonly byName = new Map<string, WebhookProvider>();

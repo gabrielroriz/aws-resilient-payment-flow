@@ -1,11 +1,11 @@
 import type { QueueAttributeName } from '@aws-sdk/client-sqs';
 
-/** A queue as the local SQS service should have it. */
+// A queue as the local SQS service should have it.
 export type LocalQueue = {
   name: string;
-  /** Attributes the queue is created with, apart from its redrive policy. */
+  // Attributes the queue is created with, apart from its redrive policy.
   attributes: Partial<Record<QueueAttributeName, string>>;
-  /** Where messages go after too many receives, naming the dead-letter queue by its queue name. */
+  // Where messages go after too many receives, naming the dead-letter queue by its queue name.
   deadLetter?: { queueName: string; maxReceiveCount: number };
 };
 

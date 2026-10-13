@@ -3,7 +3,7 @@ import { ErrorCode } from "../../enums/ErrorCode";
 import { ErrorKind } from "../../enums/ErrorKind";
 import { ApplicationError } from "../ApplicationError";
 
-/** The webhook does not prove it comes from the provider in its URL, so it may be forged. */
+// The webhook does not prove it comes from the provider in its URL, so it may be forged.
 export class ErrorWebhookAuthenticationFailed extends ApplicationError {
   constructor() {
     super("Webhook authentication failed", {

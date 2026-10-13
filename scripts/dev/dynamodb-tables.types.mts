@@ -8,7 +8,7 @@ import type {
   ScalarAttributeType,
 } from '@aws-sdk/client-dynamodb';
 
-/** A table as DynamoDB Local should have it: the request that creates it and its TTL attribute. */
+// A table as DynamoDB Local should have it: the request that creates it and its TTL attribute.
 export type LocalTable = { input: CreateTableCommandInput; ttlAttribute?: string };
 
 // Planned values of an aws_dynamodb_table resource.

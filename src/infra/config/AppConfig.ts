@@ -2,12 +2,10 @@ import { envSchema } from "@infra/config/envSchema";
 import { Injectable } from "@kernel/decorators/injectable";
 import * as z from "zod";
 
-/**
- * Typed configuration from the function's environment variables, validated against their schema.
- * Each group is validated when it is read, not when the function starts: a function needs only
- * the variables of the groups it uses, and a missing variable fails only the code that needs it,
- * such as webhook receipt, with an error naming the variable.
- */
+// Typed configuration from the function's environment variables, validated against their schema.
+// Each group is validated when it is read, not when the function starts: a function needs only
+// the variables of the groups it uses, and a missing variable fails only the code that needs it,
+// such as webhook receipt, with an error naming the variable.
 @Injectable()
 export class AppConfig {
   get webhooks(): AppConfig.Webhooks {
@@ -39,27 +37,27 @@ export class AppConfig {
 }
 
 export namespace AppConfig {
-  /** Credentials of the webhook providers. */
+  // Credentials of the webhook providers.
   export type Webhooks = {
     gatewayGlobal: {
-      /** Secret gatewayGlobal signs its webhooks with. */
+      // Secret gatewayGlobal signs its webhooks with.
       signingSecret: string;
     };
     gatewayBrazil: {
-      /** Token gatewayBrazil sends with its webhooks. */
+      // Token gatewayBrazil sends with its webhooks.
       accessToken: string;
     };
   };
 
-  /** The SQS queues the function sends messages to, by name. */
+  // The SQS queues the function sends messages to, by name.
   export type Queues = {
-    /** Queue of stored webhook events waiting to be processed. */
+    // Queue of stored webhook events waiting to be processed.
     webhookEvents: { name: string };
   };
 
-  /** The DynamoDB tables the function reads or writes, by name. */
+  // The DynamoDB tables the function reads or writes, by name.
   export type Tables = {
-    /** Table of received webhook events and their history. */
+    // Table of received webhook events and their history.
     webhookEvents: { name: string };
   };
 }

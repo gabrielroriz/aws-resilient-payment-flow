@@ -2,13 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { gateways, type Credentials, type SimulatedEvent, type SimulatedGateway } from './gateways.mts';
 
-/** One observed outcome, compared with what the scenario expects. */
+// One observed outcome, compared with what the scenario expects.
 export type Check = { gateway: string; step: string; passed: boolean; detail: string };
 
-/** A delivery pattern from the acceptance scenarios, run against the webhook API. */
+// A delivery pattern from the acceptance scenarios, run against the webhook API.
 export type Scenario = {
   name: string;
-  /** What the API must do, as the scenario checks it. */
+  // What the API must do, as the scenario checks it.
   description: string;
   run(baseUrl: string): Promise<Check[]>;
 };

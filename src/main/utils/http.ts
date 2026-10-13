@@ -2,10 +2,8 @@ import { ErrorHttpBadRequest } from "@application/errors/http/ErrorHttpBadReques
 import { parseJson } from "@kernel/utils/json";
 import type { APIGatewayProxyResultV2 } from "aws-lambda";
 
-/**
- * Returns the request body as the client sent it. API Gateway base64-encodes bodies it does not
- * treat as text, such as form posts, so those are decoded back to the original text.
- */
+// Returns the request body as the client sent it. API Gateway base64-encodes bodies it does not
+// treat as text, such as form posts, so those are decoded back to the original text.
 export function decodeHttpBody(body: string | undefined, isBase64Encoded: boolean): string | undefined {
   if (body === undefined || !isBase64Encoded) {
     return body;
@@ -14,10 +12,8 @@ export function decodeHttpBody(body: string | undefined, isBase64Encoded: boolea
   return Buffer.from(body, "base64").toString("utf8");
 }
 
-/**
- * Parses a raw request body as JSON. A malformed body is the caller's fault, so it
- * becomes a `ErrorHttpBadRequest` (400) instead of surfacing as an unexpected 500.
- */
+// Parses a raw request body as JSON. A malformed body is the caller's fault, so it
+// becomes a `ErrorHttpBadRequest` (400) instead of surfacing as an unexpected 500.
 export function parseHttpBody(body: string | undefined): unknown {
   if (!body) {
     return undefined;
@@ -30,10 +26,8 @@ export function parseHttpBody(body: string | undefined): unknown {
   return parsed;
 }
 
-/**
- * Builds an API Gateway HTTP API response with a JSON body. An undefined body sends
- * only the status code, so responses such as 204 carry no body or content type.
- */
+// Builds an API Gateway HTTP API response with a JSON body. An undefined body sends
+// only the status code, so responses such as 204 carry no body or content type.
 export function buildHttpResponse(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
   if (body === undefined) {
     return { statusCode };

@@ -3,7 +3,7 @@ import { ErrorCode } from "../../enums/ErrorCode";
 import { ErrorKind } from "../../enums/ErrorKind";
 import { ApplicationError } from "../ApplicationError";
 
-/** An authenticated webhook whose body is not an event its provider sends, so it cannot be stored. */
+// An authenticated webhook whose body is not an event its provider sends, so it cannot be stored.
 export class ErrorWebhookMalformedEvent extends ApplicationError {
   constructor() {
     super("Malformed webhook event", {

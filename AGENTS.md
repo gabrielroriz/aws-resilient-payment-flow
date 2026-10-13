@@ -8,6 +8,8 @@ Follow the code conventions in [docs/architecture/code-structure.md](docs/archit
 
 Add concise, plain-English comments where they help humans and AI understand purpose, context, and how the code fits the bigger picture. Explain intent and non-obvious decisions; avoid redundant comments or repeating implementation details.
 
+Write every comment as `//` line comments, including those describing classes, functions, types, and modules. Do not use `/** */` or `/* */` block comments.
+
 ## References to files
 
 Renaming or moving a file must never leave a stale reference behind, so comments and documentation avoid naming individual files.

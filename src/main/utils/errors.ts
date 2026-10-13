@@ -2,7 +2,7 @@ import { BaseError } from "@application/errors/BaseError";
 import { ErrorCode } from "@application/errors/enums/ErrorCode";
 import { ErrorKind } from "@application/errors/enums/ErrorKind";
 
-/** HTTP and queue failures share error metadata; each adapter adds its delivery context. */
+// HTTP and queue failures share error metadata; each adapter adds its delivery context.
 export function errorLogFields(error: unknown) {
   const known = error instanceof BaseError;
   const kind = known ? error.kind : ErrorKind.UNEXPECTED;

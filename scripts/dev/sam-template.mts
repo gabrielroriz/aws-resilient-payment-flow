@@ -3,11 +3,9 @@ import type { FunctionValues, RouteValues, SamFunction, SamTemplate, SamTemplate
 import { plannedResources } from './terraform-plan.mts';
 import type { PlannedResource, TerraformPlan } from './terraform-plan.types.mts';
 
-/**
- * Builds a SAM template with every planned Lambda and the routes of HTTP functions. SAM's
- * own Terraform support links routes to functions through IDs that exist only after apply, so it
- * cannot run a function or route that was never deployed; this template needs no deployed resource.
- */
+// Builds a SAM template with every planned Lambda and the routes of HTTP functions. SAM's
+// own Terraform support links routes to functions through IDs that exist only after apply, so it
+// cannot run a function or route that was never deployed; this template needs no deployed resource.
 export function samTemplateFromPlan(plan: TerraformPlan, options: SamTemplateOptions): SamTemplate {
   const resources: SamTemplate['Resources'] = {};
   const functionsByKey = new Map<PlannedResource['index'], SamFunction>();

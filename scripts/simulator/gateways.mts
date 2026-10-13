@@ -1,14 +1,12 @@
 import { createHmac } from 'node:crypto';
 
-/**
- * The simulated gateways as senders: each writes the same business facts in its own format and
- * authenticates them its own way. This is written independently of the receiving adapters, so a
- * mismatch between the two shows up as a failed scenario instead of being shared by both sides.
- */
+// The simulated gateways as senders: each writes the same business facts in its own format and
+// authenticates them its own way. This is written independently of the receiving adapters, so a
+// mismatch between the two shows up as a failed scenario instead of being shared by both sides.
 
 export type GatewayName = 'gatewayGlobal' | 'gatewayBrazil';
 
-/** A business fact to report, independent of any gateway's format. */
+// A business fact to report, independent of any gateway's format.
 export type SimulatedEvent = {
   eventId: string;
   kind: 'payment.paid' | 'payment.refunded';
@@ -16,16 +14,16 @@ export type SimulatedEvent = {
   occurredAt: Date;
 };
 
-/** How a delivery authenticates: as the gateway does, or the ways a forged request fails to. */
+// How a delivery authenticates: as the gateway does, or the ways a forged request fails to.
 export type Credentials = 'valid' | 'forged' | 'missing' | 'stale';
 
 export type SimulatedGateway = {
   name: GatewayName;
-  /** The event in the gateway's own JSON format. */
+  // The event in the gateway's own JSON format.
   render(event: SimulatedEvent): string;
-  /** Headers that authenticate a body the way the gateway does, or fail to in the given way. */
+  // Headers that authenticate a body the way the gateway does, or fail to in the given way.
   headers(body: string, credentials?: Credentials): Record<string, string>;
-  /** The invalid credentials this gateway's receiver must reject. */
+  // The invalid credentials this gateway's receiver must reject.
   forgeries: Exclude<Credentials, 'valid'>[];
 };
 
@@ -33,7 +31,7 @@ export type SimulatedGateway = {
 const GLOBAL_SECRET = process.env.GATEWAY_GLOBAL_SIGNING_SECRET || 'local-gateway-global-secret';
 const BRAZIL_TOKEN = process.env.GATEWAY_BRAZIL_ACCESS_TOKEN || 'local-gateway-brazil-token';
 
-/** Stripe-like: an event envelope, Unix-second times, integer cents, and a timestamped HMAC signature. */
+// Stripe-like: an event envelope, Unix-second times, integer cents, and a timestamped HMAC signature.
 const gatewayGlobal: SimulatedGateway = {
   name: 'gatewayGlobal',
   render({ eventId, kind, paymentId, occurredAt }) {
@@ -63,7 +61,7 @@ const gatewayGlobal: SimulatedGateway = {
   forgeries: ['missing', 'forged', 'stale'],
 };
 
-/** Asaas-like: a flat event, upper-case names, Brasília local time, decimal reais, and an access token. */
+// Asaas-like: a flat event, upper-case names, Brasília local time, decimal reais, and an access token.
 const gatewayBrazil: SimulatedGateway = {
   name: 'gatewayBrazil',
   render({ eventId, kind, paymentId, occurredAt }) {

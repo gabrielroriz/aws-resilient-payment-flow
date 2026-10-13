@@ -8,13 +8,11 @@ import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { WebhookProviderRegistry } from "@application/ports/webhooks/WebhookProviderRegistry";
 import { Injectable } from "@kernel/decorators/injectable";
 
-/**
- * Ingests a webhook from any supported provider. The provider named in the request checks that
- * the webhook is authentic and reads its event, and the event is stored once with its exact
- * payload, so a repeated delivery is recognized and recorded instead of stored again. The event
- * is then dispatched for processing: ingestion applies no business effects, which keeps the
- * acknowledgment fast.
- */
+// Ingests a webhook from any supported provider. The provider named in the request checks that
+// the webhook is authentic and reads its event, and the event is stored once with its exact
+// payload, so a repeated delivery is recognized and recorded instead of stored again. The event
+// is then dispatched for processing: ingestion applies no business effects, which keeps the
+// acknowledgment fast.
 @Injectable(WebhookProviderRegistry, WebhookEventRepository, WebhookEventDispatcher, Clock)
 export class IngestWebhookUseCase {
   constructor(
@@ -67,9 +65,9 @@ export class IngestWebhookUseCase {
 
 export namespace IngestWebhookUseCase {
   export type Input = {
-    /** Provider name as it appears in the webhook URL. */
+    // Provider name as it appears in the webhook URL.
     provider: string;
-    /** ID of the request that delivered the webhook, recorded when the delivery is a duplicate. */
+    // ID of the request that delivered the webhook, recorded when the delivery is a duplicate.
     requestId: string;
     request: WebhookProvider.Request;
   };
@@ -77,7 +75,7 @@ export namespace IngestWebhookUseCase {
   export type Output = {
     provider: string;
     providerEventId: string;
-    /** True when an earlier delivery already stored the event. */
+    // True when an earlier delivery already stored the event.
     duplicate: boolean;
   };
 }

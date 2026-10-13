@@ -5,7 +5,7 @@ import { joinKey, shardOf } from "@infra/dynamodb/keys";
 import { Injectable } from "@kernel/decorators/injectable";
 import { gunzipSync, gzipSync } from "node:zlib";
 
-/** Stores webhook events in the configured webhook events table, one item collection per event. */
+// Stores webhook events in the configured webhook events table, one item collection per event.
 @Injectable(DynamoClient, AppConfig)
 export class DynamoWebhookEventRepository implements WebhookEventRepository {
   private static readonly EVENT_SK = "META";
@@ -158,7 +158,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
 
 
 export namespace DynamoWebhookEventRepository {
-  /** The event itself; the other items of its collection share its `PK`. */
+  // The event itself; the other items of its collection share its `PK`.
   export type EventItem = {
     PK: string;
     SK: "META";

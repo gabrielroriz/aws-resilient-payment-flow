@@ -2,11 +2,9 @@ import { ErrorCategory } from "./enums/ErrorCategory";
 import { ErrorCode } from "./enums/ErrorCode";
 import { ErrorKind } from "./enums/ErrorKind";
 
-/**
- * Common shape of defined errors. Driving adapters log the code, category, and kind; HTTP also
- * uses the status and message for its response. Queue retries do not depend on the HTTP status
- * or whether the error is expected.
- */
+// Common shape of defined errors. Driving adapters log the code, category, and kind; HTTP also
+// uses the status and message for its response. Queue retries do not depend on the HTTP status
+// or whether the error is expected.
 export abstract class BaseError extends Error {
   readonly statusCode: number;
   readonly code: ErrorCode;
@@ -29,7 +27,7 @@ export namespace BaseError {
     statusCode: number;
     code: ErrorCode;
     category: ErrorCategory;
-    /** Declared by each error, since a failure the caller causes and one that needs attention can share a status. */
+    // Declared by each error, since a failure the caller causes and one that needs attention can share a status.
     kind: ErrorKind;
   };
 }

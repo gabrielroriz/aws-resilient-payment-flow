@@ -4,7 +4,7 @@ import { parseJson } from "@kernel/utils/json";
 import { errorLogFields } from "@main/utils/errors";
 import type { SQSEvent, SQSBatchResponse } from "aws-lambda";
 
-/** Processes FIFO batches in order and acknowledges only the messages that completed. */
+// Processes FIFO batches in order and acknowledges only the messages that completed.
 export function lambdaSqsAdapter(handler: MessageHandler) {
   return async (event: SQSEvent): Promise<SQSBatchResponse> => {
     for (const [index, record] of event.Records.entries()) {

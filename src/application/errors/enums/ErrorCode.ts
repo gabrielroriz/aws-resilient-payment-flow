@@ -1,6 +1,6 @@
-/** Stable machine-readable codes, named `<DOMAIN>_<NAME>` after the error's category. */
+// Stable machine-readable codes, named `<DOMAIN>_<NAME>` after the error's category.
 export enum ErrorCode {
-  /** Fallback for errors the application does not define, which belong to no domain. */
+  // Fallback for errors the application does not define, which belong to no domain.
   INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR",
 
   HTTP_BAD_REQUEST = "HTTP_BAD_REQUEST",

@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-/** The build settings of one function in lambdas.json; Terraform reads its other fields. */
+// The build settings of one function in lambdas.json; Terraform reads its other fields.
 export type LambdaConfig = { entry: string };
 
-/** Registered functions keyed by their AWS function name. */
+// Registered functions keyed by their AWS function name.
 export type LambdaRegistry = Record<string, LambdaConfig>;
 
 export async function extractAndValidateLambdas(root: string): Promise<LambdaRegistry> {

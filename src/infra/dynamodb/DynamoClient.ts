@@ -9,11 +9,9 @@ import {
 import { unmarshall } from "@aws-sdk/util-dynamodb";
 import { Injectable } from "@kernel/decorators/injectable";
 
-/**
- * Shared DynamoDB access for every table adapter. The registry builds one instance per
- * execution environment, so connections are reused across invocations. Items are plain
- * objects; the document client converts them to and from DynamoDB attribute values.
- */
+// Shared DynamoDB access for every table adapter. The registry builds one instance per
+// execution environment, so connections are reused across invocations. Items are plain
+// objects; the document client converts them to and from DynamoDB attribute values.
 @Injectable()
 export class DynamoClient {
   // The region comes from the Lambda environment. Undefined attributes are left out of items,
@@ -31,10 +29,8 @@ export class DynamoClient {
     await this.document.send(new PutCommand({ TableName: table, Item: item }));
   }
 
-  /**
-   * Writes an item only when no item with its key exists. Otherwise nothing is written and the
-   * stored item is returned, without a second read.
-   */
+  // Writes an item only when no item with its key exists. Otherwise nothing is written and the
+  // stored item is returned, without a second read.
   async putIfAbsent<T extends DynamoClient.Item>(
     table: string,
     item: T,
@@ -60,7 +56,7 @@ export class DynamoClient {
     }
   }
 
-  /** Runs a query and follows every page, returning all matching items in index order. */
+  // Runs a query and follows every page, returning all matching items in index order.
   async queryAll<T extends DynamoClient.Item>(input: QueryCommandInput): Promise<T[]> {
     const items: T[] = [];
     let startKey: DynamoClient.Item | undefined;

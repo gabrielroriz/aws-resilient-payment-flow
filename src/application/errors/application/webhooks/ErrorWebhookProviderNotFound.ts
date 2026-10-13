@@ -3,7 +3,7 @@ import { ErrorCode } from "../../enums/ErrorCode";
 import { ErrorKind } from "../../enums/ErrorKind";
 import { ApplicationError } from "../ApplicationError";
 
-/** A request or stored event names a provider this deployment does not support. */
+// A request or stored event names a provider this deployment does not support.
 export class ErrorWebhookProviderNotFound extends ApplicationError {
   constructor(provider: string, kind: ErrorKind = ErrorKind.EXPECTED) {
     super(`Unknown webhook provider: ${provider}`, {

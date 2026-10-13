@@ -3,7 +3,7 @@ import type { SQSRecord } from 'aws-lambda';
 import type { Invoke, LocalConsumer, QueueSource } from './sqs-consumers.types.mts';
 import type { TerraformPlan } from './terraform-plan.types.mts';
 
-/** Terraform exports settings from its actual mappings, using names that exist before deployment. */
+// Terraform exports settings from its actual mappings, using names that exist before deployment.
 export function consumersFromPlan(plan: TerraformPlan): LocalConsumer[] {
   const value = plan.planned_values?.outputs?.local_sqs_consumers?.value;
   if (!value || typeof value !== 'object') {
@@ -19,7 +19,7 @@ export function consumersFromPlan(plan: TerraformPlan): LocalConsumer[] {
   }).filter(({ enabled }) => enabled);
 }
 
-/** One local delivery: failed invocations leave the entire batch for visibility timeout and redrive. */
+// One local delivery: failed invocations leave the entire batch for visibility timeout and redrive.
 export async function consumeBatch(sqs: SQSClient, consumer: LocalConsumer, source: QueueSource, invoke: Invoke): Promise<void> {
   const { Messages = [] } = await sqs.send(new ReceiveMessageCommand({
     QueueUrl: source.url,

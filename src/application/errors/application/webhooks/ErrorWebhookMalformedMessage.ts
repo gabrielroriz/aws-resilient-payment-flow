@@ -3,7 +3,7 @@ import { ErrorCode } from "../../enums/ErrorCode";
 import { ErrorKind } from "../../enums/ErrorKind";
 import { ApplicationError } from "../ApplicationError";
 
-/** A queued reference cannot identify the webhook to process; the payload itself stays in storage. */
+// A queued reference cannot identify the webhook to process; the payload itself stays in storage.
 export class ErrorWebhookMalformedMessage extends ApplicationError {
   constructor() {
     super("Queued webhook must contain a provider and providerEventId.", {
