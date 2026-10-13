@@ -1,4 +1,5 @@
 import { Schema } from "@kernel/decorators/schema";
+import * as z from "@kernel/utils/zod";
 import {
   buildHttpResponse,
   decodeHttpBody,
@@ -6,7 +7,6 @@ import {
   validateHttpBody,
 } from "@main/utils/http";
 import { expect, test } from "vitest";
-import * as z from "zod";
 
 test("decodeHttpBody returns a text body unchanged", () => {
   expect(decodeHttpBody('{"id":"evt_1"}', false)).toBe('{"id":"evt_1"}');

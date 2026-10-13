@@ -5,7 +5,7 @@ import { Injectable } from "@kernel/decorators/injectable";
 import { constantTimeEqual } from "@kernel/utils/crypto";
 import { headerValue } from "@kernel/utils/headers";
 import { parseJson } from "@kernel/utils/json";
-import * as z from "zod";
+import * as z from "@kernel/utils/zod";
 
 // Simulated Brazilian gateway, shaped like Asaas. Events are flat, with the payment or
 // subscription they affect at the top level, upper-case event names, Brasília local times without
@@ -59,19 +59,21 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider {
 
 // A `YYYY-MM-DD HH:mm:ss` Brasília time, read as the moment it names. Brasília has stayed at UTC-3
 // all year since Brazil abolished daylight saving time in 2019.
-const brasiliaTime = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
-  .transform((value) => new Date(`${value.replace(" ", "T")}-03:00`))
+const brasiliaTime = z.pipe(
+  z.pipe(
+    z.string().check(z.regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)),
+    z.transform((value: string) => new Date(`${value.replace(" ", "T")}-03:00`)),
+  ),
   // Rejects times in the right format that do not exist, such as month 13.
-  .pipe(z.date());
+  z.date(),
+);
 
 // The fields of a gatewayBrazil event that receipt reads; the body is stored exactly as received.
 const eventSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().check(z.minLength(1)),
   // Such as `PAYMENT_RECEIVED` or `PAYMENT_REFUNDED`.
-  event: z.string().min(1),
+  event: z.string().check(z.minLength(1)),
   dateCreated: brasiliaTime,
-  payment: z.object({ id: z.string().min(1) }).optional(),
-  subscription: z.object({ id: z.string().min(1) }).optional(),
+  payment: z.optional(z.object({ id: z.string().check(z.minLength(1)) })),
+  subscription: z.optional(z.object({ id: z.string().check(z.minLength(1)) })),
 });

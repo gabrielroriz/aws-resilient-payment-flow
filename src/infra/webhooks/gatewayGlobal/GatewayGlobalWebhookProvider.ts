@@ -6,8 +6,8 @@ import { Injectable } from "@kernel/decorators/injectable";
 import { constantTimeEqual } from "@kernel/utils/crypto";
 import { headerValue } from "@kernel/utils/headers";
 import { parseJson } from "@kernel/utils/json";
+import * as z from "@kernel/utils/zod";
 import { createHmac } from "node:crypto";
-import * as z from "zod";
 
 // Simulated global card gateway, shaped like Stripe. Events arrive in an envelope with the object
 // they are about under `data.object`, times are Unix seconds, and amounts are integers in the
@@ -96,24 +96,26 @@ const REVERSALS = ["refund", "chargeback"];
 // The object an event is about, such as a payment, refund, chargeback, or subscription.
 const eventObjectSchema = z
   .object({
-    object: z.string().min(1),
-    id: z.string().min(1),
+    object: z.string().check(z.minLength(1)),
+    id: z.string().check(z.minLength(1)),
     // The payment a refund or chargeback reverses.
-    payment: z.string().min(1).optional(),
+    payment: z.optional(z.string().check(z.minLength(1))),
   })
-  // A reversal without its payment cannot be tied to the subject it affects.
-  .refine(({ object, payment }) => !REVERSALS.includes(object) || payment !== undefined, {
-    message: "A refund or chargeback must name its payment",
-    path: ["payment"],
-  });
+  .check(
+    // A reversal without its payment cannot be tied to the subject it affects.
+    z.refine(({ object, payment }) => !REVERSALS.includes(object) || payment !== undefined, {
+      error: "A refund or chargeback must name its payment",
+      path: ["payment"],
+    }),
+  );
 
 // The fields of a gatewayGlobal event that receipt reads; the body is stored exactly as received.
 const eventSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().check(z.minLength(1)),
   // Such as `payment.succeeded` or `refund.created`.
-  type: z.string().min(1),
+  type: z.string().check(z.minLength(1)),
   // Unix seconds when the event happened.
-  created: z.number().int(),
+  created: z.int(),
   data: z.object({ object: eventObjectSchema }),
 });
 

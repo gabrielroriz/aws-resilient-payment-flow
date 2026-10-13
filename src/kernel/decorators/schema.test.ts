@@ -1,12 +1,12 @@
 import { Schema, validatePayload } from "@kernel/decorators/schema";
+import * as z from "@kernel/utils/zod";
 import { expect, test } from "vitest";
-import * as z from "zod";
 
 @Schema(
   z.object({
-    id: z.string().min(1),
-    amount: z.number().int().positive(),
-    currency: z.string().default("BRL"),
+    id: z.string().check(z.minLength(1)),
+    amount: z.int().check(z.positive()),
+    currency: z._default(z.string(), "BRL"),
   }),
 )
 class PaymentHandler {}

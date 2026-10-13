@@ -1,10 +1,10 @@
 import { MessageHandler } from "@application/contracts/MessageHandler";
 import { ErrorWebhookProviderNotFound } from "@application/errors/application/webhooks/ErrorWebhookProviderNotFound";
 import { Schema } from "@kernel/decorators/schema";
+import * as z from "@kernel/utils/zod";
 import { lambdaSqsAdapter } from "@main/adapters/lambdaSqsAdapter";
 import { sqsEvent } from "@main/adapters/lambdaSqsAdapter.fixtures";
 import { expect, test, vi } from "vitest";
-import * as z from "zod";
 
 test("awaits each message in order and acknowledges the completed batch", async () => {
   const completed: unknown[] = [];

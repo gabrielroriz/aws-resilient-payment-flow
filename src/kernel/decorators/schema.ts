@@ -1,14 +1,14 @@
-import type * as z from "zod";
+import type * as z from "@kernel/utils/zod";
 
 // The runtime has no decorator metadata, so schemas are kept per class here instead.
-const schemas = new WeakMap<object, z.ZodType>();
+const schemas = new WeakMap<object, z.ZodMiniType>();
 
 // Declares the zod schema of the payload a handler receives: an HTTP controller's request body
 // or a queue handler's message. Driving adapters validate each payload against it before calling
 // `handle`, so handlers receive the schema's output instead of checking fields themselves.
 //
 // Type the payload as `z.output` of the same schema, so the two cannot drift apart.
-export function Schema(schema: z.ZodType) {
+export function Schema(schema: z.ZodMiniType) {
   return <TClass extends abstract new (...args: any[]) => unknown>(
     target: TClass,
     _context: ClassDecoratorContext<TClass>,

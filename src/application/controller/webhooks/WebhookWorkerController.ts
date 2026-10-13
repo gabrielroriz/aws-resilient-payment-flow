@@ -2,10 +2,10 @@ import { MessageHandler } from "@application/contracts/MessageHandler";
 import { WebhookProviderRegistry } from "@application/ports/webhooks/WebhookProviderRegistry";
 import { Injectable } from "@kernel/decorators/injectable";
 import { Schema } from "@kernel/decorators/schema";
-import * as z from "zod";
+import * as z from "@kernel/utils/zod";
 
 // Whitespace alone cannot name a provider or an event.
-const identifier = z.string().regex(/\S/, "Must not be blank");
+const identifier = z.string().check(z.regex(/\S/, "Must not be blank"));
 
 // The identity of a stored event, as receipt queues it; the payload itself stays in storage.
 const messageSchema = z.object({ provider: identifier, providerEventId: identifier });

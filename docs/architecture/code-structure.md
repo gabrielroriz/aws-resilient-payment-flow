@@ -66,7 +66,7 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 | `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler`; entries of one area share a folder, such as `functions/webhooks/` |
 | `kernel/di/`, `kernel/decorators/` | The dependency injection registry, `@Injectable`, and `@Schema` |
-| `kernel/utils/` | Dependency-free helpers shared by every layer, such as parsing JSON, reading headers, and comparing credentials; one module per concern |
+| `kernel/utils/` | Helpers shared by every layer, such as parsing JSON, reading headers, comparing credentials, and the project's zod; one module per concern |
 
 ## Dependency direction
 
@@ -230,7 +230,7 @@ export namespace WebhookWorkerController {
 |---|---|
 | Declare the schema at module level, above the class | Decorators run while the class is being defined, before the class and its namespace exist |
 | Type the payload as `z.output` of the same schema | The type and the runtime check cannot drift apart |
-| Express every requirement in the schema, such as `.min(1)`, `.regex`, `.refine`, or `.transform`, and do not re-check fields in `handle` | All the rules a payload must meet stay in one place, and the handler reads only the schema's output, with defaults and transforms applied and undeclared fields dropped |
+| Express every requirement in the schema, such as `z.minLength`, `z.regex`, `z.refine`, or `z.transform`, and do not re-check fields in `handle` | All the rules a payload must meet stay in one place, and the handler reads only the schema's output, with defaults and transforms applied and undeclared fields dropped |
 | Driven adapters that read external payloads, such as a provider's webhook body, parse them with a module-level schema and `safeParse` | The same declarative checks apply where no driving adapter runs, and each adapter maps a failure to its port's result, such as `undefined` from `parse` |
 
 | Transport | Validated payload | When it does not match |
@@ -240,14 +240,29 @@ export namespace WebhookWorkerController {
 
 A handler without `@Schema` receives the payload unchanged. Issue messages name the field and what was expected rather than the received value, so payment data stays out of responses and logs.
 
+### zod/mini
+
+Every schema uses zod/mini, zod's tree-shakable build, imported as `import * as z from "@kernel/utils/zod"`. Bundle size decides the choice: zod is most of each webhook function's bundle, and Lambda loads the whole bundle on every cold start.
+
+| | Regular zod | zod/mini |
+|---|---|---|
+| What a bundle includes | Most of the library as soon as one schema exists, since every schema carries every method | Only the checks its schemas use, since each check is a separate function |
+| zod in each webhook bundle | About 95 KB of a 111 KB bundle | About 24 KB of a 40 KB bundle, including English messages |
+| Syntax | `z.string().min(1)`, `.optional()`, `.refine(...)` | `z.string().check(z.minLength(1))`, `z.optional(...)`, `.check(z.refine(...))` |
+
+| Rule | Reason |
+|---|---|
+| Import zod only through `@kernel/utils/zod`; a test fails on any direct `zod` import | A single import of regular zod puts all of it back into that function's bundle |
+| `@kernel/utils/zod` loads the English locale | zod/mini reports every issue as "Invalid input" until a locale is loaded |
+| The English locale is imported on its own rather than through `z.locales` | The `z.locales` namespace bundles every language, about 260 KB |
+
 ## Configuration
 
-Adapters read environment variables through `AppConfig`, injected like any other dependency. Its zod schema declares each variable under the group of code that uses it, such as the webhook providers' credentials, and `AppConfig` exposes each group as typed, named settings. The schema must match the variables Terraform gives each function; see [Environment variables](../guides/adding-a-lambda.md#environment-variables).
+Adapters read environment variables through `AppConfig`, injected like any other dependency. Its [zod/mini](#zodmini) schema declares each variable under the group of code that uses it, such as the webhook providers' credentials, and `AppConfig` exposes each group as typed, named settings. The schema must match the variables Terraform gives each function; see [Environment variables](../guides/adding-a-lambda.md#environment-variables).
 
 | Behavior | Reason |
 |---|---|
 | A group is validated when it is read, not when the function starts | A function needs only the variables of the groups it uses, and a missing or invalid variable fails only the requests that need it, with an error naming the variable |
-| zod is imported as `import * as z from "zod"` | esbuild then drops the unused parts of zod; the named `z` import bundles all of it |
 
 ## Errors
 

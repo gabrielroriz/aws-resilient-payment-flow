@@ -4,11 +4,11 @@ import { ErrorCategory } from "@application/errors/enums/ErrorCategory";
 import { ErrorCode } from "@application/errors/enums/ErrorCode";
 import { ErrorKind } from "@application/errors/enums/ErrorKind";
 import { Schema } from "@kernel/decorators/schema";
+import * as z from "@kernel/utils/zod";
 import { lambdaHttpAdapter } from "@main/adapters/lambdaHttpAdapter";
 import { invokeHttp } from "@main/adapters/lambdaHttpAdapter.fixtures";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import { expect, test, vi } from "vitest";
-import * as z from "zod";
 
 class Conflict extends ApplicationError {
   constructor() {
@@ -159,7 +159,7 @@ test("the HTTP adapter validates the body against the controller's schema before
     statusCode: 201,
     body: request.body,
   }));
-  @Schema(z.object({ amount: z.number().int().positive() }))
+  @Schema(z.object({ amount: z.int().check(z.positive()) }))
   class CreatePaymentController implements Controller {
     handle = handle;
   }

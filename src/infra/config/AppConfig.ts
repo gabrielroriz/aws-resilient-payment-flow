@@ -1,6 +1,6 @@
 import { envSchema } from "@infra/config/envSchema";
 import { Injectable } from "@kernel/decorators/injectable";
-import * as z from "zod";
+import * as z from "@kernel/utils/zod";
 
 // Typed configuration from the function's environment variables, validated against their schema.
 // Each group is validated when it is read, not when the function starts: a function needs only
@@ -27,7 +27,10 @@ export class AppConfig {
   }
 
   // Parsing on every read costs microseconds and keeps no state, so tests can change the environment.
-  private parseGroup<Schema extends z.ZodType>(group: string, schema: Schema): z.output<Schema> {
+  private parseGroup<Schema extends z.ZodMiniType>(
+    group: string,
+    schema: Schema,
+  ): z.output<Schema> {
     const result = schema.safeParse(process.env);
     if (!result.success) {
       throw new Error(
