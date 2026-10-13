@@ -5,6 +5,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![esbuild](https://img.shields.io/badge/esbuild-FFCF00?style=flat&logo=esbuild&logoColor=black)](https://esbuild.github.io/)
 [![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=flat&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Prettier](https://img.shields.io/badge/Prettier-F7B93E?style=flat&logo=prettier&logoColor=black)](https://prettier.io/)
 [![AWS Lambda](https://img.shields.io/badge/AWS_Lambda-FF9900?style=flat)](https://aws.amazon.com/lambda/)
 [![Amazon API Gateway](https://img.shields.io/badge/Amazon_API_Gateway-FF4F8B?style=flat)](https://aws.amazon.com/api-gateway/)
 [![AWS SAM](https://img.shields.io/badge/AWS_SAM-FF9900?style=flat)](https://aws.amazon.com/serverless/sam/)
@@ -88,6 +89,7 @@ Use Node.js 24 and npm, then install the dependencies with `npm ci`. Local runs 
 | To | Run | Guide |
 |---|---|---|
 | Build and test | `npm run build && npm test` | [Testing](docs/guides/testing.md) |
+| Format the code | `npm run format` | [Formatting](docs/guides/formatting.md) |
 | Run the API locally | `npm run dev` | [Development](docs/guides/development.md) |
 | Replay the delivery scenarios | `npm run simulate` | [Simulated gateways](docs/guides/simulated-gateways.md) |
 | Deploy to AWS | `npm run deploy` | [Deployment](docs/guides/deployment.md) |
@@ -103,6 +105,7 @@ Use Node.js 24 and npm, then install the dependencies with `npm ci`. Local runs 
 - **Guides**: how to work on the project.
   - [Development](docs/guides/development.md): running the API, worker, database, and queues locally.
   - [Testing](docs/guides/testing.md): running and writing automated tests.
+  - [Formatting](docs/guides/formatting.md): formatting code on save and checking it in CI.
   - [Deployment](docs/guides/deployment.md): deploying to AWS and calling the API.
   - [Simulated gateways](docs/guides/simulated-gateways.md): the test gateways and the delivery simulator.
   - [Adding a Lambda](docs/guides/adding-a-lambda.md): creating a function, its trigger, permissions, and environment variables.
