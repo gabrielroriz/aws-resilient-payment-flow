@@ -6,7 +6,7 @@ Each Lambda is an entry file that wires a controller into its driving adapter, r
 
 1. If the use case needs something external, define a port as an abstract class in `src/application/ports/` and implement it in `src/infra/<concern>/` with `@Injectable()`. See [Ports and contracts](../architecture/code-structure.md#ports-and-contracts) for the rules.
 2. Add the use case in `src/application/usecases/<area>/`, decorated with `@Injectable(...)` listing its constructor dependencies.
-3. Add a controller in `src/application/controller/<area>/` that calls the use case. HTTP controllers implement `Controller`; queue controllers implement the transport-neutral `MessageHandler` contract.
+3. Add a controller in `src/application/controller/<area>/` that calls the use case. HTTP controllers implement `Controller`; queue controllers implement the transport-neutral `MessageHandler` contract. Declare the shape of the request body or queue message with `@Schema` instead of checking fields in `handle`; see [Payload validation](../architecture/code-structure.md#payload-validation).
 4. Add the entry in `src/main/functions/`: bind each port to its adapter, then export `handler = lambdaHttpAdapter(registry.resolve(YourController))` for HTTP, or use `lambdaSqsAdapter` for FIFO queues. Use the [health function](../../src/main/functions/health.ts) as the HTTP template, and see [Binding several ports](../architecture/code-structure.md#binding-several-ports) when the function needs more than one adapter.
 5. Register the entry in `lambdas.json`; see [Registry fields](#registry-fields).
 6. Add tests next to the new files, such as a `.test.ts` file beside the use case that passes fake ports to its constructor. See [Test layout](testing.md#test-layout).
@@ -39,7 +39,7 @@ For `sqs`, omit `http_method` and `path`, add a consumer to the Terraform `sqs_c
 
 HTTP method and path pairs must be unique. API Gateway always invokes the function with `POST`, whatever the route's method.
 
-HTTP handlers receive payload format `2.0` events. `lambdaHttpAdapter` passes the path parameters, query parameters, headers, request ID, parsed JSON body, and raw body to the controller, decoding the body first when API Gateway base64-encodes it. Routes have no API Gateway authentication; a function that needs it authenticates requests itself.
+HTTP handlers receive payload format `2.0` events. `lambdaHttpAdapter` passes the path parameters, query parameters, headers, request ID, parsed JSON body, and raw body to the controller, decoding the body first when API Gateway base64-encodes it. A body that does not match the controller's schema is answered with `400` and `HTTP_INVALID_BODY` before the controller runs. Routes have no API Gateway authentication; a function that needs it authenticates requests itself.
 
 ## Permissions
 

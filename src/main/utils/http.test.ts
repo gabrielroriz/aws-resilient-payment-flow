@@ -1,5 +1,12 @@
-import { buildHttpResponse, decodeHttpBody, parseHttpBody } from "@main/utils/http";
+import { Schema } from "@kernel/decorators/schema";
+import {
+  buildHttpResponse,
+  decodeHttpBody,
+  parseHttpBody,
+  validateHttpBody,
+} from "@main/utils/http";
 import { expect, test } from "vitest";
+import * as z from "zod";
 
 test("decodeHttpBody returns a text body unchanged", () => {
   expect(decodeHttpBody('{"id":"evt_1"}', false)).toBe('{"id":"evt_1"}');
@@ -40,6 +47,40 @@ test("parseHttpBody rejects malformed JSON with a ErrorHttpBadRequest", () => {
   expect(() => parseHttpBody('{"amount":')).toThrow(badRequest);
   // Whitespace is not an empty body, so it is parsed and rejected like any other invalid JSON.
   expect(() => parseHttpBody("   ")).toThrow(badRequest);
+});
+
+test("validateHttpBody returns the output of the controller's schema", () => {
+  @Schema(z.object({ amount: z.number() }))
+  class PaymentController {}
+
+  expect(validateHttpBody(new PaymentController(), { amount: 100, extra: true })).toEqual({
+    amount: 100,
+  });
+});
+
+test("validateHttpBody rejects a body that does not match the schema with a ErrorHttpInvalidBody", () => {
+  @Schema(z.object({ amount: z.number(), currency: z.string() }))
+  class PaymentController {}
+
+  expect(() => validateHttpBody(new PaymentController(), { amount: "100" })).toThrow(
+    expect.objectContaining({
+      name: "ErrorHttpInvalidBody",
+      statusCode: 400,
+      code: "HTTP_INVALID_BODY",
+      category: "http",
+      kind: "expected",
+      message:
+        "Invalid request body: amount: Invalid input: expected number, received string; " +
+        "currency: Invalid input: expected string, received undefined",
+    }),
+  );
+});
+
+test("validateHttpBody passes any body to a controller without a schema", () => {
+  class AnyBodyController {}
+
+  expect(validateHttpBody(new AnyBodyController(), undefined)).toBeUndefined();
+  expect(validateHttpBody(new AnyBodyController(), [1, 2])).toEqual([1, 2]);
 });
 
 test("buildHttpResponse serializes the body with a JSON content type", () => {

@@ -1,4 +1,6 @@
 import { ErrorHttpBadRequest } from "@application/errors/http/ErrorHttpBadRequest";
+import { ErrorHttpInvalidBody } from "@application/errors/http/ErrorHttpInvalidBody";
+import { validatePayload } from "@kernel/decorators/schema";
 import { parseJson } from "@kernel/utils/json";
 import type { APIGatewayProxyResultV2 } from "aws-lambda";
 
@@ -27,6 +29,16 @@ export function parseHttpBody(body: string | undefined): unknown {
     throw new ErrorHttpBadRequest("Malformed JSON body");
   }
   return parsed;
+}
+
+// Validates a parsed body against the controller's `@Schema`. A body that does not match is the
+// caller's fault, so it becomes a `ErrorHttpInvalidBody` (400) before the controller is reached.
+export function validateHttpBody(controller: object, body: unknown): unknown {
+  const result = validatePayload(controller, body);
+  if (!result.success) {
+    throw new ErrorHttpInvalidBody(result.issues);
+  }
+  return result.data;
 }
 
 // Builds an API Gateway HTTP API response with a JSON body. An undefined body sends

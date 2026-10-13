@@ -6,7 +6,7 @@ Support a new payment gateway with one adapter that authenticates and parses inc
 
 1. Implement the `WebhookProvider` port in `src/infra/webhooks/<provider>/`, decorated with `@Injectable(...)` listing its constructor dependencies. Its `name` is the provider's path segment, as in `POST /webhooks/<provider>`.
 2. In `authenticate`, verify the provider's signature or credentials against `rawBody`, the body exactly as received. Read credentials from `AppConfig`, and declare them as environment variables of the webhook function; see [Environment variables](adding-a-lambda.md#environment-variables).
-3. In `parse`, map the provider's event into the fields below, or return `undefined` when the body is not one of the provider's events.
+3. In `parse`, validate the body with a zod schema of the fields you read and map the result into the fields below, or return `undefined` when the body does not match, since it is not one of the provider's events. See [Payload validation](../architecture/code-structure.md#payload-validation).
 4. Implement `process` on the same adapter. It receives the original stored event and must reject on failure so SQS retries. Future business effects must be idempotent; do not authenticate the stored webhook again.
 5. List the adapter in the `@Injectable` decorator of `InMemoryWebhookProviderRegistry`. This registers it for both receipt and worker routing. Keep constructors free of credential reads: authentication reads credentials only when receipt calls it.
 6. Add tests for authentication, malformed requests, routing, and processor failures. See [Writing tests](testing.md#writing-tests).

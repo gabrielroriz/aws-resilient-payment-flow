@@ -78,10 +78,10 @@ test.each([
     });
     expect(get).not.toHaveBeenCalled();
     expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
-      category: "webhooks",
+      category: "queue",
       errorKind: "unexpected",
-      errorCode: "WEBHOOK_MALFORMED_MESSAGE",
-      errorName: "ErrorWebhookMalformedMessage",
+      errorCode: "QUEUE_INVALID_MESSAGE",
+      errorName: "ErrorQueueInvalidMessage",
       errorStack: expect.any(String),
     });
   },

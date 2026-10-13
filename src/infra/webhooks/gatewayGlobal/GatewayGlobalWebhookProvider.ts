@@ -5,8 +5,9 @@ import { AppConfig } from "@infra/config/AppConfig";
 import { Injectable } from "@kernel/decorators/injectable";
 import { constantTimeEqual } from "@kernel/utils/crypto";
 import { headerValue } from "@kernel/utils/headers";
-import { isFilledString, isObject, parseJson } from "@kernel/utils/json";
+import { parseJson } from "@kernel/utils/json";
 import { createHmac } from "node:crypto";
+import * as z from "zod";
 
 // Simulated global card gateway, shaped like Stripe. Events arrive in an envelope with the object
 // they are about under `data.object`, times are Unix seconds, and amounts are integers in the
@@ -47,10 +48,12 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider {
   }
 
   parse({ rawBody }: WebhookProvider.Request): WebhookProvider.Event | undefined {
-    const event = parseJson(rawBody);
-    if (!isGatewayEvent(event)) {
+    const result = eventSchema.safeParse(parseJson(rawBody));
+    if (!result.success) {
       return undefined;
     }
+
+    const event = result.data;
     return {
       providerEventId: event.id,
       eventType: event.type,
@@ -72,31 +75,6 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider {
   }
 }
 
-export namespace GatewayGlobalWebhookProvider {
-  // The JSON body gatewayGlobal sends.
-  export type Event = {
-    id: string;
-    object: "event";
-    // Such as `payment.succeeded` or `refund.created`.
-    type: string;
-    // Unix seconds when the event happened.
-    created: number;
-    data: { object: EventObject };
-  };
-
-  // The object an event is about, such as a payment, refund, chargeback, or subscription.
-  export type EventObject = {
-    object: string;
-    id: string;
-    // The payment a refund or chargeback reverses.
-    payment?: string;
-    // Integer amount in the currency's minor unit, such as cents.
-    amount?: number;
-    // Lowercase ISO 4217 code, such as `usd`.
-    currency?: string;
-  };
-}
-
 // The parts of the signature header: `t=<Unix seconds>,v1=<hex signature>[,v1=...]`.
 function parseSignature(
   header: string | undefined,
@@ -115,31 +93,36 @@ function parseSignature(
 // Objects that reverse a payment, such as a refund, and name it in their `payment` field.
 const REVERSALS = ["refund", "chargeback"];
 
+// The object an event is about, such as a payment, refund, chargeback, or subscription.
+const eventObjectSchema = z
+  .object({
+    object: z.string().min(1),
+    id: z.string().min(1),
+    // The payment a refund or chargeback reverses.
+    payment: z.string().min(1).optional(),
+  })
+  // A reversal without its payment cannot be tied to the subject it affects.
+  .refine(({ object, payment }) => !REVERSALS.includes(object) || payment !== undefined, {
+    message: "A refund or chargeback must name its payment",
+    path: ["payment"],
+  });
+
+// The fields of a gatewayGlobal event that receipt reads; the body is stored exactly as received.
+const eventSchema = z.object({
+  id: z.string().min(1),
+  // Such as `payment.succeeded` or `refund.created`.
+  type: z.string().min(1),
+  // Unix seconds when the event happened.
+  created: z.number().int(),
+  data: z.object({ object: eventObjectSchema }),
+});
+
 // Payments and subscriptions are subjects themselves, and reversals affect the payment they
 // reverse; other objects affect no subject.
-function subjectOf(
-  object: GatewayGlobalWebhookProvider.EventObject,
-): WebhookProvider.Event["subject"] {
+function subjectOf(object: z.output<typeof eventObjectSchema>): WebhookProvider.Event["subject"] {
   if (object.object === "payment" || object.object === "subscription") {
     return { type: object.object, id: object.id };
   }
-  // The event check guarantees that every reversal names its payment.
+  // The event schema guarantees that every reversal names its payment.
   return REVERSALS.includes(object.object) ? { type: "payment", id: object.payment! } : undefined;
-}
-
-function isGatewayEvent(value: unknown): value is GatewayGlobalWebhookProvider.Event {
-  if (
-    !isObject(value) ||
-    !isFilledString(value.id) ||
-    !isFilledString(value.type) ||
-    !Number.isInteger(value.created) ||
-    !isObject(value.data) ||
-    !isObject(value.data.object) ||
-    !isFilledString(value.data.object.object) ||
-    !isFilledString(value.data.object.id)
-  ) {
-    return false;
-  }
-  // A reversal without its payment cannot be tied to the subject it affects.
-  return !REVERSALS.includes(value.data.object.object) || isFilledString(value.data.object.payment);
 }

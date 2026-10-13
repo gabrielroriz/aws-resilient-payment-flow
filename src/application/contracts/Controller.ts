@@ -6,7 +6,8 @@ export interface Controller<TResponseBody = unknown> {
 
 export namespace Controller {
   export type Request<TBody = unknown> = {
-    // Parsed JSON body; `undefined` when the request has no body.
+    // Parsed JSON body; `undefined` when the request has no body. When the controller declares a
+    // `@Schema`, the body has already been validated and is the schema's output.
     body: TBody;
     // Body exactly as the client sent it, for signature checks and audit; `undefined` when there is none.
     rawBody: string | undefined;

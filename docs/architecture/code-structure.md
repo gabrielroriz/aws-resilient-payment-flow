@@ -56,16 +56,16 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 |---|---|
 | `application/usecases/<area>/` | One business operation per class; depends on ports and other application code |
 | `application/ports/` | Abstract classes describing what the core needs from outside, such as time, storage, or providers; ports of one area share a folder, such as `ports/webhooks/` |
-| `application/controller/<area>/` | Validates transport-neutral HTTP requests or queue bodies and calls a use case, or a port directly when that port performs the whole operation, such as the webhook worker routing through the provider registry |
+| `application/controller/<area>/` | Declares the schema of its request body or queue message and calls a use case, or a port directly when that port performs the whole operation, such as the webhook worker routing through the provider registry |
 | `application/contracts/` | Shapes shared across layers, such as `Controller` and `MessageHandler` |
 | `application/errors/` | Error codes and the base classes mapped to responses |
 | `infra/<concern>/` | Adapter classes implementing ports, grouped by concern, such as `infra/clock/`, `infra/webhooks/`, or `infra/repositories/<entity>/` |
 | `infra/<service>/` | Shared clients and helpers for one external service, such as `infra/dynamodb/`; they implement no port and are reused by adapters |
 | `infra/config/` | `AppConfig` and its environment schema; see [Configuration](#configuration) |
-| `main/adapters/` | Converts Lambda events into controller calls and maps results and errors to HTTP responses or SQS batch failures |
+| `main/adapters/` | Converts Lambda events into controller calls, validating payloads against the handler's schema, and maps results and errors to HTTP responses or SQS batch failures |
 | `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler`; entries of one area share a folder, such as `functions/webhooks/` |
-| `kernel/di/`, `kernel/decorators/` | The dependency injection registry and `@Injectable` |
+| `kernel/di/`, `kernel/decorators/` | The dependency injection registry, `@Injectable`, and `@Schema` |
 | `kernel/utils/` | Dependency-free helpers shared by every layer, such as parsing JSON, reading headers, and comparing credentials; one module per concern |
 
 ## Dependency direction
@@ -130,6 +130,7 @@ export namespace GetHealthUseCase {
 | Owned by one class, including shapes only that class uses | The class's namespace |
 | Shared across layers, such as the `Controller` request and response | `application/contracts/` |
 | Helper for a standalone function or decorator | Module level, next to the function |
+| zod schema of a payload | Module level, above the class that uses it; its type is `z.output` of the schema; see [Payload validation](#payload-validation) |
 
 ## Dependency injection
 
@@ -205,6 +206,40 @@ Keep each group to adapters that every caller uses; anything extra is bundled in
 
 A missing binding fails only when the entry loads. A build test loads every registered entry from its production bundle, so `npm test` catches it.
 
+## Payload validation
+
+Payloads are validated with zod schemas instead of inline type checks, so each payload's shape is declared once and its TypeScript type is derived from it. A controller or queue handler declares the schema of its request body or message with `@Schema`, and the driving adapter validates every payload against it before calling `handle`. The [webhook worker](../../src/application/controller/webhooks/WebhookWorkerController.ts) is the reference example:
+
+```ts
+const messageSchema = z.object({ provider: identifier, providerEventId: identifier });
+
+@Injectable(WebhookProviderRegistry)
+@Schema(messageSchema)
+export class WebhookWorkerController implements MessageHandler {
+  async handle(message: WebhookWorkerController.Message): Promise<void> {
+    await this.providerRegistry.route(message);
+  }
+}
+
+export namespace WebhookWorkerController {
+  export type Message = z.output<typeof messageSchema>;
+}
+```
+
+| Rule | Reason |
+|---|---|
+| Declare the schema at module level, above the class | Decorators run while the class is being defined, before the class and its namespace exist |
+| Type the payload as `z.output` of the same schema | The type and the runtime check cannot drift apart |
+| Express every requirement in the schema, such as `.min(1)`, `.regex`, `.refine`, or `.transform`, and do not re-check fields in `handle` | All the rules a payload must meet stay in one place, and the handler reads only the schema's output, with defaults and transforms applied and undeclared fields dropped |
+| Driven adapters that read external payloads, such as a provider's webhook body, parse them with a module-level schema and `safeParse` | The same declarative checks apply where no driving adapter runs, and each adapter maps a failure to its port's result, such as `undefined` from `parse` |
+
+| Transport | Validated payload | When it does not match |
+|---|---|---|
+| HTTP | The parsed JSON body | `ErrorHttpInvalidBody`: `400` with `HTTP_INVALID_BODY`, expected, listing each issue in the message |
+| SQS | The parsed message body | `ErrorQueueInvalidMessage`: `QUEUE_INVALID_MESSAGE`, unexpected, retried like any failure |
+
+A handler without `@Schema` receives the payload unchanged. Issue messages name the field and what was expected rather than the received value, so payment data stays out of responses and logs.
+
 ## Configuration
 
 Adapters read environment variables through `AppConfig`, injected like any other dependency. Its zod schema declares each variable under the group of code that uses it, such as the webhook providers' credentials, and `AppConfig` exposes each group as typed, named settings. The schema must match the variables Terraform gives each function; see [Environment variables](../guides/adding-a-lambda.md#environment-variables).
@@ -218,11 +253,11 @@ Adapters read environment variables through `AppConfig`, injected like any other
 
 HTTP errors follow the mapping below. Both driving adapters log the same error metadata. The FIFO SQS adapter adds message ID, group, receive count, and queue ARN, then returns failed and unprocessed records for retry regardless of the error's status or kind; see [Webhook processing](webhook-processing.md#delivery-and-failures).
 
-`lambdaHttpAdapter` parses JSON request bodies and returns JSON responses. Errors become `{ "success": false, "error": { "code", "message" } }`:
+`lambdaHttpAdapter` parses JSON request bodies, validates them against the controller's schema, and returns JSON responses. Errors become `{ "success": false, "error": { "code", "message" } }`:
 
 | Thrown | Use for | Response |
 |---|---|---|
-| `HttpError` subclass, such as `ErrorHttpBadRequest` | Failures of the request itself, raised before the controller is reached, such as a malformed JSON body | Its `statusCode`, code, and message |
+| `HttpError` subclass, such as `ErrorHttpBadRequest` | Failures of the request itself, raised before the controller is reached, such as a malformed JSON body or one that does not match the controller's schema | Its `statusCode`, code, and message |
 | `ApplicationError` subclass | Failures raised from the controller down, such as a business rule a use case enforces | Its `statusCode`, code, and message |
 | Anything else | Failures nobody anticipated, such as a storage outage or a defect | `500` with `INTERNAL_SERVER_ERROR`; details only in logs |
 
@@ -239,8 +274,8 @@ Errors are named after their domain first, so codes and classes of one area sort
 
 | Name | Pattern | Example |
 |---|---|---|
-| Code | `<DOMAIN>_<NAME>`, where the domain is the error's category in singular | `WEBHOOK_MALFORMED_MESSAGE`, `HTTP_BAD_REQUEST` |
-| Class | `Error` followed by the code in PascalCase, in a file of the same name | `ErrorWebhookMalformedMessage`, `ErrorHttpBadRequest` |
+| Code | `<DOMAIN>_<NAME>`, where the domain is the error's category in singular | `WEBHOOK_MALFORMED_EVENT`, `HTTP_BAD_REQUEST` |
+| Class | `Error` followed by the code in PascalCase, in a file of the same name | `ErrorWebhookMalformedEvent`, `ErrorHttpBadRequest` |
 
 `INTERNAL_SERVER_ERROR` has no domain, because it is the fallback for errors the application does not define. The abstract base classes `BaseError`, `HttpError`, and `ApplicationError` are never thrown and keep their names.
 

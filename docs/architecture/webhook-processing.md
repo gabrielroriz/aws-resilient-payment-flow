@@ -39,8 +39,8 @@ sequenceDiagram
 
 | Component | Responsibility |
 |---|---|
-| SQS driving adapter | Parse each record's JSON, process the batch in order, and return partial batch failures |
-| Worker controller | Validate that `provider` and `providerEventId` are nonempty strings, then await `providerRegistry.route` with that identity |
+| SQS driving adapter | Parse each record's JSON, validate it against the worker's schema, process the batch in order, and return partial batch failures |
+| Worker controller | Declare its message schema, with `provider` and `providerEventId` as strings that are not blank, and await `providerRegistry.route` with that identity |
 | Provider registry | `find` selects providers for receipt; `route` loads the stored event, selects its provider, and awaits `process`, rejecting missing events and unknown providers and propagating failures; registrations must be unique |
 | Gateway adapters | One class per gateway exposes `authenticate`, `parse`, and `process`; each Lambda calls only the methods of its stage |
 
@@ -58,14 +58,14 @@ Sharing provider classes also shares their constructor dependencies, including t
 | Permissions | Consume only the webhook queue, read only the webhook events table, and write execution logs |
 | Local delivery | A poller reads the same Terraform mapping settings, invokes the worker through SAM, and deletes only completed records; see [Development](../guides/development.md#local-functions) |
 
-The retry policy follows AWS's [FIFO partial batch response guidance](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html) and [visibility timeout guidance](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-configure.html). Invalid JSON, unknown gateways, missing stored events, and repository or processor errors all remain retryable; none is silently discarded. A function timeout or initialization failure retries the whole batch.
+The retry policy follows AWS's [FIFO partial batch response guidance](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html) and [visibility timeout guidance](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-configure.html). Invalid JSON, messages that do not match the schema, unknown gateways, missing stored events, and repository or processor errors all remain retryable; none is silently discarded. A function timeout or initialization failure retries the whole batch.
 
 Failures caught during delivery use the shared [error log fields](code-structure.md#errors), alongside the SQS message context. The worker classifies the following as unexpected, since receipt should have dispatched a valid identity for an existing event:
 
 | Error code | Category | When |
 |---|---|---|
 | `QUEUE_MALFORMED_MESSAGE` | `queue` | The SQS body is not valid JSON; the error never includes the raw body |
-| `WEBHOOK_MALFORMED_MESSAGE` | `webhooks` | The decoded message lacks a nonempty string `provider` or `providerEventId` |
+| `QUEUE_INVALID_MESSAGE` | `queue` | The decoded message does not match the worker's schema, such as a missing or blank `provider` or `providerEventId` |
 | `WEBHOOK_PROVIDER_NOT_FOUND` | `webhooks` | The registry cannot route the stored event to a registered adapter; receipt shares this error but treats unknown public paths as expected |
 | `WEBHOOK_EVENT_NOT_FOUND` | `webhooks` | The queued identity has no stored event |
 | `INTERNAL_SERVER_ERROR` | Unspecified | An unclassified repository or provider failure |

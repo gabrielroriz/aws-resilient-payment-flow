@@ -3,10 +3,12 @@ import { ApplicationError } from "@application/errors/application/ApplicationErr
 import { ErrorCategory } from "@application/errors/enums/ErrorCategory";
 import { ErrorCode } from "@application/errors/enums/ErrorCode";
 import { ErrorKind } from "@application/errors/enums/ErrorKind";
+import { Schema } from "@kernel/decorators/schema";
 import { lambdaHttpAdapter } from "@main/adapters/lambdaHttpAdapter";
 import { invokeHttp } from "@main/adapters/lambdaHttpAdapter.fixtures";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import { expect, test, vi } from "vitest";
+import * as z from "zod";
 
 class Conflict extends ApplicationError {
   constructor() {
@@ -149,4 +151,35 @@ test("the HTTP adapter decodes a base64-encoded body before passing it on", asyn
   });
 
   expect(body).toMatchObject({ body: { mode: "echo" }, rawBody: '{"mode":"echo"}' });
+});
+
+test("the HTTP adapter validates the body against the controller's schema before calling it", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  const handle = vi.fn(async (request: Controller.Request<{ amount: number }>) => ({
+    statusCode: 201,
+    body: request.body,
+  }));
+  @Schema(z.object({ amount: z.number().int().positive() }))
+  class CreatePaymentController implements Controller {
+    handle = handle;
+  }
+  const createPayment = lambdaHttpAdapter(new CreatePaymentController());
+
+  // Undeclared fields are dropped, so the controller receives only what its schema describes.
+  expect(await invokeHttp(createPayment, { body: '{"amount":100,"extra":true}' })).toMatchObject({
+    statusCode: 201,
+    body: { amount: 100 },
+  });
+
+  expect(await invokeHttp(createPayment, { body: '{"amount":-5}' })).toMatchObject({
+    statusCode: 400,
+    body: {
+      success: false,
+      error: {
+        code: "HTTP_INVALID_BODY",
+        message: "Invalid request body: amount: Too small: expected number to be >0",
+      },
+    },
+  });
+  expect(handle).toHaveBeenCalledTimes(1);
 });

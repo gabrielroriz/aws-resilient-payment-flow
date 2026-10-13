@@ -4,7 +4,8 @@ import { AppConfig } from "@infra/config/AppConfig";
 import { Injectable } from "@kernel/decorators/injectable";
 import { constantTimeEqual } from "@kernel/utils/crypto";
 import { headerValue } from "@kernel/utils/headers";
-import { isFilledString, isObject, parseJson } from "@kernel/utils/json";
+import { parseJson } from "@kernel/utils/json";
+import * as z from "zod";
 
 // Simulated Brazilian gateway, shaped like Asaas. Events are flat, with the payment or
 // subscription they affect at the top level, upper-case event names, Brasília local times without
@@ -26,20 +27,16 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider {
   }
 
   parse({ rawBody }: WebhookProvider.Request): WebhookProvider.Event | undefined {
-    const event = parseJson(rawBody);
-    if (!isGatewayEvent(event)) {
+    const result = eventSchema.safeParse(parseJson(rawBody));
+    if (!result.success) {
       return undefined;
     }
 
-    const occurredAt = fromBrasiliaTime(event.dateCreated);
-    if (!occurredAt) {
-      return undefined;
-    }
-
+    const event = result.data;
     return {
       providerEventId: event.id,
       eventType: event.event,
-      occurredAt,
+      occurredAt: event.dateCreated,
       // A refund or chargeback arrives as an event about the payment it reverses.
       subject: event.payment
         ? { type: "payment", id: event.payment.id }
@@ -60,51 +57,21 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider {
   }
 }
 
-export namespace GatewayBrazilWebhookProvider {
-  // The JSON body gatewayBrazil sends.
-  export type Event = {
-    id: string;
-    // Such as `PAYMENT_RECEIVED` or `PAYMENT_REFUNDED`.
-    event: string;
-    // `YYYY-MM-DD HH:mm:ss` in Brasília time.
-    dateCreated: string;
-    payment?: {
-      object: "payment";
-      id: string;
-      subscription?: string;
-      // Decimal reais, such as `19.9`.
-      value: number;
-      billingType: string;
-      status: string;
-    };
-    subscription?: {
-      object: "subscription";
-      id: string;
-      value: number;
-      cycle: string;
-      status: string;
-    };
-  };
-}
+// A `YYYY-MM-DD HH:mm:ss` Brasília time, read as the moment it names. Brasília has stayed at UTC-3
+// all year since Brazil abolished daylight saving time in 2019.
+const brasiliaTime = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+  .transform((value) => new Date(`${value.replace(" ", "T")}-03:00`))
+  // Rejects times in the right format that do not exist, such as month 13.
+  .pipe(z.date());
 
-// Brasília has stayed at UTC-3 all year since Brazil abolished daylight saving time in 2019.
-function fromBrasiliaTime(value: string): Date | undefined {
-  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)) {
-    return undefined;
-  }
-  const date = new Date(`${value.replace(" ", "T")}-03:00`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
-
-function isGatewayEvent(value: unknown): value is GatewayBrazilWebhookProvider.Event {
-  return (
-    isObject(value) &&
-    isFilledString(value.id) &&
-    isFilledString(value.event) &&
-    typeof value.dateCreated === "string" &&
-    (value.payment === undefined ||
-      (isObject(value.payment) && isFilledString(value.payment.id))) &&
-    (value.subscription === undefined ||
-      (isObject(value.subscription) && isFilledString(value.subscription.id)))
-  );
-}
+// The fields of a gatewayBrazil event that receipt reads; the body is stored exactly as received.
+const eventSchema = z.object({
+  id: z.string().min(1),
+  // Such as `PAYMENT_RECEIVED` or `PAYMENT_REFUNDED`.
+  event: z.string().min(1),
+  dateCreated: brasiliaTime,
+  payment: z.object({ id: z.string().min(1) }).optional(),
+  subscription: z.object({ id: z.string().min(1) }).optional(),
+});

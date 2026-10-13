@@ -1,7 +1,10 @@
+import { MessageHandler } from "@application/contracts/MessageHandler";
 import { ErrorWebhookProviderNotFound } from "@application/errors/application/webhooks/ErrorWebhookProviderNotFound";
+import { Schema } from "@kernel/decorators/schema";
 import { lambdaSqsAdapter } from "@main/adapters/lambdaSqsAdapter";
 import { sqsEvent } from "@main/adapters/lambdaSqsAdapter.fixtures";
 import { expect, test, vi } from "vitest";
+import * as z from "zod";
 
 test("awaits each message in order and acknowledges the completed batch", async () => {
   const completed: unknown[] = [];
@@ -58,6 +61,35 @@ test("malformed JSON fails before the handler and keeps the remainder of the bat
     errorStack: expect.any(String),
   });
   expect(log.mock.calls[0][0]).not.toContain("sensitive-payment-payload");
+});
+
+test("a message that does not match the handler's schema fails before the handler and keeps the remainder of the batch", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const handled: unknown[] = [];
+  @Schema(z.object({ id: z.number() }))
+  class Handler implements MessageHandler {
+    async handle(message: { id: number }) {
+      handled.push(message);
+    }
+  }
+
+  const event = sqsEvent({ id: 1, extra: "dropped" }, { id: "card-4111" }, { id: 3 });
+  await expect(lambdaSqsAdapter(new Handler())(event)).resolves.toEqual({
+    batchItemFailures: [{ itemIdentifier: "message-1" }, { itemIdentifier: "message-2" }],
+  });
+  // The handler receives the schema's output, so undeclared fields never reach it.
+  expect(handled).toEqual([{ id: 1 }]);
+  expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
+    messageId: "message-1",
+    category: "queue",
+    errorKind: "unexpected",
+    errorCode: "QUEUE_INVALID_MESSAGE",
+    errorName: "ErrorQueueInvalidMessage",
+    errorMessage:
+      "Queue message does not match the handler's schema: id: Invalid input: expected number, received string",
+    errorStack: expect.any(String),
+  });
+  expect(log.mock.calls[0][0]).not.toContain("card-4111");
 });
 
 test("expected application errors keep their metadata and retry the batch without logging a stack", async () => {

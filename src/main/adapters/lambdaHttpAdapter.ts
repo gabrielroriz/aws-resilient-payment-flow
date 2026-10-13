@@ -2,17 +2,23 @@ import { Controller } from "@application/contracts/Controller";
 import { BaseError } from "@application/errors/BaseError";
 import { ErrorCode } from "@application/errors/enums/ErrorCode";
 import { errorLogFields } from "@main/utils/errors";
-import { buildHttpResponse, decodeHttpBody, parseHttpBody } from "@main/utils/http";
+import {
+  buildHttpResponse,
+  decodeHttpBody,
+  parseHttpBody,
+  validateHttpBody,
+} from "@main/utils/http";
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda";
 
 // Driving adapter for API Gateway HTTP API events (payload format 2.0). Converts the
-// event into a controller request and maps the result, or any error, to a response.
+// event into a controller request, validating its body against the controller's schema,
+// and maps the result, or any error, to a response.
 export function lambdaHttpAdapter(controller: Controller) {
   return async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
     try {
       const rawBody = decodeHttpBody(event.body, event.isBase64Encoded);
       const response = await controller.handle({
-        body: parseHttpBody(rawBody),
+        body: validateHttpBody(controller, parseHttpBody(rawBody)),
         rawBody,
         params: event.pathParameters ?? {},
         queryParams: event.queryStringParameters ?? {},
