@@ -12,13 +12,14 @@ beforeEach(() => {
   vi.stubEnv("WEBHOOK_EVENTS_TABLE_NAME", tableName);
 });
 
-const event: WebhookEventRepository.Event = {
+const event: WebhookEventRepository.StatusEvent = {
   provider: "stripe",
   providerEventId: "evt_1",
   eventType: "invoice.paid",
   occurredAt: new Date("2026-10-10T10:00:00.000Z"),
   receivedAt: new Date("2026-10-10T10:00:01.500Z"),
   subject: { type: "payment", id: "pi_1" },
+  status: "succeeded",
   payload: '{"id":"evt_1","type":"invoice.paid"}',
 };
 
@@ -66,6 +67,7 @@ test("create stores the event item with its index keys, compressed payload, and 
     received_at: "2026-10-10T10:00:01.500Z",
     subject_type: "payment",
     subject_id: "pi_1",
+    status: "succeeded",
     GSI1PK: expect.stringMatching(/^stripe#[0-3]$/),
     GSI2PK: "stripe#payment#pi_1",
     expires_at: eventExpiresAt,
@@ -124,6 +126,60 @@ test("recordDuplicateDelivery stores a delivery item that expires with the event
     request_id: "req-2",
     expires_at: eventExpiresAt,
   });
+});
+
+test("recordStatus records the status as its subject's latest unless a stored status outranks it", async () => {
+  const { dynamo, repository } = setup();
+  const putIf = vi.spyOn(dynamo, "putIf").mockResolvedValue(true);
+
+  await expect(repository.recordStatus(event, 2)).resolves.toEqual({ outdated: false });
+
+  expect(putIf).toHaveBeenCalledWith(
+    tableName,
+    {
+      PK: "SUBJECT#stripe#payment#pi_1",
+      SK: "STATUS",
+      provider_event_id: "evt_1",
+      status: "succeeded",
+      occurred_at: "2026-10-10T10:00:00.000Z",
+      rank: "02#2026-10-10T10:00:00.000Z#evt_1",
+      expires_at: eventExpiresAt,
+    },
+    {
+      ConditionExpression: "attribute_not_exists(PK) OR #rank <= :rank",
+      ExpressionAttributeNames: { "#rank": "rank" },
+      ExpressionAttributeValues: { ":rank": "02#2026-10-10T10:00:00.000Z#evt_1" },
+    },
+  );
+});
+
+test("recordStatus reports the event as outdated when the stored status outranks it", async () => {
+  const { dynamo, repository } = setup();
+  vi.spyOn(dynamo, "putIf").mockResolvedValue(false);
+
+  await expect(repository.recordStatus(event, 2)).resolves.toEqual({ outdated: true });
+});
+
+test("recordStatus ranks precedence first, then occurrence, then event ID", async () => {
+  const { dynamo, repository } = setup();
+  const putIf = vi.spyOn(dynamo, "putIf").mockResolvedValue(true);
+  const later = new Date("2026-10-10T11:00:00.000Z");
+  // Listed from the lowest rank to the highest.
+  const ranked: [WebhookEventRepository.StatusEvent, number][] = [
+    [{ ...event, providerEventId: "evt_late", occurredAt: later }, 1],
+    [{ ...event, providerEventId: "evt_a" }, 2],
+    [{ ...event, providerEventId: "evt_b" }, 2],
+    [{ ...event, providerEventId: "evt_c", occurredAt: later }, 2],
+    [{ ...event, providerEventId: "evt_early" }, 3],
+    [{ ...event, providerEventId: "evt_0" }, 10],
+  ];
+
+  for (const [rankedEvent, precedence] of ranked) {
+    await repository.recordStatus(rankedEvent, precedence);
+  }
+
+  const ranks = putIf.mock.calls.map(([, item]) => item.rank as string);
+  expect([...ranks].sort()).toEqual(ranks);
 });
 
 test("getTrace returns the event with its attempts, effects, and deliveries", async () => {
@@ -310,7 +366,8 @@ test("listBySubject queries GSI2 for the subject and returns its events", async 
     subject: { type: "payment", id: "pi_1" },
   });
 
-  const { payload, ...summary } = event;
+  // GSI2 projects neither the payload nor the status.
+  const { payload, status, ...summary } = event;
   expect(events).toEqual([summary]);
   expect(queryAll.mock.calls[0][0]).toEqual({
     TableName: tableName,

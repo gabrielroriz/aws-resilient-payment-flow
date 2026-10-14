@@ -6,7 +6,13 @@ import { InMemoryWebhookProviderRegistry } from "@infra/webhooks/InMemoryWebhook
 import { expect, test, vi } from "vitest";
 
 function provider(name: string): WebhookProvider {
-  return { name, authenticate: async () => true, parse: () => undefined, process: async () => {} };
+  return {
+    name,
+    paymentStatuses: {},
+    authenticate: async () => true,
+    parse: () => undefined,
+    process: async () => {},
+  };
 }
 
 const stored: WebhookEventRepository.Event = {

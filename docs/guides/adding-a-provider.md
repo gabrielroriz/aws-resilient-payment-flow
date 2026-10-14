@@ -7,10 +7,11 @@ Support a new payment gateway with one adapter that authenticates and parses inc
 1. Implement the `WebhookProvider` port in `src/infra/webhooks/<provider>/`, decorated with `@Injectable(...)` listing its constructor dependencies. Its `name` is the provider's path segment, as in `POST /webhooks/<provider>`.
 2. In `authenticate`, verify the provider's signature or credentials against `rawBody`, the body exactly as received. Read credentials from `AppConfig`, and declare them as environment variables of the webhook function; see [Environment variables](adding-a-lambda.md#environment-variables).
 3. In `parse`, validate the body with a zod schema of the fields you read and map the result into the fields below, or return `undefined` when the body does not match, since it is not one of the provider's events. See [Payload validation](../architecture/code-structure.md#payload-validation).
-4. Implement `process` on the same adapter. It receives the original stored event and must reject on failure so SQS retries. Future business effects must be idempotent; do not authenticate the stored webhook again.
-5. List the adapter in the `@Injectable` decorator of `InMemoryWebhookProviderRegistry`. This registers it for both receipt and worker routing. Keep constructors free of credential reads: authentication reads credentials only when receipt calls it.
-6. Add tests for authentication, malformed requests, routing, and processor failures. See [Writing tests](testing.md#writing-tests).
-7. For a simulated provider, also teach the delivery simulator to send its format; see [Simulated gateways](simulated-gateways.md).
+4. Declare `paymentStatuses`: list the provider's event types that report a payment status as the type argument of `WebhookProvider`, in a type of the adapter's namespace, and map each to one of the statuses that [out-of-order events](../architecture/webhook-receipt.md#out-of-order-events) rank. Type checking fails when a listed type has no status or an unlisted one has.
+5. Implement `process` on the same adapter. It receives the original stored event and must reject on failure so SQS retries. Future business effects must be idempotent; do not authenticate the stored webhook again.
+6. List the adapter in the `@Injectable` decorator of `InMemoryWebhookProviderRegistry`. This registers it for both receipt and worker routing. Keep constructors free of credential reads: authentication reads credentials only when receipt calls it.
+7. Add tests for authentication, malformed requests, the status table, routing, and processor failures. See [Writing tests](testing.md#writing-tests).
+8. For a simulated provider, also teach the delivery simulator to send its format; see [Simulated gateways](simulated-gateways.md).
 
 ## Mapping an event
 
@@ -22,4 +23,4 @@ Support a new payment gateway with one adapter that authenticates and parses inc
 | Subject | The payment or subscription the event affects; a refund or chargeback affects the payment it reverses; none for events about anything else |
 | Not an event of the provider | `undefined`, which is answered with `WEBHOOK_MALFORMED_EVENT` and stores nothing |
 
-Amounts and other fields stay in the stored payload; receipt does not read them.
+Amounts and other fields stay in the stored payload; receipt does not read them. Receipt adds the status itself, looking the event type up in `paymentStatuses` for events about a payment.

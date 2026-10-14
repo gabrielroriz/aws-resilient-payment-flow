@@ -64,7 +64,7 @@ The design separates receiving an event from acting on it, and makes every step 
 | Keep the full history | Each event keeps its exact payload and every repeated delivery, and will keep its processing attempts and business effects, so operators can trace and safely reprocess it. | Partly built |
 | Act after acknowledging | Receipt queues each stored event and business effects run from that queue, separately from receipt, so acknowledgments stay fast and a slow dependency never makes providers retry. | Partly built |
 | Make every effect idempotent | Each business effect carries a key that identifies it, so retries, recovery, and reprocessing never repeat a completed one. | Planned |
-| Follow the order events happened | Events about the same payment or subscription are applied in the order the provider says they occurred, so a late event cannot reverse a newer outcome. | Planned |
+| Follow the order events happened | Events about the same payment are ranked by status precedence, then by when the provider says they occurred, so a late event is recognized and cannot reverse a newer outcome. | Built for receipt |
 | Prove it by simulation | Simulated gateways with different formats deliver events in the patterns of the acceptance scenarios, against a local or deployed environment. | Built for receipt |
 
 ## Progress
@@ -73,7 +73,7 @@ The design separates receiving an event from acting on it, and makes every step 
 |---|---|---|
 | Build and deployment foundation | Done | Reproducible provisioning with Terraform, and builds and tests in CI |
 | Local environment | Done | Running the API, its database, and the simulator from the same infrastructure definitions, without deploying |
-| Webhook receipt | Done | At receipt: duplicate delivery, provider retry, overlapping gateway identifiers, forged requests, and malformed events |
+| Webhook receipt | Done | At receipt: duplicate delivery, provider retry, overlapping gateway identifiers, out-of-order payment events, forged requests, and malformed events |
 | Simulated gateways and delivery simulator | Done | Replaying those scenarios against a local or deployed API |
 | Worker routing | Done | SQS consumption locally and on AWS, shared gateway adapters, and retries with FIFO ordering |
 | Event processing and business effects | In progress | Business effects, out-of-order delivery, partial failure, and downstream outage |

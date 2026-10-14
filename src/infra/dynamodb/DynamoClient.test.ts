@@ -60,6 +60,44 @@ test("putIfAbsent rethrows other failures", async () => {
   await expect(client.putIfAbsent("events", { PK: "stripe#evt_1" }, "PK")).rejects.toBe(failure);
 });
 
+const condition = {
+  ConditionExpression: "attribute_not_exists(PK) OR #rank <= :rank",
+  ExpressionAttributeNames: { "#rank": "rank" },
+  ExpressionAttributeValues: { ":rank": "02" },
+};
+
+test("putIf writes the item with its condition and reports that it was written", async () => {
+  const client = new DynamoClient();
+  const send = stubSend(client).mockResolvedValue({});
+
+  await expect(client.putIf("events", { PK: "a", SK: "STATUS" }, condition)).resolves.toBe(true);
+
+  const [command] = send.mock.calls[0];
+  expect(command).toBeInstanceOf(PutCommand);
+  expect(command.input).toEqual({
+    TableName: "events",
+    Item: { PK: "a", SK: "STATUS" },
+    ...condition,
+  });
+});
+
+test("putIf reports that nothing was written when the condition does not hold", async () => {
+  const client = new DynamoClient();
+  stubSend(client).mockRejectedValue(
+    new ConditionalCheckFailedException({ message: "outranked", $metadata: {} }),
+  );
+
+  await expect(client.putIf("events", { PK: "a", SK: "STATUS" }, condition)).resolves.toBe(false);
+});
+
+test("putIf rethrows other failures", async () => {
+  const client = new DynamoClient();
+  const failure = new Error("throttled");
+  stubSend(client).mockRejectedValue(failure);
+
+  await expect(client.putIf("events", { PK: "a", SK: "STATUS" }, condition)).rejects.toBe(failure);
+});
+
 test("queryAll follows every page", async () => {
   const client = new DynamoClient();
   const send = stubSend(client)

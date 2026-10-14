@@ -13,8 +13,17 @@ import { createHmac } from "node:crypto";
 // they are about under `data.object`, times are Unix seconds, and amounts are integers in the
 // currency's minor unit. Each webhook is signed with HMAC-SHA256 over its timestamp and body.
 @Injectable(Clock, AppConfig)
-export class GatewayGlobalWebhookProvider implements WebhookProvider {
+export class GatewayGlobalWebhookProvider implements WebhookProvider<GatewayGlobalWebhookProvider.StatusEventType> {
   readonly name = "gatewayGlobal";
+
+  readonly paymentStatuses: WebhookProvider.PaymentStatuses<GatewayGlobalWebhookProvider.StatusEventType> =
+    {
+      "payment.created": "pending",
+      "payment.failed": "failed",
+      "payment.succeeded": "succeeded",
+      "refund.created": "refunded",
+      "chargeback.opened": "charged_back",
+    };
 
   private static readonly SIGNATURE_HEADER = "gateway-global-signature";
   // A signature older than this is rejected, so a captured webhook cannot be replayed later.
@@ -73,6 +82,16 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider {
       }),
     );
   }
+}
+
+export namespace GatewayGlobalWebhookProvider {
+  // The event types that report a payment status.
+  export type StatusEventType =
+    | "payment.created"
+    | "payment.failed"
+    | "payment.succeeded"
+    | "refund.created"
+    | "chargeback.opened";
 }
 
 // The parts of the signature header: `t=<Unix seconds>,v1=<hex signature>[,v1=...]`.

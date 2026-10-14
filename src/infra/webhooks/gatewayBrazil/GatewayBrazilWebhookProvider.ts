@@ -12,8 +12,21 @@ import * as z from "@kernel/utils/zod";
 // an offset, and amounts in decimal reais without a currency field. Each webhook carries a static
 // access token instead of a signature.
 @Injectable(AppConfig)
-export class GatewayBrazilWebhookProvider implements WebhookProvider {
+export class GatewayBrazilWebhookProvider implements WebhookProvider<GatewayBrazilWebhookProvider.StatusEventType> {
   readonly name = "gatewayBrazil";
+
+  readonly paymentStatuses: WebhookProvider.PaymentStatuses<GatewayBrazilWebhookProvider.StatusEventType> =
+    {
+      PAYMENT_CREATED: "pending",
+      // A boleto or PIX charge that passed its due date unpaid; it can still be paid later.
+      PAYMENT_OVERDUE: "overdue",
+      PAYMENT_CREDIT_CARD_CAPTURE_REFUSED: "failed",
+      // A confirmed card payment is paid, even though its funds are not available yet.
+      PAYMENT_CONFIRMED: "succeeded",
+      PAYMENT_RECEIVED: "succeeded",
+      PAYMENT_REFUNDED: "refunded",
+      PAYMENT_CHARGEBACK_REQUESTED: "charged_back",
+    };
 
   private static readonly TOKEN_HEADER = "gateway-brazil-access-token";
 
@@ -55,6 +68,18 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider {
       }),
     );
   }
+}
+
+export namespace GatewayBrazilWebhookProvider {
+  // The event names that report a payment status.
+  export type StatusEventType =
+    | "PAYMENT_CREATED"
+    | "PAYMENT_OVERDUE"
+    | "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED"
+    | "PAYMENT_CONFIRMED"
+    | "PAYMENT_RECEIVED"
+    | "PAYMENT_REFUNDED"
+    | "PAYMENT_CHARGEBACK_REQUESTED";
 }
 
 // A `YYYY-MM-DD HH:mm:ss` Brasília time, read as the moment it names. Brasília has stayed at UTC-3

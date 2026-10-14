@@ -77,6 +77,16 @@ test("gatewayGlobal reads a payment event", () => {
   });
 });
 
+test("gatewayGlobal maps each event type that reports a payment status to that status", () => {
+  expect(gateway.paymentStatuses).toEqual({
+    "payment.created": "pending",
+    "payment.failed": "failed",
+    "payment.succeeded": "succeeded",
+    "refund.created": "refunded",
+    "chargeback.opened": "charged_back",
+  });
+});
+
 test.each([
   [
     "a refund, as the payment it reverses",

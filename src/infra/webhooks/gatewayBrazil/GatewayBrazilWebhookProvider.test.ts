@@ -62,6 +62,18 @@ test("gatewayBrazil reads a payment event, converting its Brasília time to UTC"
   });
 });
 
+test("gatewayBrazil maps each event name that reports a payment status to that status", () => {
+  expect(gateway.paymentStatuses).toEqual({
+    PAYMENT_CREATED: "pending",
+    PAYMENT_OVERDUE: "overdue",
+    PAYMENT_CREDIT_CARD_CAPTURE_REFUSED: "failed",
+    PAYMENT_CONFIRMED: "succeeded",
+    PAYMENT_RECEIVED: "succeeded",
+    PAYMENT_REFUNDED: "refunded",
+    PAYMENT_CHARGEBACK_REQUESTED: "charged_back",
+  });
+});
+
 test.each([
   [
     "a subscription",

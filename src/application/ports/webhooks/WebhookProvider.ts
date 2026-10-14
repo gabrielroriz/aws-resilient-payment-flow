@@ -3,9 +3,13 @@ import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEvent
 // Driven port for one payment provider's webhooks. Providers differ in how they authenticate
 // requests and shape their events, so each adapter owns receipt and queued-event processing.
 // The entry point authenticates and parses; the worker processes the stored event separately.
-export abstract class WebhookProvider {
+// `StatusEventType` lists the provider's event types that report a payment status.
+export abstract class WebhookProvider<StatusEventType extends string = string> {
   // Identifies the provider in webhook URLs and stored events, such as `stripe`.
   abstract readonly name: string;
+
+  // The payment status each listed event type reports; receipt ranks events by it.
+  abstract readonly paymentStatuses: WebhookProvider.PaymentStatuses<StatusEventType>;
 
   // Whether the request really comes from the provider, such as by checking its signature.
   abstract authenticate(request: WebhookProvider.Request): Promise<boolean>;
@@ -26,9 +30,15 @@ export namespace WebhookProvider {
     queryParams: Record<string, string | undefined>;
   };
 
-  // The event fields only the provider knows; the core adds the provider name, receipt time, and payload.
+  // The event fields only the provider knows; the core adds the provider name, receipt time,
+  // payload, and the status `paymentStatuses` maps the event type to.
   export type Event = Pick<
     WebhookEventRepository.Event,
     "providerEventId" | "eventType" | "occurredAt" | "subject"
+  >;
+
+  // Requires a status for every listed event type, and no other.
+  export type PaymentStatuses<StatusEventType extends string> = Readonly<
+    Record<StatusEventType, WebhookEventRepository.SubjectStatus>
   >;
 }

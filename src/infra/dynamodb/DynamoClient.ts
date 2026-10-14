@@ -4,6 +4,7 @@ import {
   GetCommand,
   PutCommand,
   QueryCommand,
+  type PutCommandInput,
   type QueryCommandInput,
 } from "@aws-sdk/lib-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
@@ -59,6 +60,23 @@ export class DynamoClient {
     }
   }
 
+  // Puts the item only if the condition holds for what is stored under its key; true if written.
+  async putIf(
+    table: string,
+    item: DynamoClient.Item,
+    condition: DynamoClient.Condition,
+  ): Promise<boolean> {
+    try {
+      await this.document.send(new PutCommand({ TableName: table, Item: item, ...condition }));
+      return true;
+    } catch (error) {
+      if (error instanceof ConditionalCheckFailedException) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
   // Runs a query and follows every page, returning all matching items in index order.
   async queryAll<T extends DynamoClient.Item>(input: QueryCommandInput): Promise<T[]> {
     const items: T[] = [];
@@ -78,4 +96,8 @@ export namespace DynamoClient {
   export type Item = Record<string, unknown>;
 
   export type PutIfAbsentResult<T> = { created: true } | { created: false; existing: T };
+
+  // A condition expression with the attribute names and values it refers to.
+  export type Condition = Required<Pick<PutCommandInput, "ConditionExpression">> &
+    Pick<PutCommandInput, "ExpressionAttributeNames" | "ExpressionAttributeValues">;
 }

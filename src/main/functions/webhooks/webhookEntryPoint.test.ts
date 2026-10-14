@@ -10,6 +10,7 @@ import { expect, test, vi } from "vitest";
 // Stands in for a gateway adapter: it accepts requests that carry the expected signature header.
 const simulated: WebhookProvider = {
   name: "simulated",
+  paymentStatuses: {},
   process: vi.fn(async () => {}),
   authenticate: async ({ headers }) => headers["x-signature"] === "valid",
   parse: ({ rawBody }) => {
@@ -49,7 +50,7 @@ test("the webhook function stores and dispatches an event from the provider name
 
   expect(response).toMatchObject({
     statusCode: 200,
-    body: { provider: "simulated", providerEventId: "evt_1", duplicate: false },
+    body: { provider: "simulated", providerEventId: "evt_1", duplicate: false, outdated: false },
   });
   const [table, item] = putIfAbsent.mock.calls[0];
   expect(table).toBe("configured_events");

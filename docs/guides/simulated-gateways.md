@@ -32,6 +32,19 @@ The webhook function and the simulator read the same variables. Locally, `npm ru
 
 Both identify events by `id`. Amounts stay in the stored payload; receipt does not read them.
 
+### Statuses
+
+Each gateway's event types map to the payment statuses that [out-of-order events](../architecture/webhook-receipt.md#out-of-order-events) are ranked by; other types report no status.
+
+| Status | `gatewayGlobal` | `gatewayBrazil` |
+|---|---|---|
+| `pending` | `payment.created` | `PAYMENT_CREATED` |
+| `overdue` | | `PAYMENT_OVERDUE` |
+| `failed` | `payment.failed` | `PAYMENT_CREDIT_CARD_CAPTURE_REFUSED` |
+| `succeeded` | `payment.succeeded` | `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED` |
+| `refunded` | `refund.created` | `PAYMENT_REFUNDED` |
+| `charged_back` | `chargeback.opened` | `PAYMENT_CHARGEBACK_REQUESTED` |
+
 ```json
 {"id":"evt_1","object":"event","type":"payment.succeeded","created":1791626400,"data":{"object":{"object":"payment","id":"pay_1","amount":1990,"currency":"usd","status":"succeeded"}}}
 ```

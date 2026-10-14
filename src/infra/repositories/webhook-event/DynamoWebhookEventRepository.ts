@@ -5,10 +5,12 @@ import { joinKey, shardOf } from "@infra/dynamodb/keys";
 import { Injectable } from "@kernel/decorators/injectable";
 import { gunzipSync, gzipSync } from "node:zlib";
 
-// Stores webhook events in the configured webhook events table, one item collection per event.
+// Stores webhook events in the configured table, one item collection per event, and each
+// subject's latest status in its own item.
 @Injectable(DynamoClient, AppConfig)
 export class DynamoWebhookEventRepository implements WebhookEventRepository {
   private static readonly EVENT_SK = "META";
+  private static readonly STATUS_SK = "STATUS";
   // Write shards per provider in GSI1: one provider can burst to about 4,000 writes per second,
   // and every time-interval query covers all of them.
   private static readonly GSI1_SHARDS = 4;
@@ -47,6 +49,38 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       expires_at: this.expiresAt(event.receivedAt),
     };
     await this.dynamo.put(this.table, item);
+  }
+
+  // One item per subject holds its latest status; an event replaces it only by outranking it.
+  async recordStatus(
+    event: WebhookEventRepository.StatusEvent,
+    precedence: number,
+  ): Promise<WebhookEventRepository.RecordStatusResult> {
+    const occurredAt = event.occurredAt.toISOString();
+    const item: DynamoWebhookEventRepository.StatusItem = {
+      // Keyed by subject, not event, so all events of one payment compete for the same item.
+      PK: joinKey("SUBJECT", event.provider, event.subject.type, event.subject.id),
+      SK: DynamoWebhookEventRepository.STATUS_SK,
+      // The event that holds the latest status, so operators can trace where it came from.
+      provider_event_id: event.providerEventId,
+      status: event.status,
+      occurred_at: occurredAt,
+      // Fixed-width fields make ranks compare as text by precedence, then occurrence, then ID.
+      rank: joinKey(String(precedence).padStart(2, "0"), occurredAt, event.providerEventId),
+      // The status expires with the event that reported it.
+      expires_at: this.expiresAt(event.receivedAt),
+    };
+
+    // Atomic, so concurrent deliveries cannot both win. An equal rank means the same event again.
+    const recorded = await this.dynamo.putIf(this.table, item, {
+      // Written when the subject has no status yet, or when this event ranks at least as high.
+      ConditionExpression: "attribute_not_exists(PK) OR #rank <= :rank",
+      // A placeholder keeps the attribute name clear of DynamoDB's reserved words.
+      ExpressionAttributeNames: { "#rank": "rank" },
+      ExpressionAttributeValues: { ":rank": item.rank },
+    });
+    // A failed condition means a stored event outranks this one.
+    return { outdated: !recorded };
   }
 
   async getTrace(
@@ -154,6 +188,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       received_at: event.receivedAt.toISOString(),
       subject_type: event.subject?.type,
       subject_id: event.subject?.id,
+      status: event.status,
       // Compression keeps the exact bytes and reduces write units.
       payload: gzipSync(event.payload),
       GSI1PK: joinKey(event.provider, shardOf(key, DynamoWebhookEventRepository.GSI1_SHARDS)),
@@ -176,9 +211,21 @@ export namespace DynamoWebhookEventRepository {
     received_at: string;
     subject_type?: string;
     subject_id?: string;
+    status?: WebhookEventRepository.SubjectStatus;
     payload: Uint8Array;
     GSI1PK: string;
     GSI2PK?: string;
+    expires_at: number;
+  };
+
+  // A subject's latest status and its event, keyed by subject outside any event's collection.
+  export type StatusItem = {
+    PK: string;
+    SK: "STATUS";
+    provider_event_id: string;
+    status: WebhookEventRepository.SubjectStatus;
+    occurred_at: string;
+    rank: string;
     expires_at: number;
   };
 
@@ -248,7 +295,11 @@ function fromReceivedItem(
 }
 
 function fromEventItem(item: DynamoWebhookEventRepository.EventItem): WebhookEventRepository.Event {
-  return { ...fromReceivedItem(item), payload: gunzipSync(item.payload).toString("utf8") };
+  return {
+    ...fromReceivedItem(item),
+    status: item.status,
+    payload: gunzipSync(item.payload).toString("utf8"),
+  };
 }
 
 function fromAttemptItem(

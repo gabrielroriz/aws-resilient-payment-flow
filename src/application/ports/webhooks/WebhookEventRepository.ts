@@ -1,5 +1,5 @@
-// Driven port for the record of received webhook events. It detects repeated deliveries and
-// keeps each event's processing history, so operators can trace and reprocess events.
+// Driven port for received webhook events: detects repeated deliveries, keeps each event's
+// processing history for tracing and reprocessing, and tracks each subject's latest status.
 export abstract class WebhookEventRepository {
   // Stores a newly received event once. When an event with the same identity already exists,
   // nothing is written and the stored event is returned instead, marking a duplicate delivery.
@@ -16,6 +16,14 @@ export abstract class WebhookEventRepository {
     event: WebhookEventRepository.Event,
     delivery: WebhookEventRepository.Delivery,
   ): Promise<void>;
+
+  // Records the event's status as its subject's latest unless another event outranks it: higher
+  // `precedence` wins, then later occurrence, then greater ID, so arrival order never matters.
+  // Recording the same event again changes nothing.
+  abstract recordStatus(
+    event: WebhookEventRepository.StatusEvent,
+    precedence: number,
+  ): Promise<WebhookEventRepository.RecordStatusResult>;
 
   // Returns the event with its processing attempts, business effects, and duplicate deliveries.
   abstract getTrace(
@@ -46,6 +54,10 @@ export namespace WebhookEventRepository {
     id: string;
   };
 
+  // Provider-neutral payment status; only payment events report one so far.
+  export type SubjectStatus =
+    "pending" | "overdue" | "failed" | "succeeded" | "refunded" | "charged_back";
+
   export type Event = EventId & {
     // The provider's own event type, such as Stripe's `invoice.paid`.
     eventType: string;
@@ -55,14 +67,24 @@ export namespace WebhookEventRepository {
     receivedAt: Date;
     // Absent when the event affects no payment or subscription.
     subject?: Subject;
+    // Absent when the event reports no status the business rules use.
+    status?: SubjectStatus;
     // Request body exactly as received, kept for audit and reprocessing.
     payload: string;
   };
+
+  // An event that reports its subject's status.
+  export type StatusEvent = Event & { subject: Subject; status: SubjectStatus };
 
   // `event` is the stored event: the new one when created, the earlier one otherwise.
   export type CreateResult = {
     created: boolean;
     event: Event;
+  };
+
+  export type RecordStatusResult = {
+    // True when another event of the subject outranks this one, so it must not change the status.
+    outdated: boolean;
   };
 
   export type Delivery = {
@@ -97,8 +119,8 @@ export namespace WebhookEventRepository {
     deliveries: Delivery[];
   };
 
-  // An event without its payload, as returned by listings; `get` returns the full event.
-  export type Summary = Omit<Event, "payload">;
+  // A listed event: indexes omit the payload and status, which `get` returns.
+  export type Summary = Omit<Event, "payload" | "status">;
 
   export type ReceivedQuery = {
     // Providers to include; pass every supported provider to list all events.
