@@ -72,8 +72,8 @@ Types live in modules of their own, named after the module that uses them, such 
 ## Usage
 
 ```bash
-npm run simulate                                         # every scenario, against http://localhost:3000
-npm run simulate -- duplicate-delivery provider-retry    # selected scenarios
+npm run simulate                                         # every scenario except optional ones, against http://localhost:3000
+npm run simulate -- duplicate-delivery provider-retry    # selected scenarios, including optional ones
 npm run simulate -- --url https://<api-id>.execute-api.us-east-1.amazonaws.com
 ```
 
@@ -82,14 +82,22 @@ npm run simulate -- --url https://<api-id>.execute-api.us-east-1.amazonaws.com
 | `duplicate-delivery` | The same event delivered three times is stored once, and every delivery is acknowledged |
 | `provider-retry` | A delivery abandoned after 50 ms without an acknowledgment is retried 3 seconds later without storing the event twice |
 | `overlapping-ids` | The same event ID from both gateways is stored as two independent events |
-| `out-of-order` | A refund delivered before its payment is accepted, and so is the payment |
+| `out-of-order` | A refund delivered before its payment stays the latest event: the payment that follows is accepted with `outdated=true`, and delivered again, the refund is still `outdated=false` and the payment `outdated=true` |
+| `occurrence-order` | A payment's failure delivered before its creation, which has the same precedence but occurred earlier, stays the latest event: the creation is accepted with `outdated=true` |
+| `precedence-over-time` | A failure that occurred after its payment succeeded is accepted with `outdated=true`, so ranking by occurrence time alone fails it |
+| `same-second` | A payment and its refund from the same second end with the refund as the latest event in either order, even though the payment's event ID would win the tie |
+| `overlapping-payment-ids` | A refund from the other gateway does not make a payment with the same ID outdated |
+| `order-independence` | A payment's five events, created to charged back, delivered in order, reversed, and mixed, are each answered with the expected `outdated` flag and always end with the chargeback as the latest event |
+| `concurrent-burst` | Optional. A payment's five events, each delivered twice at once, are each stored once, the chargeback is never outdated, and it ends as the latest event |
 | `forged-request` | Missing, forged, and, for `gatewayGlobal`, stale credentials are rejected with 401, and nothing is stored |
 | `malformed-event` | An authentic body that is not a gateway event is rejected with 400 `WEBHOOK_MALFORMED_EVENT` |
 
 Each check prints ✓ or ✗ with what it observed, followed by each problem, such as `outdated: expected false, received "false"`, and the command fails when any check fails. A scenario that stops before finishing counts as one failed check: when it cannot reach the API, it prints the reason, such as a refused connection; any other error is a defect in the simulator, and its stack is printed. Every run uses new event IDs, so earlier runs never affect the results.
 
+Scenarios that check how a payment ended deliver each of its events again: a repeated delivery is answered with `outdated=false` only when its event is the latest, so the replies reveal the final state without reading the table. Optional scenarios run only when named; `concurrent-burst` is meant for a deployed API, where deliveries really run in parallel.
+
 ## Limitations
 
 - Checks read HTTP responses only; locally, the stored items can be inspected in dynamodb-admin and the queued messages in the ElasticMQ UI. See [Development](development.md#usage).
-- Event processing is not implemented, so the scenarios cover receipt: a refund that arrives first is accepted, but no business effect is applied yet.
+- Event processing is not implemented, so the scenarios cover receipt: a payment that arrives after its refund is flagged as outdated, but no business effect is applied yet.
 - Secrets live in function environment variables and in Terraform state. Rotating one means redeploying, and the receiver holds one secret per gateway at a time.
