@@ -11,7 +11,7 @@ Support a new payment gateway with one adapter that authenticates and parses inc
 5. Implement `process` on the same adapter. It receives the original stored event and must reject on failure so SQS retries. Future business effects must be idempotent; do not authenticate the stored webhook again.
 6. List the adapter in the `@Injectable` decorator of `InMemoryWebhookProviderRegistry`. This registers it for both receipt and worker routing. Keep constructors free of credential reads: authentication reads credentials only when receipt calls it.
 7. Add tests for authentication, malformed requests, the status table, routing, and processor failures. See [Writing tests](testing.md#writing-tests).
-8. For a simulated provider, also teach the delivery simulator to send its format; see [Simulated gateways](simulated-gateways.md).
+8. For a simulated provider, also add a sender for its format to the delivery simulator's gateways; see [How the simulator is organized](simulated-gateways.md#how-the-simulator-is-organized).
 
 ## Mapping an event
 

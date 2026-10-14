@@ -30,8 +30,13 @@ export default defineConfig({
   // Resolve the @application, @infra, @kernel, and @main aliases from tsconfig.json.
   resolve: { tsconfigPaths: true },
   test: {
-    // Tests sit next to their modules, including local queue delivery tooling.
-    include: ['src/**/*.test.ts', 'build/**/*.test.mts', 'scripts/dev/**/*.test.mts'],
+    // Tests sit next to their modules, including local queue delivery tooling and the simulator.
+    include: [
+      'src/**/*.test.ts',
+      'build/**/*.test.mts',
+      'scripts/dev/**/*.test.mts',
+      'scripts/simulator/**/*.test.mts',
+    ],
     // Undo vi.spyOn after each test, so a silenced console or replaced method never leaks into the next.
     restoreMocks: true,
     // Undo vi.stubEnv after each test, so a configured or missing secret never leaks into the next.

@@ -50,8 +50,24 @@ Each gateway's event types map to the payment statuses that [out-of-order events
 ```
 
 ```json
-{"id":"evt_1","event":"PAYMENT_RECEIVED","dateCreated":"2026-10-10 07:00:00","payment":{"object":"payment","id":"pay_1","value":19.9,"billingType":"PIX","status":"RECEIVED"}}
+{"id":"evt_1","event":"PAYMENT_RECEIVED","dateCreated":"2026-10-10 07:00:00","payment":{"object":"payment","id":"pay_1","value":19.9,"billingType":"CREDIT_CARD","status":"RECEIVED"}}
 ```
+
+## How the simulator is organized
+
+The simulator lives in `scripts/simulator/`, and `npm run simulate` runs its entry, which selects the scenarios and reports their checks. The rest is split by concern, so each part can be read and changed on its own:
+
+| Directory | Contains |
+|---|---|
+| `gateways/` | One sender per simulated gateway, which writes events in its format and authenticates them with the credential it is given, and the list of gateways every scenario runs for |
+| `engine/` | What scenarios share: the clock, creating events, delivering them to the API, the reply contract, checks, and running scenarios for every gateway |
+| `scenarios/` | One module per scenario, named after it, and the list that sets the order they run in |
+
+The entry is the composition root, the only place that reads the environment, the system clock, and the network. It builds a simulation, which holds the gateways, the clock, the event factory, the API client, and the checks, and passes it to every scenario. Scenarios use only what they receive, plus helpers that depend on nothing, so tests replace `fetch` and the clock without running the API. The engine follows the same conventions as the local development scripts: dependencies are passed in rather than resolved by a container, since Node.js runs these scripts without compiling the decorators that the Lambda code's [dependency injection](../architecture/code-structure.md#dependency-injection) uses.
+
+Every reply is checked against the simulator's own copy of the API's reply contract, written apart from the API so an unintended change to its replies fails a scenario. The contract is extended with the values each step expects and with the gateway and event the reply must name, so one zod validation checks both the shape and the values.
+
+Types live in modules of their own, named after the module that uses them, such as `checks.types.mts`. To add a scenario, write it in its own module under `scenarios/` using the simulation it receives, and add it to the list; mark it `optional` when it should run only when named. To add a gateway, write its sender under `gateways/` and add it to the list of gateways.
 
 ## Usage
 
@@ -70,7 +86,7 @@ npm run simulate -- --url https://<api-id>.execute-api.us-east-1.amazonaws.com
 | `forged-request` | Missing, forged, and, for `gatewayGlobal`, stale credentials are rejected with 401, and nothing is stored |
 | `malformed-event` | An authentic body that is not a gateway event is rejected with 400 `WEBHOOK_MALFORMED_EVENT` |
 
-Each check prints ✓ or ✗ with the response it got, and the command fails when any check fails. Every run uses new event IDs, so earlier runs never affect the results.
+Each check prints ✓ or ✗ with what it observed, followed by each problem, such as `outdated: expected false, received "false"`, and the command fails when any check fails. A scenario that stops before finishing counts as one failed check: when it cannot reach the API, it prints the reason, such as a refused connection; any other error is a defect in the simulator, and its stack is printed. Every run uses new event IDs, so earlier runs never affect the results.
 
 ## Limitations
 
