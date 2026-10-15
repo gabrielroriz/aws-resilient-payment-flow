@@ -34,6 +34,27 @@ test('lifecycle is one payment created, failed, paid, refunded, and charged back
   ]);
 });
 
+test('renewal is two payments of one subscription, each created and then paid, a minute apart until a minute ago', () => {
+  const events = createEventFactory({ runId: 'run1', clock: fixedClock });
+
+  const renewal = events.renewal();
+
+  expect(renewal.map(label)).toEqual(['created', 'paid', 'created', 'paid']);
+  expect(renewal.map((event) => event.paymentId)).toEqual([
+    'pay_run1_2',
+    'pay_run1_2',
+    'pay_run1_4',
+    'pay_run1_4',
+  ]);
+  expect(new Set(renewal.map((event) => event.subscriptionId))).toEqual(new Set(['sub_run1_1']));
+  expect(renewal.map((event) => event.occurredAt.toISOString())).toEqual([
+    '2026-10-10T09:56:00.000Z',
+    '2026-10-10T09:57:00.000Z',
+    '2026-10-10T09:58:00.000Z',
+    '2026-10-10T09:59:00.000Z',
+  ]);
+});
+
 test('a clock reads the time from its source each time', () => {
   let now = NOW;
   const clock = createClock(() => now);

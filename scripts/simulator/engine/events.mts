@@ -33,6 +33,24 @@ export function createEventFactory({ runId, clock }: EventFactoryOptions): Event
         ),
       ];
     },
+    renewal() {
+      // Numbered like events, so it is unique to the run too.
+      sequence += 1;
+      const subscriptionId = `sub_${runId}_${sequence}`;
+      const charge = (minutesAgo: number) => {
+        const created = create('payment.created', {
+          subscriptionId,
+          occurredAt: clock.minutesAgo(minutesAgo),
+        });
+        const paid = create('payment.paid', {
+          paymentId: created.paymentId,
+          subscriptionId,
+          occurredAt: clock.minutesAgo(minutesAgo - 1),
+        });
+        return [created, paid];
+      };
+      return [...charge(4), ...charge(2)];
+    },
   };
 }
 

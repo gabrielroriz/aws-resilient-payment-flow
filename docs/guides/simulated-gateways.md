@@ -29,6 +29,7 @@ The webhook function and the simulator read the same variables. Locally, `npm ru
 | Occurrence time | `created`, in Unix seconds | `dateCreated`, as `YYYY-MM-DD HH:mm:ss` in Brasília time (UTC-3) without an offset |
 | Amount | An integer in the currency's minor unit, with a `currency` code | Decimal reais, without a currency field |
 | Subject | The payment or subscription; a refund or chargeback names its payment in `payment` | The `payment` or `subscription` |
+| Subscription billed | A payment names it in `subscription`; a refund or chargeback names only its payment | The `payment` names it in `subscription`, on its refunds and chargebacks too |
 
 Both identify events by `id`. Amounts stay in the stored payload; receipt does not read them.
 
@@ -88,6 +89,7 @@ npm run simulate -- --url https://<api-id>.execute-api.us-east-1.amazonaws.com
 | `same-second` | A payment and its refund from the same second end with the refund as the latest event in either order, even though the payment's event ID would win the tie |
 | `overlapping-payment-ids` | A refund from the other gateway does not make a payment with the same ID outdated |
 | `order-independence` | A payment's five events, created to charged back, delivered in order, reversed, and mixed, are each answered with the expected `outdated` flag and always end with the chargeback as the latest event |
+| `subscription-renewal` | A subscription's two charges, each created and then paid, are all accepted with `outdated=false`, so the second charge starting pending after the first succeeded is not outdated, and each charge ends paid |
 | `concurrent-burst` | Optional. A payment's five events, each delivered twice at once, are each stored once, the chargeback is never outdated, and it ends as the latest event |
 | `forged-request` | Missing, forged, and, for `gatewayGlobal`, stale credentials are rejected with 401, and nothing is stored |
 | `malformed-event` | An authentic body that is not a gateway event is rejected with 400 `WEBHOOK_MALFORMED_EVENT` |

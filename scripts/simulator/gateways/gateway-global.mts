@@ -25,7 +25,7 @@ export function createGatewayGlobal({
 }): SimulatedGateway {
   return {
     name: 'gatewayGlobal',
-    render({ eventId, kind, paymentId, occurredAt }) {
+    render({ eventId, kind, paymentId, subscriptionId, occurredAt }) {
       const { type, status, reversal } = globalEvents[kind];
       return JSON.stringify({
         id: eventId,
@@ -33,6 +33,7 @@ export function createGatewayGlobal({
         type,
         created: Math.floor(occurredAt.getTime() / 1000),
         data: {
+          // A reversal names its payment, and only the payment names its subscription.
           object: reversal
             ? {
                 object: reversal.object,
@@ -41,7 +42,14 @@ export function createGatewayGlobal({
                 amount: 1990,
                 currency: 'usd',
               }
-            : { object: 'payment', id: paymentId, amount: 1990, currency: 'usd', status },
+            : {
+                object: 'payment',
+                id: paymentId,
+                amount: 1990,
+                currency: 'usd',
+                status,
+                subscription: subscriptionId,
+              },
         },
       });
     },

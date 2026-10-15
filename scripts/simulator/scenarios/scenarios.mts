@@ -11,6 +11,7 @@ import { overlappingPaymentIds } from './overlapping-payment-ids.mts';
 import { precedenceOverTime } from './precedence-over-time.mts';
 import { providerRetry } from './provider-retry.mts';
 import { sameSecond } from './same-second.mts';
+import { subscriptionRenewal } from './subscription-renewal.mts';
 
 // In run order: receipt, event ordering, rejected requests, then optional scenarios.
 export const scenarios: Scenario[] = [
@@ -23,6 +24,7 @@ export const scenarios: Scenario[] = [
   sameSecond,
   overlappingPaymentIds,
   orderIndependence,
+  subscriptionRenewal,
   forgedRequest,
   malformedEvent,
   concurrentBurst,

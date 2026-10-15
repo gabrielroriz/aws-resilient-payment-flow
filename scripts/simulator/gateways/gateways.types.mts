@@ -11,6 +11,8 @@ export type SimulatedEvent = {
     | 'payment.refunded'
     | 'payment.charged_back';
   paymentId: string;
+  // The subscription the payment bills, when it is one of its charges.
+  subscriptionId?: string;
   occurredAt: Date;
 };
 

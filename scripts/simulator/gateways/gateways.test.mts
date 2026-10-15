@@ -23,6 +23,17 @@ test('createGateways uses the local secrets that npm run dev configures unless t
   });
 });
 
+test('gateways name the subscription a charge bills, gatewayGlobal on the payment only', () => {
+  const [global, brazil] = createGateways({});
+  const render = (gateway: typeof global, kind: 'payment.paid' | 'payment.refunded') =>
+    JSON.parse(gateway.render({ ...event, kind, subscriptionId: 'sub_1' }));
+
+  expect(render(global, 'payment.paid').data.object.subscription).toBe('sub_1');
+  expect(render(global, 'payment.refunded').data.object.subscription).toBeUndefined();
+  expect(render(brazil, 'payment.paid').payment.subscription).toBe('sub_1');
+  expect(render(brazil, 'payment.refunded').payment.subscription).toBe('sub_1');
+});
+
 test('gateways authenticate with their credentials only when asked for valid ones', () => {
   const [global, brazil] = createGateways({});
   const body = global.render(event);

@@ -13,7 +13,7 @@ const brazilEvents: Record<SimulatedEvent['kind'], { event: string; status: stri
 export function createGatewayBrazil({ accessToken }: { accessToken: string }): SimulatedGateway {
   return {
     name: 'gatewayBrazil',
-    render({ eventId, kind, paymentId, occurredAt }) {
+    render({ eventId, kind, paymentId, subscriptionId, occurredAt }) {
       const { event, status } = brazilEvents[kind];
       return JSON.stringify({
         id: eventId,
@@ -30,6 +30,8 @@ export function createGatewayBrazil({ accessToken }: { accessToken: string }): S
           value: 19.9,
           billingType: 'CREDIT_CARD',
           status,
+          // Every event about a subscription's charge names it, refunds included.
+          subscription: subscriptionId,
         },
       });
     },
