@@ -21,6 +21,7 @@ Support a new payment gateway with one adapter that authenticates and parses inc
 | Event type | The provider's own type, unchanged; see [Event type](../architecture/data-model/webhook-events.md#event-type) |
 | Occurrence time | When the provider says the event happened, as an exact instant; apply the provider's time zone when it sends local times without an offset |
 | Subject | The payment or subscription the event affects; a refund or chargeback affects the payment it reverses; none for events about anything else |
+| Subscription | The subscription a payment bills, when the event names it; none when the subject is not a payment. See [Subscription status](../architecture/data-model/webhook-events.md#subscription-status) |
 | Not an event of the provider | `undefined`, which is answered with `WEBHOOK_MALFORMED_EVENT` and stores nothing |
 
 Amounts and other fields stay in the stored payload; receipt does not read them. Receipt adds the status itself, looking the event type up in `paymentStatuses` for events about a payment.

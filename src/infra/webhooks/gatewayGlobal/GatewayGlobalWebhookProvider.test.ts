@@ -77,6 +77,30 @@ test("gatewayGlobal reads a payment event", () => {
   });
 });
 
+test.each([
+  [
+    "a payment, as the subscription it bills",
+    { object: "payment", id: "pay_2", subscription: "sub_1" },
+    "sub_1",
+  ],
+  ["a refund, as none", { object: "refund", id: "re_1", payment: "pay_2" }, undefined],
+  [
+    "another object, as none even when it names one",
+    { object: "invoice", id: "in_1", subscription: "sub_1" },
+    undefined,
+  ],
+])("gatewayGlobal reads the subscription of %s", (_case, object, subscriptionId) => {
+  const event = {
+    id: "evt_3",
+    object: "event",
+    type: "any.event",
+    created: 1791626400,
+    data: { object },
+  };
+
+  expect(gateway.parse(request(JSON.stringify(event)))?.subscriptionId).toBe(subscriptionId);
+});
+
 test("gatewayGlobal maps each event type that reports a payment status to that status", () => {
   expect(gateway.paymentStatuses).toEqual({
     "payment.created": "pending",

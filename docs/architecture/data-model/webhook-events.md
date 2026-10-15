@@ -52,6 +52,7 @@ Timestamps are UTC ISO 8601 strings with fixed millisecond precision, so they so
 | `received_at` | String | When the webhook reached the API |
 | `subject_type` | String | Business object the event affects, such as `payment` or `subscription` |
 | `subject_id` | String | The provider's ID for the subject; a refund uses its payment's ID |
+| `subscription_id` | String | The subscription a payment bills, when the event names it; see [Subscription status](#subscription-status) |
 | `status` | String | The payment status the event reports, the same for every provider, such as `refunded`; omitted when it reports none; see [Event type](#event-type) |
 | `payload` | Binary | Exact request body, gzip-compressed; see [Payload size](#payload-size) |
 | `GSI1PK` | String | `GSI1` partition key; see [Indexes](#indexes) |
@@ -133,6 +134,12 @@ DynamoDB accepts about 1,000 writes per second for a single partition key value,
 `rank` joins the status precedence, the occurrence time, and the event ID. The precedence has two digits and the timestamps a fixed width, so comparing ranks as strings compares precedence first, then occurrence, then event ID, as [out-of-order events](../webhook-receipt.md#out-of-order-events) require. The conditional `PutItem` replaces a subject's status only when the stored rank is not higher, and a failed condition means the event is outdated.
 
 > **Note:** The condition makes ranking atomic without a read first, so concurrent deliveries for one subject cannot both become the latest. An equal rank is the same event again, which rewrites the same item, so a repeated delivery of the latest event is not outdated. The precedence of each status is a business rule, kept with the code that ingests events rather than in the table.
+
+### Subscription status
+
+A subscription has no status item, and its events are never ranked. Its status is the platform's to derive from the payments that bill it, so each payment event stores the subscription it names in `subscription_id`.
+
+> **Note:** Gateways model subscriptions differently, such as Stripe's `past_due` and `unpaid` and the retry settings that end them, so copying their statuses would leave grace periods and access rules to each gateway's configuration. Payment events are alike across providers, and each billing cycle is a payment of its own, ranked on its own, so a renewal's charge that starts `pending` after the previous one succeeded is not outdated. Subscription events are still stored and dispatched, because some facts, such as a cancellation made at the gateway, arrive only through them. Some providers name the subscription only on the payment itself, not on its refunds and chargebacks, so a reversal's subscription is found through the events of its payment. `subscription_id` is not projected into the indexes, so reading it needs `GetItem`.
 
 ### Retention
 

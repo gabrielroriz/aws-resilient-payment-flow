@@ -67,6 +67,9 @@ export namespace WebhookEventRepository {
     receivedAt: Date;
     // Absent when the event affects no payment or subscription.
     subject?: Subject;
+    // The subscription the payment bills, when the provider names it; processing derives a
+    // subscription's status from its payments instead of ranking subscription events.
+    subscriptionId?: string;
     // Absent when the event reports no status the business rules use.
     status?: SubjectStatus;
     // Request body exactly as received, kept for audit and reprocessing.
@@ -119,8 +122,8 @@ export namespace WebhookEventRepository {
     deliveries: Delivery[];
   };
 
-  // A listed event: indexes omit the payload and status, which `get` returns.
-  export type Summary = Omit<Event, "payload" | "status">;
+  // A listed event: indexes omit the payload, status, and subscription, which `get` returns.
+  export type Summary = Omit<Event, "payload" | "status" | "subscriptionId">;
 
   export type ReceivedQuery = {
     // Providers to include; pass every supported provider to list all events.

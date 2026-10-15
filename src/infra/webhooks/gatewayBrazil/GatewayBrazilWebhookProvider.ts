@@ -54,6 +54,7 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider<GatewayBraz
       subject: event.payment
         ? { type: "payment", id: event.payment.id }
         : event.subscription && { type: "subscription", id: event.subscription.id },
+      subscriptionId: event.payment?.subscription,
     };
   }
 
@@ -99,6 +100,12 @@ const eventSchema = z.object({
   // Such as `PAYMENT_RECEIVED` or `PAYMENT_REFUNDED`.
   event: z.string().check(z.minLength(1)),
   dateCreated: brasiliaTime,
-  payment: z.optional(z.object({ id: z.string().check(z.minLength(1)) })),
+  payment: z.optional(
+    z.object({
+      id: z.string().check(z.minLength(1)),
+      // The subscription the payment bills, on every charge of one, its reversals included.
+      subscription: z.optional(z.string().check(z.minLength(1))),
+    }),
+  ),
   subscription: z.optional(z.object({ id: z.string().check(z.minLength(1)) })),
 });

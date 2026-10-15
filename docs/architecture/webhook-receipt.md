@@ -61,6 +61,8 @@ Precedence comes first because occurrence times alone cannot order every event: 
 
 An event that loses is answered with `outdated: true`. It is still stored and dispatched, because it can carry facts that count, such as the amount of a payment that arrives after its refund; being outdated only means it must not change the payment's status. A repeated delivery is ranked again, which repairs a status that an earlier delivery failed to record, and the latest event delivered again stays the latest. Events that report no status are never ranked and never outdated. Ranking is a single conditional write, so concurrent deliveries for one payment cannot both become the latest; see [Event order](data-model/webhook-events.md#event-order).
 
+Subscription events are never ranked. A subscription's status is derived from the payments that bill it, and each billing cycle is a payment ranked on its own, so a renewal's charge that starts `pending` after the previous one succeeded is not outdated. Receipt stores the subscription each payment names, so processing can find it; see [Subscription status](data-model/webhook-events.md#subscription-status).
+
 ## Provider adapters
 
 Each supported provider has one adapter that implements the `WebhookProvider` port. Receipt calls the registry's `find` method using the HTTP path, then calls `authenticate` and `parse` on that adapter. The [worker](webhook-processing.md) calls the registry's `route` method with the queued event identity; the registry loads the stored event, selects the provider, and awaits `process` in the worker's own Lambda execution environment.
@@ -69,7 +71,7 @@ Each supported provider has one adapter that implements the `WebhookProvider` po
 |---|---|
 | `name` | The provider's path segment, also recorded with each of its events |
 | `authenticate` | Proves the request comes from the provider, checking its signature or credentials against the body exactly as received |
-| `parse` | Reads the event ID, event type, occurrence time, and affected payment or subscription, or reports that the body is not one of the provider's events |
+| `parse` | Reads the event ID, event type, occurrence time, affected payment or subscription, and the subscription a payment bills, or reports that the body is not one of the provider's events |
 | `paymentStatuses` | The payment status each of the provider's status-reporting event types reports; the adapter lists those types as the port's type argument, so type checking requires a status for each |
 | `process` | Receives the stored event from the worker; receipt never calls it |
 
@@ -106,5 +108,5 @@ flowchart LR
 - The [worker](webhook-processing.md) consumes and routes events to gateway-specific classes; those classes currently log routing without applying business effects.
 - One message group per provider means each provider's events are processed one batch at a time, and a failing message holds back its provider's later events until it moves to the dead-letter queue.
 - The queue orders events by receipt, not by when the provider says they occurred; ranking flags the late ones, but processing does not read the flag yet.
-- Only payment events report a status, so the order of subscription events is not tracked.
+- Subscription events are not ranked, and nothing derives a subscription's status from its payments yet.
 - The latest status reflects the events received so far: a refund whose payment never arrives stays the latest, and nothing detects the missing payment yet.

@@ -63,11 +63,14 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider<GatewayGlob
     }
 
     const event = result.data;
+    const { object } = event.data;
     return {
       providerEventId: event.id,
       eventType: event.type,
       occurredAt: new Date(event.created * 1000),
-      subject: subjectOf(event.data.object),
+      subject: subjectOf(object),
+      // Only a payment names the subscription it bills.
+      subscriptionId: object.object === "payment" ? object.subscription : undefined,
     };
   }
 
@@ -119,6 +122,8 @@ const eventObjectSchema = z
     id: z.string().check(z.minLength(1)),
     // The payment a refund or chargeback reverses.
     payment: z.optional(z.string().check(z.minLength(1))),
+    // The subscription a payment bills; refunds and chargebacks name only their payment.
+    subscription: z.optional(z.string().check(z.minLength(1))),
   })
   .check(
     // A reversal without its payment cannot be tied to the subject it affects.

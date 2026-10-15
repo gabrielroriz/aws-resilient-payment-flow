@@ -34,7 +34,7 @@ export namespace WebhookProvider {
   // payload, and the status `paymentStatuses` maps the event type to.
   export type Event = Pick<
     WebhookEventRepository.Event,
-    "providerEventId" | "eventType" | "occurredAt" | "subject"
+    "providerEventId" | "eventType" | "occurredAt" | "subject" | "subscriptionId"
   >;
 
   // Requires a status for every listed event type, and no other.

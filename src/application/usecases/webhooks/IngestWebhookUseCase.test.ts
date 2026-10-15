@@ -11,6 +11,7 @@ const parsedEvent: WebhookProvider.Event = {
   eventType: "payment.succeeded",
   occurredAt: new Date("2026-10-10T10:00:00.000Z"),
   subject: { type: "payment", id: "pay_1" },
+  subscriptionId: "sub_1",
 };
 
 const request: WebhookProvider.Request = {

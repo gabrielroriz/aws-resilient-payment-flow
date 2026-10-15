@@ -62,6 +62,23 @@ test("gatewayBrazil reads a payment event, converting its Brasília time to UTC"
   });
 });
 
+test.each([
+  ["a subscription's charge", "PAYMENT_CREATED"],
+  ["the refund of a subscription's charge", "PAYMENT_REFUNDED"],
+])("gatewayBrazil reads the subscription of %s", (_case, name) => {
+  const event = {
+    id: "evt_3",
+    event: name,
+    dateCreated: "2026-10-10 07:00:00",
+    payment: { object: "payment", id: "pay_2", subscription: "sub_1" },
+  };
+
+  expect(gateway.parse(request(JSON.stringify(event)))).toMatchObject({
+    subject: { type: "payment", id: "pay_2" },
+    subscriptionId: "sub_1",
+  });
+});
+
 test("gatewayBrazil maps each event name that reports a payment status to that status", () => {
   expect(gateway.paymentStatuses).toEqual({
     PAYMENT_CREATED: "pending",

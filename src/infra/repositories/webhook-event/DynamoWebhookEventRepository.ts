@@ -188,6 +188,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       received_at: event.receivedAt.toISOString(),
       subject_type: event.subject?.type,
       subject_id: event.subject?.id,
+      subscription_id: event.subscriptionId,
       status: event.status,
       // Compression keeps the exact bytes and reduces write units.
       payload: gzipSync(event.payload),
@@ -211,6 +212,7 @@ export namespace DynamoWebhookEventRepository {
     received_at: string;
     subject_type?: string;
     subject_id?: string;
+    subscription_id?: string;
     status?: WebhookEventRepository.SubjectStatus;
     payload: Uint8Array;
     GSI1PK: string;
@@ -297,6 +299,7 @@ function fromReceivedItem(
 function fromEventItem(item: DynamoWebhookEventRepository.EventItem): WebhookEventRepository.Event {
   return {
     ...fromReceivedItem(item),
+    subscriptionId: item.subscription_id,
     status: item.status,
     payload: gunzipSync(item.payload).toString("utf8"),
   };

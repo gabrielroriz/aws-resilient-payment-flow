@@ -19,6 +19,7 @@ const event: WebhookEventRepository.StatusEvent = {
   occurredAt: new Date("2026-10-10T10:00:00.000Z"),
   receivedAt: new Date("2026-10-10T10:00:01.500Z"),
   subject: { type: "payment", id: "pi_1" },
+  subscriptionId: "sub_1",
   status: "succeeded",
   payload: '{"id":"evt_1","type":"invoice.paid"}',
 };
@@ -67,6 +68,7 @@ test("create stores the event item with its index keys, compressed payload, and 
     received_at: "2026-10-10T10:00:01.500Z",
     subject_type: "payment",
     subject_id: "pi_1",
+    subscription_id: "sub_1",
     status: "succeeded",
     GSI1PK: expect.stringMatching(/^stripe#[0-3]$/),
     GSI2PK: "stripe#payment#pi_1",
@@ -366,8 +368,8 @@ test("listBySubject queries GSI2 for the subject and returns its events", async 
     subject: { type: "payment", id: "pi_1" },
   });
 
-  // GSI2 projects neither the payload nor the status.
-  const { payload, status, ...summary } = event;
+  // GSI2 projects neither the payload, the status, nor the subscription.
+  const { payload, status, subscriptionId, ...summary } = event;
   expect(events).toEqual([summary]);
   expect(queryAll.mock.calls[0][0]).toEqual({
     TableName: tableName,
