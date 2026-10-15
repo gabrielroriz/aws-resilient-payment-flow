@@ -55,7 +55,7 @@ Success is measurable: a webhook acknowledgment p99 below one second under the d
 
 The design separates receiving an event from acting on it, and makes every step safe to repeat. What is built so far receives each webhook, records it once, and routes its queued event to the gateway adapter's processing method:
 
-![Payment providers deliver webhooks through Amazon API Gateway to the webhook_entry_point Lambda, which records each event once in the webhook_events DynamoDB table and dispatches it to the webhook_events.fifo SQS FIFO queue, grouped by provider; the webhook_worker Lambda reads each stored event and calls its gateway adapter's processing method, while repeated failures move to the webhook_events_dlq.fifo dead-letter queue](docs/architecture/images/architecture.excalidraw.svg)
+![Payment providers POST webhooks to the aws-resilient-payment-flow API Gateway HTTP API. In the receipt lane, the webhook_entry_point Lambda stores each event once in the webhook_events DynamoDB table and dispatches it to the webhook_events.fifo SQS FIFO queue, grouped by provider. In the processing lane, the webhook_worker Lambda receives batches of up to 10, loads each stored event, and routes it to the gatewayGlobal or gatewayBrazil adapter, while a message that fails 5 receives moves to the webhook_events_dlq.fifo dead-letter queue](docs/architecture/images/architecture.drawio.svg)
 
 | Principle | How it addresses the problem | Status |
 |---|---|---|
@@ -110,5 +110,5 @@ Use Node.js 24 and npm, then install the dependencies with `npm ci`. Local runs 
   - [Simulated gateways](docs/guides/simulated-gateways.md): the test gateways and the delivery simulator.
   - [Adding a Lambda](docs/guides/adding-a-lambda.md): creating a function, its trigger, permissions, and environment variables.
   - [Adding a provider](docs/guides/adding-a-provider.md): supporting a new payment gateway.
-  - [Diagrams](docs/guides/diagrams.md): editing the Mermaid and Excalidraw diagrams.
+  - [Diagrams](docs/guides/diagrams.md): editing the Mermaid and draw.io diagrams.
 - [TODO](TODO.md): deferred work.
