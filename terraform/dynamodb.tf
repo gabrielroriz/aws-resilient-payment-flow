@@ -1,4 +1,5 @@
-// Webhook events, their processing attempts, effects, and duplicate deliveries.
+// Webhook events, their processing attempts, effects, and duplicate deliveries, and each
+// subject's latest status.
 resource "aws_dynamodb_table" "webhook_events" {
   name = "webhook_events"
   // On-demand capacity absorbs provider bursts without capacity planning.

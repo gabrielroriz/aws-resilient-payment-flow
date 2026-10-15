@@ -130,7 +130,7 @@ export namespace GetHealthUseCase {
 | Owned by one class, including shapes only that class uses | The class's namespace |
 | Shared across layers, such as the `Controller` request and response | `application/contracts/` |
 | Helper for a standalone function or decorator | Module level, next to the function |
-| zod schema of a payload | Module level, above the class that uses it; its type is `z.output` of the schema; see [Payload validation](#payload-validation) |
+| zod schema of a payload | Module level, above the class when `@Schema` declares it, since decorators run while the class is being defined; its type is `z.output` of the schema; see [Payload validation](#payload-validation) |
 
 ## Dependency injection
 
@@ -247,7 +247,7 @@ Every schema uses zod/mini, zod's tree-shakable build, imported as `import * as 
 | | Regular zod | zod/mini |
 |---|---|---|
 | What a bundle includes | Most of the library as soon as one schema exists, since every schema carries every method | Only the checks its schemas use, since each check is a separate function |
-| zod in each webhook bundle | About 95 KB of a 111 KB bundle | About 24 KB of a 40 KB bundle, including English messages |
+| zod in each webhook bundle | About 95 KB of a 111 KB bundle | About 24 KB of a 42–45 KB bundle, including English messages |
 | Syntax | `z.string().min(1)`, `.optional()`, `.refine(...)` | `z.string().check(z.minLength(1))`, `z.optional(...)`, `.check(z.refine(...))` |
 
 | Rule | Reason |

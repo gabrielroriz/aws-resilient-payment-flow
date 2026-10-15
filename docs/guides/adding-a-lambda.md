@@ -35,7 +35,7 @@ Each Lambda is an entry file that wires a controller into its driving adapter, r
 | `http_method` | Client method: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, or `ANY` | `ANY` |
 | `path` | Route beginning with `/`; parameters such as `/<resource>/{id}` are supported | `/<function_name>` |
 
-For `sqs`, omit `http_method` and `path`, add a consumer to the Terraform `sqs_consumers` local, and grant receive, delete, and queue-attribute permissions for its queue. Enable `ReportBatchItemFailures` on the mapping and give the queue a visibility timeout of at least six times the function timeout. The local poller uses exported mapping settings automatically; see [Development](development.md#local-functions).
+For `sqs`, omit `http_method` and `path`, add a consumer to the Terraform `sqs_consumers` local, grant receive, delete, and queue-attribute permissions for its queue, and add that policy to the event source mapping's `depends_on`. The shared mapping already enables `ReportBatchItemFailures`. Give the queue a visibility timeout of at least six times the function timeout, and add its dead-letter queue to the `local_sqs_redrive` output so local delivery redrives it too. The local poller uses exported mapping settings automatically; see [Development](development.md#local-functions).
 
 HTTP method and path pairs must be unique. API Gateway always invokes the function with `POST`, whatever the route's method.
 

@@ -31,7 +31,7 @@ Each test sits next to the module it covers and shares its name, such as `<modul
 |---|---|---|
 | `src/**/<module>.test.ts` | Tests for TypeScript code, which import it through the path aliases | Vitest |
 | `src/**/<module>.test-d.ts` | Type tests, which pass only when type checking reports the expected errors | Vitest typecheck, through `tsc` |
-| `src/**/<module>.fixtures.ts` | Helpers shared by several test files, such as API Gateway test events | Imported by tests |
+| `src/**/<module>.fixtures.ts`, `scripts/simulator/**/<module>.fixtures.mts` | Helpers shared by several test files, such as API Gateway test events or the simulator's fixed clock | Imported by tests |
 | `build/<script>.test.mts` | Tests for the build tooling | Vitest |
 | `scripts/dev/<script>.test.mts` | Local queue configuration, SQS event conversion, and acknowledgement behavior | Vitest |
 | `scripts/simulator/**/<module>.test.mts` | The delivery simulator's engine and gateways, with a fake `fetch` and a fixed clock | Vitest |
@@ -40,7 +40,7 @@ Each test sits next to the module it covers and shares its name, such as `<modul
 
 ## Infrastructure checks
 
-The tests under `terraform/tests/` use a mocked AWS provider to check worker triggers, HTTP isolation, visibility timeout, and local mapping settings without creating AWS resources. They require Terraform with its provider initialized and the local archives that `npm run dev` packages. After that setup, run:
+The tests under `terraform/tests/` use a mocked AWS provider to check worker triggers, HTTP isolation, visibility timeout, local mapping and redrive settings, and the table each webhook function reads, without creating AWS resources. They require Terraform with its provider initialized and the local archives that `npm run dev` packages. After that setup, run:
 
 ```bash
 terraform -chdir=terraform validate
@@ -79,7 +79,7 @@ A build test bundles every Lambda registered in `lambdas.json` with the producti
 | Use fixed dates and values instead of the current time | Results stay deterministic; code that needs the time receives it through the clock port |
 | Assert the exact shape a contract defines, such as a table's items or an HTTP response | A change that breaks the documented contract fails a test |
 | Name each test as a sentence describing one behavior | The list of tests reads as a specification |
-| Move helpers used by several test files into `<module>.fixtures.ts`; keep single-file helpers in that file | Tests stay short without a global utilities module |
+| Move helpers used by several test files into `<module>.fixtures.ts`, or `<module>.fixtures.mts` beside `.mts` modules; keep single-file helpers in that file | Tests stay short without a global utilities module |
 | Express compile-time guarantees as type tests in `.test-d.ts` files | Mistakes such as a wrong `@Injectable` dependency list fail type checking |
 
 ## Limitations

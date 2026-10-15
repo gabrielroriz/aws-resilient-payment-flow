@@ -107,7 +107,7 @@ Timestamps are UTC ISO 8601 strings with fixed millisecond precision, so they so
 | `GSI1`, by receipt time | `GSI1PK` = `{provider}#{shard}` | `received_at` | `provider`, `event_type`, `occurred_at`, `subject_type`, `subject_id` |
 | `GSI2`, by subject | `GSI2PK` = `{provider}#{subject_type}#{subject_id}` | `occurred_at` | `provider`, `event_type`, `received_at` |
 
-- Only event items have `GSI1PK` and `GSI2PK`, so attempts, effects, and deliveries stay out of both indexes.
+- Only event items have `GSI1PK` and `GSI2PK`, so attempts, effects, deliveries, and subject statuses stay out of both indexes; a subject status has `occurred_at`, but an index includes only items that have its partition key.
 - Projections leave out `payload`, keeping each index entry under 1 KB, which costs one write unit; read the payload with `GetItem`.
 - `GSI1` projects `event_type` because a query filter can only use projected attributes.
 
