@@ -65,6 +65,7 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 | `main/adapters/` | Converts Lambda events into controller calls, validating payloads against the handler's schema, and maps results and errors to HTTP responses or SQS batch failures |
 | `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler`; entries of one area share a folder, such as `functions/webhooks/` |
+| `main/bindings/` | Groups of port bindings that several entries share, one module per group; see [Binding several ports](#binding-several-ports) |
 | `kernel/di/`, `kernel/decorators/` | The dependency injection registry, `@Injectable`, and `@Schema` |
 | `kernel/utils/` | Helpers shared by every layer, such as parsing JSON, reading headers, comparing credentials, and the project's zod; one module per concern |
 
@@ -156,15 +157,16 @@ A dependency is either a concrete class, which resolves directly, or a port, whi
 
 ### Composition root
 
-Each function's entry file binds its ports, then resolves its controller:
+Each function's entry file binds its ports, then resolves its controller and the logger its driving adapter uses:
 
 ```ts
 const registry = Registry.getInstance();
-registry.bind(Clock, SystemClock);
-registry.bind(Logger, JsonLogger);
+bindRuntime(registry);
+bindWebhooks(registry);
+registry.bind(WebhookEventDispatcher, SqsWebhookEventDispatcher);
 
 export const handler = lambdaHttpAdapter(
-  registry.resolve(GetHealthController),
+  registry.resolve(WebhookEntryPointController),
   registry.resolve(Logger),
 );
 ```
@@ -192,16 +194,12 @@ flowchart TD
 
 ### Binding several ports
 
-An entry binds one port per line, and only the ports its graph reaches, so its bindings list every external dependency of the function. When the same group repeats across functions, move it into a function under `src/main/` and call it from each entry, for example:
+An entry binds only the ports its graph reaches, so its bindings list every external dependency of the function. When the same group repeats across functions, move it into a function in its own module under `src/main/bindings/` and call it from each entry. [`bindWebhooks`](../../src/main/bindings/webhooks.ts) is the reference example: both webhook functions bind the provider registry and the event repository through it, and `bindRuntime` binds the clock and logger every function uses.
 
-```ts
-export function bindBillingStorage(registry: Registry): void {
-  registry.bind(PaymentRepository, DynamoPaymentRepository);
-  registry.bind(SubscriptionRepository, DynamoSubscriptionRepository);
-}
-```
-
-Keep each group to adapters that every caller uses; anything extra is bundled into functions that never call it.
+| Rule | Reason |
+|---|---|
+| Keep each group to adapters that every caller uses | Anything extra is bundled into functions that never call it |
+| Give each group its own module | `@Injectable` runs when a module loads, so the bundler keeps every adapter a module imports, even for a group the entry never calls |
 
 | Avoid | Why |
 |---|---|
