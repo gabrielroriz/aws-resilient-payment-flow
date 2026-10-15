@@ -12,7 +12,8 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npm run format:check
-      # Type-checks the Lambda code and build tooling, catching @Injectable lists that do not match
-      # their constructors, then bundles.
+      # Type-checks all code, including the local tooling and simulator that deployment skips.
+      - run: npm run typecheck
+      # Bundles the functions the way deployment does.
       - run: npm run build
       - run: npm test

@@ -88,7 +88,7 @@ Use Node.js 24 and npm, then install the dependencies with `npm ci`. Local runs 
 
 | To | Run | Guide |
 |---|---|---|
-| Build and test | `npm run build && npm test` | [Testing](docs/guides/testing.md) |
+| Type-check, build, and test | `npm run typecheck && npm run build && npm test` | [Testing](docs/guides/testing.md) |
 | Format the code | `npm run format` | [Formatting](docs/guides/formatting.md) |
 | Run the API locally | `npm run dev` | [Development](docs/guides/development.md) |
 | Replay the delivery scenarios | `npm run simulate` | [Simulated gateways](docs/guides/simulated-gateways.md) |

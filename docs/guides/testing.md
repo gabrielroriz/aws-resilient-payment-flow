@@ -18,6 +18,7 @@ npm test
 | Command | Runs |
 |---|---|
 | `npm test` | Every test and type test once, as CI does |
+| `npm run typecheck` | Type checking of the functions, build tooling, local tooling, and simulator, as CI does |
 | `npm run test:watch` | Vitest in watch mode, rerunning the tests affected by each change |
 | `npx vitest run <path>` | Only the tests under a file or directory, such as `src/kernel` |
 
@@ -36,7 +37,7 @@ Each test sits next to the module it covers and shares its name, such as `<modul
 | `scripts/dev/<script>.test.mts` | Local queue configuration, SQS event conversion, and acknowledgement behavior | Vitest |
 | `scripts/simulator/**/<module>.test.mts` | The delivery simulator's engine and gateways, with a fake `fetch` and a fixed clock | Vitest |
 
-`npm run build` type-checks every `.ts` file under `src/` and every `.mts` file under `build/`, `scripts/dev/`, and `scripts/simulator/`, including tests. No Lambda bundle contains test files, because each bundle starts from its entry file.
+`npm run typecheck` type-checks every `.ts` file under `src/` and every `.mts` file under `build/`, `scripts/dev/`, and `scripts/simulator/`, including tests, as CI does. `npm run build`, which deployment runs, checks only `src/` and `build/` before bundling, since local tooling and the simulator never reach AWS. No Lambda bundle contains test files, because each bundle starts from its entry file.
 
 ## Infrastructure checks
 

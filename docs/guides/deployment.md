@@ -26,7 +26,7 @@ Build every registered function and deploy it to AWS, with its HTTP routes, Dyna
 
 ## How it works
 
-`npm run deploy` builds in a temporary workspace and uses [`lambdas.json`](../../lambdas.json) to select the functions:
+`npm run deploy` builds in a temporary workspace and uses [`lambdas.json`](../../lambdas.json) to select the functions. The workspace holds only what the functions are built from (the Lambda source, the build tooling, and the package files), so local tooling and the simulator never affect a deployment:
 
 ```mermaid
 flowchart TD

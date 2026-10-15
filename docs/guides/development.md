@@ -91,6 +91,7 @@ npm run dev
 | Stop the local services | `docker compose -f compose.dev.yaml down`; queued messages are lost |
 | Erase all local data | `docker compose -f compose.dev.yaml down --volumes` |
 | Build without starting the API | `npm run build` |
+| Type-check the local tooling and simulator too | `npm run typecheck` |
 
 Run one local environment per machine; checkouts share the local services and queue messages. The first run downloads the function runtime and service images.
 

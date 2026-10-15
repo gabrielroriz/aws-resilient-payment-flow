@@ -3,14 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "tsc --noEmit && tsc -p build && tsc -p scripts/dev && tsc -p scripts/simulator && node build/index.mts",
+    "build": "tsc --noEmit && tsc -p build && node build/index.mts",
     "dev": "bash scripts/dev.sh",
     "deploy": "bash scripts/deploy.sh",
     "format": "prettier --write \"**/*.{ts,mts,mjs}\"",
     "format:check": "prettier --check \"**/*.{ts,mts,mjs}\"",
     "simulate": "node scripts/simulator/simulate.mts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit && tsc -p build && tsc -p scripts/dev && tsc -p scripts/simulator"
   },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "^3.1149.0",

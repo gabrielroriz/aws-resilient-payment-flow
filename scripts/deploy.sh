@@ -27,9 +27,6 @@ cp "$PROJECT_ROOT/package.json" "$PROJECT_ROOT/package-lock.json" \
   "$PROJECT_ROOT/tsconfig.json" "$PROJECT_ROOT/lambdas.json" "$BUILD_DIR/"
 cp -R "$PROJECT_ROOT/src" "$BUILD_DIR/src"
 cp -R "$PROJECT_ROOT/build" "$BUILD_DIR/build"
-# The build also checks local delivery tooling, so the isolated workspace needs those sources.
-mkdir -p "$BUILD_DIR/scripts"
-cp -R "$PROJECT_ROOT/scripts/dev" "$BUILD_DIR/scripts/dev"
 
 (
   cd "$BUILD_DIR"
