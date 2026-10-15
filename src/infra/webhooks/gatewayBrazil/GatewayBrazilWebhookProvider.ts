@@ -1,3 +1,4 @@
+import { Logger } from "@application/ports/Logger";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { AppConfig } from "@infra/config/AppConfig";
@@ -11,7 +12,7 @@ import * as z from "@kernel/utils/zod";
 // subscription they affect at the top level, upper-case event names, Brasília local times without
 // an offset, and amounts in decimal reais without a currency field. Each webhook carries a static
 // access token instead of a signature.
-@Injectable(AppConfig)
+@Injectable(AppConfig, Logger)
 export class GatewayBrazilWebhookProvider implements WebhookProvider<GatewayBrazilWebhookProvider.StatusEventType> {
   readonly name = "gatewayBrazil";
 
@@ -30,7 +31,10 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider<GatewayBraz
 
   private static readonly TOKEN_HEADER = "gateway-brazil-access-token";
 
-  constructor(private readonly config: AppConfig) {}
+  constructor(
+    private readonly config: AppConfig,
+    private readonly logger: Logger,
+  ) {}
 
   async authenticate({ headers }: WebhookProvider.Request): Promise<boolean> {
     // A missing token fails the request with a 5xx, so the gateway retries until it is configured.
@@ -60,14 +64,11 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider<GatewayBraz
 
   async process(event: WebhookEventRepository.Event): Promise<void> {
     // Routing is observable without logging payment payloads or claiming business effects occurred.
-    console.info(
-      JSON.stringify({
-        logType: "webhook_routed",
-        provider: this.name,
-        providerEventId: event.providerEventId,
-        eventType: event.eventType,
-      }),
-    );
+    this.logger.info("webhook_routed", {
+      provider: this.name,
+      providerEventId: event.providerEventId,
+      eventType: event.eventType,
+    });
   }
 }
 

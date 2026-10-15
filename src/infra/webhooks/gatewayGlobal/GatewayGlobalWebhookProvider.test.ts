@@ -1,6 +1,7 @@
 import { Clock } from "@application/ports/Clock";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { AppConfig } from "@infra/config/AppConfig";
+import { JsonLogger } from "@infra/logging/JsonLogger";
 import { GatewayGlobalWebhookProvider } from "@infra/webhooks/gatewayGlobal/GatewayGlobalWebhookProvider";
 import { createHmac } from "node:crypto";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -8,7 +9,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 const SECRET = "test-signing-secret";
 const NOW = new Date("2026-10-10T10:00:00.000Z");
 const clock: Clock = { now: () => NOW };
-const gateway = new GatewayGlobalWebhookProvider(clock, new AppConfig());
+const gateway = new GatewayGlobalWebhookProvider(clock, new AppConfig(), new JsonLogger(clock));
 
 const body = JSON.stringify({
   id: "evt_1",

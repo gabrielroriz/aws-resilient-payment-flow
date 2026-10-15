@@ -64,7 +64,7 @@ To review the infrastructure changes first, run `terraform -chdir=terraform plan
 
 | Resource | Details |
 |---|---|
-| Functions | One Node.js 24 Lambda per registry entry, running `index.handler` with the IAM role its entry selects; see [Adding a Lambda](adding-a-lambda.md) |
+| Functions | One Node.js 24 Lambda per registry entry, running `index.handler` with the IAM role its entry selects and logging to CloudWatch in JSON at `INFO` and above; see [Adding a Lambda](adding-a-lambda.md) and [Logging](../architecture/code-structure.md#logging) |
 | Environment variables | Per function, from the values set during setup and from the resources they describe, such as the queue name |
 | HTTP API | API Gateway HTTP API with an automatically deployed `$default` stage, and one route, proxy integration, and invocation permission per HTTP function; queue workers have no HTTP endpoint |
 | DynamoDB tables | On-demand tables with their indexes and TTL; see the [data model](../architecture/data-model/) |

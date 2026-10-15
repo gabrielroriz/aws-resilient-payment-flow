@@ -1,5 +1,6 @@
 import { AppConfig } from "@infra/config/AppConfig";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
+import { captureLogs } from "@infra/logging/JsonLogger.fixtures";
 import { GatewayBrazilWebhookProvider } from "@infra/webhooks/gatewayBrazil/GatewayBrazilWebhookProvider";
 import { GatewayGlobalWebhookProvider } from "@infra/webhooks/gatewayGlobal/GatewayGlobalWebhookProvider";
 import { sqsEvent } from "@main/adapters/lambdaSqsAdapter.fixtures";
@@ -25,7 +26,7 @@ test.each([
     const credentials = vi.spyOn(AppConfig.prototype, "webhooks", "get");
     const authenticate = vi.spyOn(target.prototype, "authenticate");
     const parse = vi.spyOn(target.prototype, "parse");
-    const log = vi.spyOn(console, "info").mockImplementation(() => {});
+    const logs = captureLogs();
     const process = vi.spyOn(target.prototype, "process");
     const otherProcess = vi.spyOn(other.prototype, "process");
     const payload = '{ "exact": "payload" }';
@@ -51,12 +52,21 @@ test.each([
     expect(authenticate).not.toHaveBeenCalled();
     expect(parse).not.toHaveBeenCalled();
     expect(credentials).not.toHaveBeenCalled();
-    expect(JSON.parse(log.mock.calls[0][0])).toEqual({
-      logType: "webhook_routed",
-      provider,
-      providerEventId: "evt_1",
-      eventType: "payment.succeeded",
-    });
+    // The gateway's entry carries the queue message it came from, and never the payload.
+    expect(logs()).toEqual([
+      {
+        timestamp: expect.any(String),
+        level: "INFO",
+        message: "webhook_routed",
+        messageId: "message-0",
+        messageGroupId: "gatewayGlobal",
+        receiveCount: "1",
+        eventSourceARN: "arn:aws:sqs:us-east-1:000000000000:webhook_events.fifo",
+        provider,
+        providerEventId: "evt_1",
+        eventType: "payment.succeeded",
+      },
+    ]);
   },
 );
 
@@ -71,13 +81,13 @@ test.each([
 ])(
   "invalid queued references are classified and retried without reading storage: %j",
   async (body) => {
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const logs = captureLogs();
     const get = vi.spyOn(DynamoClient.prototype, "get");
     await expect(handler(sqsEvent(body))).resolves.toEqual({
       batchItemFailures: [{ itemIdentifier: "message-0" }],
     });
     expect(get).not.toHaveBeenCalled();
-    expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
+    expect(logs()[0]).toMatchObject({
       category: "queue",
       errorKind: "unexpected",
       errorCode: "QUEUE_INVALID_MESSAGE",
@@ -88,7 +98,7 @@ test.each([
 );
 
 test("the registry rejects an unknown stored provider with the shared error and the worker retries", async () => {
-  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const logs = captureLogs();
   const get = vi.spyOn(DynamoClient.prototype, "get").mockResolvedValue({
     PK: "unknown#evt",
     SK: "META",
@@ -105,7 +115,7 @@ test("the registry rejects an unknown stored provider with the shared error and 
     },
   );
   expect(get).toHaveBeenCalledWith(tableName, { PK: "unknown#evt", SK: "META" });
-  expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
+  expect(logs()[0]).toMatchObject({
     category: "webhooks",
     errorKind: "unexpected",
     errorCode: "WEBHOOK_PROVIDER_NOT_FOUND",
@@ -116,7 +126,7 @@ test("the registry rejects an unknown stored provider with the shared error and 
 });
 
 test("a missing stored event logs its own code and leaves the batch for retry", async () => {
-  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const logs = captureLogs();
   const get = vi.spyOn(DynamoClient.prototype, "get").mockResolvedValue(undefined);
   const process = vi.spyOn(GatewayGlobalWebhookProvider.prototype, "process");
   const event = { provider: "gatewayGlobal", providerEventId: "missing" };
@@ -125,7 +135,7 @@ test("a missing stored event logs its own code and leaves the batch for retry", 
   });
   expect(get).toHaveBeenCalledTimes(1);
   expect(process).not.toHaveBeenCalled();
-  expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({
+  expect(logs()[0]).toMatchObject({
     category: "webhooks",
     errorKind: "unexpected",
     errorCode: "WEBHOOK_EVENT_NOT_FOUND",

@@ -1,42 +1,61 @@
 import { MessageHandler } from "@application/contracts/MessageHandler";
 import { ErrorQueueInvalidMessage } from "@application/errors/queue/ErrorQueueInvalidMessage";
 import { ErrorQueueMalformedMessage } from "@application/errors/queue/ErrorQueueMalformedMessage";
+import { Logger } from "@application/ports/Logger";
 import { validatePayload } from "@kernel/decorators/schema";
 import { parseJson } from "@kernel/utils/json";
 import { errorLogFields } from "@main/utils/errors";
-import type { SQSEvent, SQSBatchResponse } from "aws-lambda";
+import type { Context, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
 
 // Processes FIFO batches in order and acknowledges only the messages that completed. Each message
 // is validated against the handler's schema, so the handler receives only messages it can read.
-export function lambdaSqsAdapter(handler: MessageHandler) {
-  return async (event: SQSEvent): Promise<SQSBatchResponse> => {
-    for (const [index, record] of event.Records.entries()) {
-      try {
-        const body = parseJson(record.body);
-        // Syntax errors can include body fragments; keep payment data out of failure logs.
-        if (body === undefined) throw new ErrorQueueMalformedMessage();
-        const message = validatePayload(handler, body);
-        if (!message.success) throw new ErrorQueueInvalidMessage(message.issues);
-        await handler.handle(message.data);
-      } catch (error) {
-        console.error(
-          JSON.stringify({
-            logType: "queue_message_error",
-            messageId: record.messageId,
-            messageGroupId: record.attributes.MessageGroupId,
-            receiveCount: record.attributes.ApproximateReceiveCount,
-            eventSourceARN: record.eventSourceARN,
-            ...errorLogFields(error),
-          }),
+export function lambdaSqsAdapter(handler: MessageHandler, logger: Logger) {
+  return (event: SQSEvent, context?: Context): Promise<SQSBatchResponse> =>
+    logger.withContext({ lambdaRequestId: context?.awsRequestId }, async () => {
+      for (const [index, record] of event.Records.entries()) {
+        // Every entry logged while handling the message names it, such as its routing log.
+        const completed = await logger.withContext(messageFields(record), () =>
+          handle(handler, logger, record),
         );
-        // Stop at the first failure: acknowledging later messages would break FIFO ordering.
-        return {
-          batchItemFailures: event.Records.slice(index).map(({ messageId }) => ({
-            itemIdentifier: messageId,
-          })),
-        };
+        if (!completed) {
+          // Stop at the first failure: acknowledging later messages would break FIFO ordering.
+          return {
+            batchItemFailures: event.Records.slice(index).map(({ messageId }) => ({
+              itemIdentifier: messageId,
+            })),
+          };
+        }
       }
-    }
-    return { batchItemFailures: [] };
+      return { batchItemFailures: [] };
+    });
+}
+
+// Handles one message, logging a failure instead of throwing it; true when the message completed.
+async function handle(
+  handler: MessageHandler,
+  logger: Logger,
+  record: SQSRecord,
+): Promise<boolean> {
+  try {
+    const body = parseJson(record.body);
+    // Syntax errors can include body fragments; keep payment data out of failure logs.
+    if (body === undefined) throw new ErrorQueueMalformedMessage();
+    const message = validatePayload(handler, body);
+    if (!message.success) throw new ErrorQueueInvalidMessage(message.issues);
+    await handler.handle(message.data);
+    return true;
+  } catch (error) {
+    logger.error("queue_message_error", errorLogFields(error));
+    return false;
+  }
+}
+
+// The message's identity, group, delivery count, and source queue.
+function messageFields(record: SQSRecord): Logger.Fields {
+  return {
+    messageId: record.messageId,
+    messageGroupId: record.attributes.MessageGroupId,
+    receiveCount: record.attributes.ApproximateReceiveCount,
+    eventSourceARN: record.eventSourceARN,
   };
 }

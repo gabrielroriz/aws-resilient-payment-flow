@@ -1,6 +1,7 @@
 import { Controller } from "@application/contracts/Controller";
 import { BaseError } from "@application/errors/BaseError";
 import { ErrorCode } from "@application/errors/enums/ErrorCode";
+import { Logger } from "@application/ports/Logger";
 import { errorLogFields } from "@main/utils/errors";
 import {
   buildHttpResponse,
@@ -8,47 +9,55 @@ import {
   parseHttpBody,
   validateHttpBody,
 } from "@main/utils/http";
-import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda";
+import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Context } from "aws-lambda";
 
 // Driving adapter for API Gateway HTTP API events (payload format 2.0). Converts the
 // event into a controller request, validating its body against the controller's schema,
 // and maps the result, or any error, to a response.
-export function lambdaHttpAdapter(controller: Controller) {
-  return async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
-    try {
-      const rawBody = decodeHttpBody(event.body, event.isBase64Encoded);
-      const response = await controller.handle({
-        body: validateHttpBody(controller, parseHttpBody(rawBody)),
-        rawBody,
-        params: event.pathParameters ?? {},
-        queryParams: event.queryStringParameters ?? {},
-        headers: event.headers ?? {},
-        requestId: event.requestContext.requestId,
-      });
+export function lambdaHttpAdapter(controller: Controller, logger: Logger) {
+  return (event: APIGatewayProxyEventV2, context?: Context): Promise<APIGatewayProxyResultV2> =>
+    // Every entry logged while handling the request names it, so its logs can be found together.
+    logger.withContext(
+      {
+        lambdaRequestId: context?.awsRequestId,
+        requestId: event.requestContext?.requestId,
+        route: event.routeKey,
+      },
+      () => handle(controller, logger, event),
+    );
+}
 
-      return buildHttpResponse(response.statusCode, response.body);
-    } catch (error) {
-      console.error(
-        JSON.stringify({
-          logType: "application_error",
-          requestId: event.requestContext?.requestId,
-          route: event.routeKey,
-          ...errorLogFields(error),
-        }),
-      );
+async function handle(
+  controller: Controller,
+  logger: Logger,
+  event: APIGatewayProxyEventV2,
+): Promise<APIGatewayProxyResultV2> {
+  try {
+    const rawBody = decodeHttpBody(event.body, event.isBase64Encoded);
+    const response = await controller.handle({
+      body: validateHttpBody(controller, parseHttpBody(rawBody)),
+      rawBody,
+      params: event.pathParameters ?? {},
+      queryParams: event.queryStringParameters ?? {},
+      headers: event.headers ?? {},
+      requestId: event.requestContext.requestId,
+    });
 
-      // Only errors the application defines reach the caller; other details stay in the logs.
-      if (error instanceof BaseError) {
-        return buildHttpResponse(error.statusCode, {
-          success: false,
-          error: { code: error.code, message: error.message },
-        });
-      }
+    return buildHttpResponse(response.statusCode, response.body);
+  } catch (error) {
+    logger.error("application_error", errorLogFields(error));
 
-      return buildHttpResponse(500, {
+    // Only errors the application defines reach the caller; other details stay in the logs.
+    if (error instanceof BaseError) {
+      return buildHttpResponse(error.statusCode, {
         success: false,
-        error: { code: ErrorCode.INTERNAL_SERVER_ERROR, message: "Internal server error" },
+        error: { code: error.code, message: error.message },
       });
     }
-  };
+
+    return buildHttpResponse(500, {
+      success: false,
+      error: { code: ErrorCode.INTERNAL_SERVER_ERROR, message: "Internal server error" },
+    });
+  }
 }

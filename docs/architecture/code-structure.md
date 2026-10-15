@@ -59,7 +59,7 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 | `application/controller/<area>/` | Declares the schema of its request body or queue message and calls a use case, or a port directly when that port performs the whole operation, such as the webhook worker routing through the provider registry |
 | `application/contracts/` | Shapes shared across layers, such as `Controller` and `MessageHandler` |
 | `application/errors/` | Error codes and the base classes mapped to responses |
-| `infra/<concern>/` | Adapter classes implementing ports, grouped by concern, such as `infra/clock/`, `infra/webhooks/`, or `infra/repositories/<entity>/` |
+| `infra/<concern>/` | Adapter classes implementing ports, grouped by concern, such as `infra/clock/`, `infra/logging/`, `infra/webhooks/`, or `infra/repositories/<entity>/` |
 | `infra/<service>/` | Shared clients and helpers for one external service, such as `infra/dynamodb/`; they implement no port and are reused by adapters |
 | `infra/config/` | `AppConfig` and its environment schema; see [Configuration](#configuration) |
 | `main/adapters/` | Converts Lambda events into controller calls, validating payloads against the handler's schema, and maps results and errors to HTTP responses or SQS batch failures |
@@ -161,8 +161,12 @@ Each function's entry file binds its ports, then resolves its controller:
 ```ts
 const registry = Registry.getInstance();
 registry.bind(Clock, SystemClock);
+registry.bind(Logger, JsonLogger);
 
-export const handler = lambdaHttpAdapter(registry.resolve(GetHealthController));
+export const handler = lambdaHttpAdapter(
+  registry.resolve(GetHealthController),
+  registry.resolve(Logger),
+);
 ```
 
 `resolve` builds the graph depth first and caches every instance:
@@ -247,7 +251,7 @@ Every schema uses zod/mini, zod's tree-shakable build, imported as `import * as 
 | | Regular zod | zod/mini |
 |---|---|---|
 | What a bundle includes | Most of the library as soon as one schema exists, since every schema carries every method | Only the checks its schemas use, since each check is a separate function |
-| zod in each webhook bundle | About 95 KB of a 111 KB bundle | About 24 KB of a 42–45 KB bundle, including English messages |
+| zod in each webhook bundle | About 95 KB of a 111 KB bundle | About 24 KB of a 43–46 KB bundle, including English messages |
 | Syntax | `z.string().min(1)`, `.optional()`, `.refine(...)` | `z.string().check(z.minLength(1))`, `z.optional(...)`, `.check(z.refine(...))` |
 
 | Rule | Reason |
@@ -263,6 +267,38 @@ Adapters read environment variables through `AppConfig`, injected like any other
 | Behavior | Reason |
 |---|---|
 | A group is validated when it is read, not when the function starts | A function needs only the variables of the groups it uses, and a missing or invalid variable fails only the requests that need it, with an error naming the variable |
+
+## Logging
+
+Lambda code logs only through the `Logger` port, never `console`, so every function's entries share one shape and can be queried together. Each entry names a message from the catalog in the port's namespace, which TypeScript enforces, so a new kind of entry is added to the catalog before it is logged. `JsonLogger` writes each entry as one JSON line on stdout:
+
+```json
+{"timestamp":"2026-10-15T10:00:00.000Z","level":"INFO","message":"webhook_routed","lambdaRequestId":"8f5c...","messageId":"4d1a...","messageGroupId":"gatewayGlobal","receiveCount":"1","eventSourceARN":"arn:aws:sqs:...","provider":"gatewayGlobal","providerEventId":"evt_1","eventType":"payment.succeeded"}
+```
+
+| Field | Value |
+|---|---|
+| `timestamp` | When the entry was logged, from the `Clock` port, in RFC 3339 |
+| `level` | `DEBUG`, `INFO`, `WARN`, or `ERROR` |
+| `message` | The entry's name from the catalog, in snake case, such as `webhook_routed` |
+| Context fields | Added by the driving adapter to every entry logged during the invocation |
+| Entry fields | What the caller passes; undefined fields are left out |
+
+| Context field | Added by | Value |
+|---|---|---|
+| `lambdaRequestId` | Both driving adapters | The invocation's Lambda request ID, which Lambda's own records of the invocation, such as its report, also carry |
+| `requestId`, `route` | `lambdaHttpAdapter` | API Gateway request ID and route key |
+| `messageId`, `messageGroupId`, `receiveCount`, `eventSourceARN` | `lambdaSqsAdapter` | The SQS message being handled: its ID, group, receive count, and source queue |
+
+Context follows the async call chain, so code below the driving adapters, such as a gateway adapter, has its entries correlated without receiving the request, and concurrent invocations never share fields. Only entries logged through the same `JsonLogger` see a context, which holds because the registry builds one instance and injects it everywhere. Terraform gives every function Lambda's JSON log format: Lambda passes the lines through unchanged, writes its own records as JSON too, and sends only entries at `INFO` and above to CloudWatch.
+
+| Rule | Reason |
+|---|---|
+| Log through `Logger`, never `console` | Every entry has the same fields and level names, which Lambda's level filtering reads |
+| Never log payloads, credentials, or card data; log identifiers instead | Logs are kept and read more widely than the data they describe |
+| Log errors with the shared [error fields](#errors), not as `Error` objects | JSON keeps neither an error's message nor its stack |
+
+Tests read entries with `captureLogs` from the logger's fixtures, which silences stdout and parses each line.
 
 ## Errors
 
@@ -296,15 +332,14 @@ Errors are named after their domain first, so codes and classes of one area sort
 
 An error can be shared across receipt and processing while its kind varies by context. `ErrorWebhookProviderNotFound` defaults to expected for public requests; the registry's routing operation marks it unexpected because an accepted event should have a registered provider. Codes identify failures, while kinds describe whether they need investigation.
 
-Every error caught by a driving adapter is logged as one JSON line, so monitoring can count errors by category, kind, and code. Errors during dependency initialization are reported by the Lambda runtime before the adapter runs.
+Every error caught by a driving adapter is logged as one `ERROR` entry, so monitoring can count errors by category, kind, and code. Errors during dependency initialization are reported by the Lambda runtime before the adapter runs.
 
 | Field | Value |
 |---|---|
-| `logType` | `application_error` for HTTP; `queue_message_error` for SQS |
+| `message` | `application_error` for HTTP; `queue_message_error` for SQS |
 | `category` | The error's category; absent for errors the application does not define, which the route and function still identify |
 | `errorKind` | The error's kind; `unexpected` for errors the application does not define |
 | `errorCode` | The error's code; `INTERNAL_SERVER_ERROR` for errors the application does not define |
 | `errorName`, `errorMessage` | The error's class name and message |
 | `errorStack` | Present only for unexpected errors |
-| `requestId`, `route` | API Gateway request ID and route key; HTTP only |
-| `messageId`, `messageGroupId`, `receiveCount`, `eventSourceARN` | SQS record identity, group, receive count, and source queue; SQS only |
+| Context fields | The invocation's request or message; see [Logging](#logging) |

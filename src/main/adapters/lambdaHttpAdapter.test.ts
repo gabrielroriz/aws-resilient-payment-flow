@@ -3,11 +3,14 @@ import { ApplicationError } from "@application/errors/application/ApplicationErr
 import { ErrorCategory } from "@application/errors/enums/ErrorCategory";
 import { ErrorCode } from "@application/errors/enums/ErrorCode";
 import { ErrorKind } from "@application/errors/enums/ErrorKind";
+import { SystemClock } from "@infra/clock/SystemClock";
+import { JsonLogger } from "@infra/logging/JsonLogger";
+import { captureLogs } from "@infra/logging/JsonLogger.fixtures";
 import { Schema } from "@kernel/decorators/schema";
 import * as z from "@kernel/utils/zod";
 import { lambdaHttpAdapter } from "@main/adapters/lambdaHttpAdapter";
-import { invokeHttp } from "@main/adapters/lambdaHttpAdapter.fixtures";
-import type { APIGatewayProxyEventV2 } from "aws-lambda";
+import { httpEvent, invokeHttp } from "@main/adapters/lambdaHttpAdapter.fixtures";
+import type { APIGatewayProxyEventV2, Context } from "aws-lambda";
 import { expect, test, vi } from "vitest";
 
 class Conflict extends ApplicationError {
@@ -43,10 +46,11 @@ const controller: Controller = {
   },
 };
 
-const handler = lambdaHttpAdapter(controller);
+const logger = new JsonLogger(new SystemClock());
+const handler = lambdaHttpAdapter(controller, logger);
 
 test("the HTTP adapter maps requests, application errors, and unknown errors to responses", async () => {
-  vi.spyOn(console, "error").mockImplementation(() => {});
+  captureLogs();
   const call = async (overrides: Partial<APIGatewayProxyEventV2>) => {
     const { statusCode, body } = await invokeHttp(handler, overrides);
     return { statusCode, body };
@@ -98,15 +102,20 @@ test("the HTTP adapter maps requests, application errors, and unknown errors to 
 });
 
 test("the HTTP adapter logs every error with its category, kind, and code", async () => {
-  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  const read = captureLogs();
 
   for (const mode of ["expected", "unreadable", "unexpected"]) {
     await invokeHttp(handler, { routeKey: "POST /test", body: JSON.stringify({ mode }) });
   }
   await invokeHttp(handler, { routeKey: "POST /test", body: "{not json" });
 
-  const logs = consoleError.mock.calls.map(([line]) => JSON.parse(line));
-  const common = { logType: "application_error", requestId: "test-request", route: "POST /test" };
+  const logs = read();
+  const common = {
+    level: "ERROR",
+    message: "application_error",
+    requestId: "test-request",
+    route: "POST /test",
+  };
   expect(logs).toMatchObject([
     {
       ...common,
@@ -143,6 +152,32 @@ test("the HTTP adapter logs every error with its category, kind, and code", asyn
   expect(logs.map((log) => "errorStack" in log)).toEqual([false, true, true, false]);
 });
 
+test("every entry logged while handling a request carries the request's identity", async () => {
+  const logs = captureLogs();
+  const logging = lambdaHttpAdapter(
+    {
+      async handle() {
+        logger.info("webhook_routed");
+        return { statusCode: 200, body: {} };
+      },
+    },
+    logger,
+  );
+
+  await logging(httpEvent({ routeKey: "POST /test" }), { awsRequestId: "lambda-1" } as Context);
+  logger.info("webhook_routed");
+
+  expect(logs()).toEqual([
+    expect.objectContaining({
+      lambdaRequestId: "lambda-1",
+      requestId: "test-request",
+      route: "POST /test",
+    }),
+    // The context ends with the request, so later entries do not carry it.
+    expect.not.objectContaining({ requestId: expect.anything() }),
+  ]);
+});
+
 test("the HTTP adapter decodes a base64-encoded body before passing it on", async () => {
   // API Gateway base64-encodes bodies it does not treat as text.
   const { body } = await invokeHttp(handler, {
@@ -154,7 +189,7 @@ test("the HTTP adapter decodes a base64-encoded body before passing it on", asyn
 });
 
 test("the HTTP adapter validates the body against the controller's schema before calling it", async () => {
-  vi.spyOn(console, "error").mockImplementation(() => {});
+  captureLogs();
   const handle = vi.fn(async (request: Controller.Request<{ amount: number }>) => ({
     statusCode: 201,
     body: request.body,
@@ -163,7 +198,7 @@ test("the HTTP adapter validates the body against the controller's schema before
   class CreatePaymentController implements Controller {
     handle = handle;
   }
-  const createPayment = lambdaHttpAdapter(new CreatePaymentController());
+  const createPayment = lambdaHttpAdapter(new CreatePaymentController(), logger);
 
   // Undeclared fields are dropped, so the controller receives only what its schema describes.
   expect(await invokeHttp(createPayment, { body: '{"amount":100,"extra":true}' })).toMatchObject({

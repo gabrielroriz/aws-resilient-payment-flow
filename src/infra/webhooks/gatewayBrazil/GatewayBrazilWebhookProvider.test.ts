@@ -1,10 +1,15 @@
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
+import { SystemClock } from "@infra/clock/SystemClock";
 import { AppConfig } from "@infra/config/AppConfig";
+import { JsonLogger } from "@infra/logging/JsonLogger";
 import { GatewayBrazilWebhookProvider } from "@infra/webhooks/gatewayBrazil/GatewayBrazilWebhookProvider";
 import { beforeEach, expect, test, vi } from "vitest";
 
 const TOKEN = "test-access-token";
-const gateway = new GatewayBrazilWebhookProvider(new AppConfig());
+const gateway = new GatewayBrazilWebhookProvider(
+  new AppConfig(),
+  new JsonLogger(new SystemClock()),
+);
 
 // The webhooks configuration holds every provider's credentials and is validated as a whole.
 beforeEach(() => {

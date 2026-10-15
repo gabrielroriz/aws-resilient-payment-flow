@@ -1,5 +1,6 @@
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
+import { captureLogs } from "@infra/logging/JsonLogger.fixtures";
 import { SqsWebhookEventDispatcher } from "@infra/queues/SqsWebhookEventDispatcher";
 import { InMemoryWebhookProviderRegistry } from "@infra/webhooks/InMemoryWebhookProviderRegistry";
 import { invokeHttp } from "@main/adapters/lambdaHttpAdapter.fixtures";
@@ -64,7 +65,7 @@ test("the webhook function stores and dispatches an event from the provider name
 });
 
 test("the webhook function answers 404 for a provider it does not support and logs it under webhooks", async () => {
-  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  const logs = captureLogs();
   const putIfAbsent = vi.spyOn(DynamoClient.prototype, "putIfAbsent");
   const dispatch = vi.spyOn(SqsWebhookEventDispatcher.prototype, "dispatch");
 
@@ -79,8 +80,11 @@ test("the webhook function answers 404 for a provider it does not support and lo
   });
   expect(putIfAbsent).not.toHaveBeenCalled();
   expect(dispatch).not.toHaveBeenCalled();
-  const failure = JSON.parse(consoleError.mock.calls[0][0]);
+  const [failure] = logs();
   expect(failure).toMatchObject({
+    level: "ERROR",
+    message: "application_error",
+    route: "POST /webhooks/{provider}",
     category: "webhooks",
     errorKind: "expected",
     errorCode: "WEBHOOK_PROVIDER_NOT_FOUND",

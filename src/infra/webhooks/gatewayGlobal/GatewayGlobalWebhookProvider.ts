@@ -1,4 +1,5 @@
 import { Clock } from "@application/ports/Clock";
+import { Logger } from "@application/ports/Logger";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { AppConfig } from "@infra/config/AppConfig";
@@ -12,7 +13,7 @@ import { createHmac } from "node:crypto";
 // Simulated global card gateway, shaped like Stripe. Events arrive in an envelope with the object
 // they are about under `data.object`, times are Unix seconds, and amounts are integers in the
 // currency's minor unit. Each webhook is signed with HMAC-SHA256 over its timestamp and body.
-@Injectable(Clock, AppConfig)
+@Injectable(Clock, AppConfig, Logger)
 export class GatewayGlobalWebhookProvider implements WebhookProvider<GatewayGlobalWebhookProvider.StatusEventType> {
   readonly name = "gatewayGlobal";
 
@@ -32,6 +33,7 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider<GatewayGlob
   constructor(
     private readonly clock: Clock,
     private readonly config: AppConfig,
+    private readonly logger: Logger,
   ) {}
 
   async authenticate({ rawBody, headers }: WebhookProvider.Request): Promise<boolean> {
@@ -76,14 +78,11 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider<GatewayGlob
 
   async process(event: WebhookEventRepository.Event): Promise<void> {
     // Receipt already authenticated the stored event; processing needs no signing credentials.
-    console.info(
-      JSON.stringify({
-        logType: "webhook_routed",
-        provider: this.name,
-        providerEventId: event.providerEventId,
-        eventType: event.eventType,
-      }),
-    );
+    this.logger.info("webhook_routed", {
+      provider: this.name,
+      providerEventId: event.providerEventId,
+      eventType: event.eventType,
+    });
   }
 }
 
