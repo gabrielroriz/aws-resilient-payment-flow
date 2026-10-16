@@ -87,12 +87,14 @@ resource "aws_lambda_function" "all_lambdas" {
 }
 
 output "lambda_functions" {
-  description = "Deployed Lambda names, ARNs, and handlers, keyed by function name"
+  description = "Deployed Lambda names, ARNs, handlers, package sizes, and memory sizes, keyed by function name"
   value = {
     for name, function in aws_lambda_function.all_lambdas : name => {
-      name    = function.function_name
-      arn     = function.arn
-      handler = function.handler
+      name        = function.function_name
+      arn         = function.arn
+      handler     = function.handler
+      code_size   = format("%.1f KiB", function.source_code_size / 1024)
+      memory_size = "${function.memory_size} MB"
     }
   }
 }

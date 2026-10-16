@@ -76,7 +76,7 @@ Terraform uploads each archive directly to Lambda and tracks its content hash, s
 
 ### Calling the API
 
-Inspect the deployed URLs, functions, and queues:
+Inspect the deployed URLs, functions with their package and memory sizes, and queues:
 
 ```bash
 terraform -chdir=terraform output lambda_endpoints
