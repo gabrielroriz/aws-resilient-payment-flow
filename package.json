@@ -5,6 +5,7 @@
   "scripts": {
     "build": "tsc --noEmit && tsc -p build && node build/index.mts",
     "dev": "bash scripts/dev.sh",
+    "dev:reset-db": "bash scripts/dev-reset-db.sh",
     "deploy": "bash scripts/deploy.sh",
     "format": "prettier --write \"**/*.{ts,mts,mjs}\"",
     "format:check": "prettier --check \"**/*.{ts,mts,mjs}\"",

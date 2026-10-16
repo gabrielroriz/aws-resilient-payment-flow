@@ -89,6 +89,7 @@ npm run dev
 | Browse queues and their messages | Open <http://localhost:9325>; the message counts refresh live, and receiving a message counts toward its queue's redrive limit |
 | Query ElasticMQ from the host | Add `--endpoint-url http://localhost:9324` to AWS CLI commands, such as `aws sqs list-queues --endpoint-url http://localhost:9324` |
 | Stop the local services | `docker compose -f compose.dev.yaml down`; queued messages are lost |
+| Erase the local tables and items | `npm run dev:reset-db`, then rerun `npm run dev` to create the tables again |
 | Erase all local data | `docker compose -f compose.dev.yaml down --volumes` |
 | Build without starting the API | `npm run build` |
 | Type-check the local tooling and simulator too | `npm run typecheck` |
