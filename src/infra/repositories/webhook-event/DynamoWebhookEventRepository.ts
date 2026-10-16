@@ -25,7 +25,11 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
   async create(
     event: WebhookEventRepository.NewEvent,
   ): Promise<WebhookEventRepository.CreateResult> {
-    const received: WebhookEventRepository.Event = { ...event, processingStatus: "received" };
+    const received: WebhookEventRepository.Event = {
+      ...event,
+      processingStatus: "received",
+      outdated: false,
+    };
     const result = await this.dynamo.putIfAbsent(this.table, this.toEventItem(received), "PK");
     return result.created
       ? { created: true, event: received }
@@ -49,6 +53,19 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
         UpdateExpression: "SET processing_status = :enqueued",
         ConditionExpression: "processing_status = :received",
         ExpressionAttributeValues: { ":enqueued": "enqueued", ":received": "received" },
+      },
+    );
+  }
+
+  async recordOutdated(id: WebhookEventRepository.EventId): Promise<void> {
+    // The condition keeps an update from creating a partial event when none is stored.
+    await this.dynamo.updateIf(
+      this.table,
+      { PK: eventKey(id), SK: DynamoWebhookEventRepository.EVENT_SK },
+      {
+        UpdateExpression: "SET outdated = :outdated",
+        ConditionExpression: "attribute_exists(PK)",
+        ExpressionAttributeValues: { ":outdated": true },
       },
     );
   }
@@ -209,6 +226,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       // Compression keeps the exact bytes and reduces write units.
       payload: gzipSync(event.payload),
       processing_status: event.processingStatus,
+      outdated: event.outdated,
       GSI1PK: joinKey(event.provider, shardOf(key, DynamoWebhookEventRepository.GSI1_SHARDS)),
       // Events without a subject have no GSI2PK, so they stay out of GSI2.
       GSI2PK: event.subject && joinKey(event.provider, event.subject.type, event.subject.id),
@@ -233,6 +251,7 @@ export namespace DynamoWebhookEventRepository {
     status?: WebhookEventRepository.SubjectStatus;
     payload: Uint8Array;
     processing_status: WebhookEventRepository.ProcessingStatus;
+    outdated: boolean;
     GSI1PK: string;
     GSI2PK?: string;
     expires_at: number;
@@ -321,6 +340,7 @@ function fromEventItem(item: DynamoWebhookEventRepository.EventItem): WebhookEve
     status: item.status,
     payload: gunzipSync(item.payload).toString("utf8"),
     processingStatus: item.processing_status,
+    outdated: item.outdated,
   };
 }
 

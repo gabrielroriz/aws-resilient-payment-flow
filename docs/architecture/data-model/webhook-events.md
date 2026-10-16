@@ -9,6 +9,7 @@ The `webhook_events` DynamoDB table records the webhook events received from pay
 | Create an event once, or get the stored one if it exists | `PutItem` if `attribute_not_exists(PK)` | Table | `PK = event_key`, `SK = META` |
 | Get an event | `GetItem` | Table | `PK = event_key`, `SK = META` |
 | Record that a received event is enqueued | `UpdateItem` if `processing_status = received` | Table | `PK = event_key`, `SK = META` |
+| Flag an event as outdated | `UpdateItem` if `attribute_exists(PK)` | Table | `PK = event_key`, `SK = META` |
 | Record a duplicate delivery | `PutItem` | Table | `PK = event_key`, `SK = DELIVERY#{received_at}#{request_id}` |
 | Get the full trace of an event | `Query` | Table | `PK = event_key` |
 | Get events received in a time interval | `Query` per shard of every provider | `GSI1` | `GSI1PK = {provider}#{shard}`, `received_at` within the interval |
@@ -32,7 +33,7 @@ All items of an event share its `event_key`, so one `Query` returns the whole ev
 
 | Item | `SK` | Written |
 |---|---|---|
-| [Event](#event) | `META` | Once, at receipt, by the conditional `PutItem`; afterwards only its [processing status](#processing-status) changes |
+| [Event](#event) | `META` | Once, at receipt, by the conditional `PutItem`; afterwards only its [processing status](#processing-status) and `outdated` flag change |
 | [Attempt](#attempt) | `ATTEMPT#{started_at}#{attempt_id}` | Once per processing attempt |
 | [Effect](#effect) | `EFFECT#{effect}` | When a business effect of the event completes or fails |
 | [Delivery](#delivery) | `DELIVERY#{received_at}#{request_id}` | On each duplicate delivery |
@@ -57,6 +58,7 @@ Timestamps are UTC ISO 8601 strings with fixed millisecond precision, so they so
 | `status` | String | The payment status the event reports, the same for every provider, such as `refunded`; omitted when it reports none; see [Event type](#event-type) |
 | `payload` | Binary | Exact request body, gzip-compressed; see [Payload size](#payload-size) |
 | `processing_status` | String | How far the platform has handled the event, such as `received`; see [Processing status](#processing-status) |
+| `outdated` | Boolean | `true` when the event arrived after another event of its subject that outranks it; see [Event order](#event-order) |
 | `GSI1PK` | String | `GSI1` partition key; see [Indexes](#indexes) |
 | `GSI2PK` | String | `GSI2` partition key, omitted when the event has no subject |
 | `expires_at` | Number | TTL in epoch seconds; see [Retention](#retention) |
@@ -133,9 +135,9 @@ DynamoDB accepts about 1,000 writes per second for a single partition key value,
 
 ### Event order
 
-`rank` joins the status precedence, the occurrence time, and the event ID. The precedence has two digits and the timestamps a fixed width, so comparing ranks as strings compares precedence first, then occurrence, then event ID, as [out-of-order events](../webhook-receipt.md#out-of-order-events) require. The conditional `PutItem` replaces a subject's status only when the stored rank is not higher, and a failed condition means the event is outdated.
+`rank` joins the status precedence, the occurrence time, and the event ID. The precedence has two digits and the timestamps a fixed width, so comparing ranks as strings compares precedence first, then occurrence, then event ID, as [out-of-order events](../webhook-receipt.md#out-of-order-events) require. The conditional `PutItem` replaces a subject's status only when the stored rank is not higher, and a failed condition means the event is outdated. When the delivery that completes an event's receipt is outranked, receipt sets the event's `outdated` attribute before dispatching it, so the event's history shows that it arrived late.
 
-> **Note:** The condition makes ranking atomic without a read first, so concurrent deliveries for one subject cannot both become the latest. An equal rank is the same event again, which rewrites the same item, so a repeated delivery of the latest event is not outdated. The precedence of each status is a business rule, kept with the code that ingests events rather than in the table.
+> **Note:** The condition makes ranking atomic without a read first, so concurrent deliveries for one subject cannot both become the latest. An equal rank is the same event again, which rewrites the same item, so a repeated delivery of the latest event is not outdated. `outdated` describes how the event arrived, not its later deliveries: a repeat of an `enqueued` event can be outranked although the event arrived in order, so it is answered as outdated but leaves the flag unchanged. A repeat of an event still `received` completes its unfinished receipt, so it can set the flag. Setting the flag costs a write only for late events. The precedence of each status is a business rule, kept with the code that ingests events rather than in the table.
 
 ### Subscription status
 

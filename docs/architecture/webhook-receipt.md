@@ -19,7 +19,9 @@ flowchart TD
     Duplicate --> Status
     Status -->|yes| Rank["Record it as the payment's latest status, unless outranked"]
     Status -->|no| Dispatch["Dispatch the event to the processing queue"]
-    Rank --> Dispatch
+    Rank -->|latest| Dispatch
+    Rank -->|outranked on arrival| Outdated["Flag the stored event as outdated"]
+    Outdated --> Dispatch
     Dispatch --> Enqueued["Record the event as enqueued"]
     Enqueued --> Ack["200"]
 ```
@@ -61,7 +63,7 @@ Providers can deliver a payment's events in any order, such as a refund before t
 
 Precedence comes first because occurrence times alone cannot order every event: both simulated gateways send them to the second, so a payment and its refund can share one. Each adapter declares the status its event types report in `paymentStatuses`, and receipt looks the event type up there for events about a payment; see [Simulated gateways](../guides/simulated-gateways.md#statuses) for the two gateways' tables.
 
-An event that loses is answered with `outdated: true`. It is still stored and dispatched, because it can carry facts that count, such as the amount of a payment that arrives after its refund; being outdated only means it must not change the payment's status. A repeated delivery is ranked again, which repairs a status that an earlier delivery failed to record, and the latest event delivered again stays the latest. Events that report no status are never ranked and never outdated. Ranking is a single conditional write, so concurrent deliveries for one payment cannot both become the latest; see [Event order](data-model/webhook-events.md#event-order).
+An event that loses is answered with `outdated: true`. When it loses on arrival, the stored event is also flagged as outdated before it is dispatched, while a later repeat of an enqueued event leaves the flag as it was; see [Event order](data-model/webhook-events.md#event-order). It is still stored and dispatched, because it can carry facts that count, such as the amount of a payment that arrives after its refund; being outdated only means it must not change the payment's status. A repeated delivery is ranked again, which repairs a status that an earlier delivery failed to record, and the latest event delivered again stays the latest. Events that report no status are never ranked and never outdated. Ranking is a single conditional write, so concurrent deliveries for one payment cannot both become the latest; see [Event order](data-model/webhook-events.md#event-order).
 
 Subscription events are never ranked. A subscription's status is derived from the payments that bill it, and each billing cycle is a payment ranked on its own, so a renewal's charge that starts `pending` after the previous one succeeded is not outdated. Receipt stores the subscription each payment names, so processing can find it; see [Subscription status](data-model/webhook-events.md#subscription-status).
 

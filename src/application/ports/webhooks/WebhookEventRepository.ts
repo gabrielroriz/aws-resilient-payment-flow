@@ -21,6 +21,9 @@ export abstract class WebhookEventRepository {
     delivery: WebhookEventRepository.Delivery,
   ): Promise<void>;
 
+  // Flags the event as outdated after `recordStatus` reports that another event outranks it.
+  abstract recordOutdated(id: WebhookEventRepository.EventId): Promise<void>;
+
   // Records the event's status as its subject's latest unless another event outranks it: higher
   // `precedence` wins, then later occurrence, then greater ID, so arrival order never matters.
   // Recording the same event again changes nothing.
@@ -84,10 +87,12 @@ export namespace WebhookEventRepository {
     // Request body exactly as received, kept for audit and reprocessing.
     payload: string;
     processingStatus: ProcessingStatus;
+    // True when the event arrived after another event of its subject that outranks it.
+    outdated: boolean;
   };
 
-  // An event as receipt reads it, before storage gives it a processing status.
-  export type NewEvent = Omit<Event, "processingStatus">;
+  // An event as receipt reads it, before storage records how it was handled.
+  export type NewEvent = Omit<Event, "processingStatus" | "outdated">;
 
   // An event that reports its subject's status.
   export type StatusEvent = Event & { subject: Subject; status: SubjectStatus };
@@ -135,8 +140,12 @@ export namespace WebhookEventRepository {
     deliveries: Delivery[];
   };
 
-  // A listed event: indexes omit the payload, statuses, and subscription, which `get` returns.
-  export type Summary = Omit<Event, "payload" | "status" | "subscriptionId" | "processingStatus">;
+  // A listed event: indexes omit the payload, subscription, and how the event was handled, which
+  // `get` returns.
+  export type Summary = Omit<
+    Event,
+    "payload" | "status" | "subscriptionId" | "processingStatus" | "outdated"
+  >;
 
   export type ReceivedQuery = {
     // Providers to include; pass every supported provider to list all events.

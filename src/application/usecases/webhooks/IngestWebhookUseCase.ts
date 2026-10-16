@@ -73,6 +73,11 @@ export class IngestWebhookUseCase {
     // Recorded before dispatch so processing never sees a status that misses the event;
     // repeated deliveries record it again in case an earlier one failed first.
     const { outdated } = await this.recordStatus(event);
+    // Flags arrival only: a repeat of an enqueued event can be outranked even though the event
+    // arrived in order, while a repeat of a `received` one completes an unfinished receipt.
+    if (outdated && event.processingStatus === "received") {
+      await this.events.recordOutdated(event);
+    }
 
     // Repeated deliveries are dispatched too: when dispatching fails, the provider gets an error
     // and retries, and only that retry can still dispatch the already stored event.

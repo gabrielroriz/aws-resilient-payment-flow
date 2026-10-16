@@ -23,6 +23,7 @@ const stored: WebhookEventRepository.Event = {
   receivedAt: new Date("2026-10-10T10:00:01.000Z"),
   payload: '{ "original": true }',
   processingStatus: "received",
+  outdated: false,
 };
 
 // Routing only reads stored events; no other repository operation is called.

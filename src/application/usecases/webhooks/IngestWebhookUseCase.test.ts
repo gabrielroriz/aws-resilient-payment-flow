@@ -53,7 +53,7 @@ function setup({
     async (event: WebhookEventRepository.NewEvent): Promise<WebhookEventRepository.CreateResult> =>
       stored
         ? { created: false, event: stored }
-        : { created: true, event: { ...event, processingStatus: "received" } },
+        : { created: true, event: { ...event, processingStatus: "received", outdated: false } },
   );
   const recordDuplicateDelivery = vi.fn(async () => {});
   const recordStatus = vi.fn(
@@ -62,12 +62,14 @@ function setup({
       _precedence: number,
     ): Promise<WebhookEventRepository.RecordStatusResult> => ({ outdated }),
   );
+  const recordOutdated = vi.fn(async (_id: WebhookEventRepository.EventId) => {});
   const recordEnqueued = vi.fn(async (_id: WebhookEventRepository.EventId) => {});
   // Receipt calls only these repository operations.
   const events = {
     create,
     recordDuplicateDelivery,
     recordStatus,
+    recordOutdated,
     recordEnqueued,
   } as Partial<WebhookEventRepository> as WebhookEventRepository;
   const dispatcher = {
@@ -79,6 +81,7 @@ function setup({
     create,
     recordDuplicateDelivery,
     recordStatus,
+    recordOutdated,
     recordEnqueued,
     dispatch: dispatcher.dispatch,
   };
@@ -86,8 +89,15 @@ function setup({
 
 test("ingest stores a new event with the provider's name, the status its type reports, the receipt time, and the exact payload, then dispatches it and records it as enqueued", async () => {
   const provider = fakeProvider();
-  const { useCase, create, recordDuplicateDelivery, recordStatus, recordEnqueued, dispatch } =
-    setup({ provider });
+  const {
+    useCase,
+    create,
+    recordDuplicateDelivery,
+    recordStatus,
+    recordOutdated,
+    recordEnqueued,
+    dispatch,
+  } = setup({ provider });
 
   await expect(
     useCase.execute({ provider: "simulated", requestId: "req-1", request }),
@@ -109,9 +119,10 @@ test("ingest stores a new event with the provider's name, the status its type re
     payload: request.rawBody,
   };
   expect(create).toHaveBeenCalledWith(received);
-  const stored = { ...received, processingStatus: "received" };
+  const stored = { ...received, processingStatus: "received", outdated: false };
   expect(recordDuplicateDelivery).not.toHaveBeenCalled();
   expect(recordStatus).toHaveBeenCalledWith(stored, 2);
+  expect(recordOutdated).not.toHaveBeenCalled();
   expect(dispatch).toHaveBeenCalledWith(stored);
   // The subject's status accounts for the event before processing can receive it.
   expect(recordStatus.mock.invocationCallOrder[0]).toBeLessThan(
@@ -131,6 +142,7 @@ test("ingest records a repeated delivery against the stored event instead of sto
     receivedAt: new Date("2026-10-10T09:59:00.000Z"),
     payload: request.rawBody,
     processingStatus: "received",
+    outdated: false,
   };
   const { useCase, recordDuplicateDelivery, recordStatus, recordEnqueued, dispatch } = setup({
     stored,
@@ -155,16 +167,70 @@ test("ingest records a repeated delivery against the stored event instead of sto
   expect(recordEnqueued).toHaveBeenCalledWith(stored);
 });
 
-test("ingest flags an event that another event of its subject outranks as outdated, and still stores and dispatches it", async () => {
-  const { useCase, create, dispatch } = setup({ outdated: true });
+test("ingest flags an event that another event of its subject outranks as outdated, on the stored event before dispatch, and still stores and dispatches it", async () => {
+  const { useCase, create, recordOutdated, dispatch } = setup({ outdated: true });
 
   await expect(
     useCase.execute({ provider: "simulated", requestId: "req-1", request }),
   ).resolves.toMatchObject({ duplicate: false, outdated: true });
 
+  expect(recordOutdated).toHaveBeenCalledWith(
+    expect.objectContaining({ provider: "simulated", providerEventId: "evt_1" }),
+  );
+  expect(recordOutdated.mock.invocationCallOrder[0]).toBeLessThan(
+    dispatch.mock.invocationCallOrder[0],
+  );
   // An outdated event can still carry facts that count, such as the amount of a late payment.
   expect(create).toHaveBeenCalled();
   expect(dispatch).toHaveBeenCalled();
+});
+
+test("ingest answers a repeated delivery of an enqueued event as outdated without flagging the event, which arrived before it was outranked", async () => {
+  const stored: WebhookEventRepository.Event = {
+    ...parsedEvent,
+    provider: "simulated",
+    status: "succeeded",
+    receivedAt: new Date("2026-10-10T09:59:00.000Z"),
+    payload: request.rawBody,
+    processingStatus: "enqueued",
+    outdated: false,
+  };
+  const { useCase, recordOutdated, dispatch } = setup({ stored, outdated: true });
+
+  await expect(
+    useCase.execute({ provider: "simulated", requestId: "req-2", request }),
+  ).resolves.toMatchObject({ duplicate: true, outdated: true });
+
+  expect(recordOutdated).not.toHaveBeenCalled();
+  expect(dispatch).toHaveBeenCalledWith(stored);
+});
+
+test("ingest flags an outranked repeated delivery of an event still received, since it completes the event's unfinished receipt", async () => {
+  const stored: WebhookEventRepository.Event = {
+    ...parsedEvent,
+    provider: "simulated",
+    status: "succeeded",
+    receivedAt: new Date("2026-10-10T09:59:00.000Z"),
+    payload: request.rawBody,
+    processingStatus: "received",
+    outdated: false,
+  };
+  const { useCase, recordOutdated } = setup({ stored, outdated: true });
+
+  await useCase.execute({ provider: "simulated", requestId: "req-2", request });
+
+  expect(recordOutdated).toHaveBeenCalledWith(stored);
+});
+
+test("ingest fails without dispatching when the event cannot be flagged as outdated, so the provider retries", async () => {
+  const { useCase, recordOutdated, dispatch } = setup({ outdated: true });
+  const failure = new Error("storage unavailable");
+  recordOutdated.mockRejectedValue(failure);
+
+  await expect(
+    useCase.execute({ provider: "simulated", requestId: "req-1", request }),
+  ).rejects.toBe(failure);
+  expect(dispatch).not.toHaveBeenCalled();
 });
 
 test.each<[WebhookEventRepository.SubjectStatus, number]>([
@@ -195,7 +261,10 @@ test.each<[string, Partial<WebhookProvider.Event>]>([
   "ingest gives no status to an event with %s, so it is never ranked or outdated",
   async (_case, fields) => {
     const provider = fakeProvider({ parse: vi.fn(() => ({ ...parsedEvent, ...fields })) });
-    const { useCase, create, recordStatus, dispatch } = setup({ provider, outdated: true });
+    const { useCase, create, recordStatus, recordOutdated, dispatch } = setup({
+      provider,
+      outdated: true,
+    });
 
     await expect(
       useCase.execute({ provider: "simulated", requestId: "req-1", request }),
@@ -203,6 +272,7 @@ test.each<[string, Partial<WebhookProvider.Event>]>([
 
     expect(create.mock.calls[0][0].status).toBeUndefined();
     expect(recordStatus).not.toHaveBeenCalled();
+    expect(recordOutdated).not.toHaveBeenCalled();
     expect(dispatch).toHaveBeenCalled();
   },
 );

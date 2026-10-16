@@ -23,6 +23,7 @@ const event: WebhookEventRepository.StatusEvent = {
   status: "succeeded",
   payload: '{"id":"evt_1","type":"invoice.paid"}',
   processingStatus: "received",
+  outdated: false,
 };
 
 // TTL keeps every item of the event until 90 days after the event was received.
@@ -51,10 +52,10 @@ function stubQueries(dynamo: DynamoClient, itemsByKey: Record<string, DynamoClie
   });
 }
 
-test("create stores the event item as received, with its index keys, compressed payload, and expiry", async () => {
+test("create stores the event item as received and not outdated, with its index keys, compressed payload, and expiry", async () => {
   const { dynamo, repository } = setup();
   const putIfAbsent = vi.spyOn(dynamo, "putIfAbsent").mockResolvedValue({ created: true });
-  const { processingStatus: _, ...newEvent } = event;
+  const { processingStatus, outdated, ...newEvent } = event;
 
   await expect(repository.create(newEvent)).resolves.toEqual({ created: true, event });
 
@@ -73,6 +74,7 @@ test("create stores the event item as received, with its index keys, compressed 
     subscription_id: "sub_1",
     status: "succeeded",
     processing_status: "received",
+    outdated: false,
     GSI1PK: expect.stringMatching(/^stripe#[0-3]$/),
     GSI2PK: "stripe#payment#pi_1",
     expires_at: eventExpiresAt,
@@ -137,6 +139,23 @@ test("recordEnqueued leaves an event that already moved on unchanged, without fa
   vi.spyOn(dynamo, "updateIf").mockResolvedValue(false);
 
   await expect(repository.recordEnqueued(event)).resolves.toBeUndefined();
+});
+
+test("recordOutdated flags the stored event as outdated, never creating a partial one", async () => {
+  const { dynamo, repository } = setup();
+  const updateIf = vi.spyOn(dynamo, "updateIf").mockResolvedValue(true);
+
+  await repository.recordOutdated(event);
+
+  expect(updateIf).toHaveBeenCalledWith(
+    tableName,
+    { PK: "stripe#evt_1", SK: "META" },
+    {
+      UpdateExpression: "SET outdated = :outdated",
+      ConditionExpression: "attribute_exists(PK)",
+      ExpressionAttributeValues: { ":outdated": true },
+    },
+  );
 });
 
 test("recordDuplicateDelivery stores a delivery item that expires with the event", async () => {
@@ -395,8 +414,8 @@ test("listBySubject queries GSI2 for the subject and returns its events", async 
     subject: { type: "payment", id: "pi_1" },
   });
 
-  // GSI2 projects neither the payload, the statuses, nor the subscription.
-  const { payload, status, subscriptionId, processingStatus, ...summary } = event;
+  // GSI2 projects neither the payload, the subscription, nor how the event was handled.
+  const { payload, status, subscriptionId, processingStatus, outdated, ...summary } = event;
   expect(events).toEqual([summary]);
   expect(queryAll.mock.calls[0][0]).toEqual({
     TableName: tableName,
