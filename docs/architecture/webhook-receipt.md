@@ -13,7 +13,7 @@ flowchart TD
     Auth -->|yes| Parse{"Readable event?"}
     Parse -->|no| Malformed["400, nothing stored"]
     Parse -->|yes| Stored{"Already stored?"}
-    Stored -->|no| Create["Store the event with its exact payload"]
+    Stored -->|no| Create["Store the event as received, with its exact payload"]
     Stored -->|yes| Duplicate["Record the repeated delivery"]
     Create --> Status{"Reports a payment status?"}
     Duplicate --> Status

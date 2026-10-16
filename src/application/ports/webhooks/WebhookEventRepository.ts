@@ -1,10 +1,10 @@
 // Driven port for received webhook events: detects repeated deliveries, keeps each event's
 // processing history for tracing and reprocessing, and tracks each subject's latest status.
 export abstract class WebhookEventRepository {
-  // Stores a newly received event once. When an event with the same identity already exists,
-  // nothing is written and the stored event is returned instead, marking a duplicate delivery.
+  // Stores a newly received event once, as `received`. When an event with the same identity already
+  // exists, nothing is written and the stored event is returned instead, marking a duplicate delivery.
   abstract create(
-    event: WebhookEventRepository.Event,
+    event: WebhookEventRepository.NewEvent,
   ): Promise<WebhookEventRepository.CreateResult>;
 
   abstract get(
@@ -58,6 +58,10 @@ export namespace WebhookEventRepository {
   export type SubjectStatus =
     "pending" | "overdue" | "failed" | "succeeded" | "refunded" | "charged_back";
 
+  // How far the platform has handled the event, unlike `SubjectStatus`, which the event reports.
+  // `received`: stored at receipt.
+  export type ProcessingStatus = "received";
+
   export type Event = EventId & {
     // The provider's own event type, such as Stripe's `invoice.paid`.
     eventType: string;
@@ -74,7 +78,11 @@ export namespace WebhookEventRepository {
     status?: SubjectStatus;
     // Request body exactly as received, kept for audit and reprocessing.
     payload: string;
+    processingStatus: ProcessingStatus;
   };
+
+  // An event as receipt reads it, before storage gives it a processing status.
+  export type NewEvent = Omit<Event, "processingStatus">;
 
   // An event that reports its subject's status.
   export type StatusEvent = Event & { subject: Subject; status: SubjectStatus };
@@ -122,8 +130,8 @@ export namespace WebhookEventRepository {
     deliveries: Delivery[];
   };
 
-  // A listed event: indexes omit the payload, status, and subscription, which `get` returns.
-  export type Summary = Omit<Event, "payload" | "status" | "subscriptionId">;
+  // A listed event: indexes omit the payload, statuses, and subscription, which `get` returns.
+  export type Summary = Omit<Event, "payload" | "status" | "subscriptionId" | "processingStatus">;
 
   export type ReceivedQuery = {
     // Providers to include; pass every supported provider to list all events.

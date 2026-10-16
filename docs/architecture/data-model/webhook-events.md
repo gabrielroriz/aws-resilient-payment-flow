@@ -55,6 +55,7 @@ Timestamps are UTC ISO 8601 strings with fixed millisecond precision, so they so
 | `subscription_id` | String | The subscription a payment bills, when the event names it; see [Subscription status](#subscription-status) |
 | `status` | String | The payment status the event reports, the same for every provider, such as `refunded`; omitted when it reports none; see [Event type](#event-type) |
 | `payload` | Binary | Exact request body, gzip-compressed; see [Payload size](#payload-size) |
+| `processing_status` | String | How far the platform has handled the event, such as `received`; see [Processing status](#processing-status) |
 | `GSI1PK` | String | `GSI1` partition key; see [Indexes](#indexes) |
 | `GSI2PK` | String | `GSI2` partition key, omitted when the event has no subject |
 | `expires_at` | Number | TTL in epoch seconds; see [Retention](#retention) |
@@ -140,6 +141,16 @@ DynamoDB accepts about 1,000 writes per second for a single partition key value,
 A subscription has no status item, and its events are never ranked. Its status is the platform's to derive from the payments that bill it, so each payment event stores the subscription it names in `subscription_id`.
 
 > **Note:** Gateways model subscriptions differently, such as Stripe's `past_due` and `unpaid` and the retry settings that end them, so copying their statuses would leave grace periods and access rules to each gateway's configuration. Payment events are alike across providers, and each billing cycle is a payment of its own, ranked on its own, so a renewal's charge that starts `pending` after the previous one succeeded is not outdated. Subscription events are still stored and dispatched, because some facts, such as a cancellation made at the gateway, arrive only through them. Some providers name the subscription only on the payment itself, not on its refunds and chargebacks, so a reversal's subscription is found through the events of its payment. `subscription_id` is not projected into the indexes, so reading it needs `GetItem`.
+
+### Processing status
+
+`processing_status` records how far the platform has handled an event, unlike `status`, which is what the event reports about its payment. Each event has exactly one processing status.
+
+| Processing status | Meaning | Written by |
+|---|---|---|
+| `received` | The event is stored | Receipt, in the conditional `PutItem` that creates the event |
+
+> **Note:** A repeated delivery never changes the processing status, since it is recorded as a delivery of the stored event. `processing_status` is not projected into the indexes, so reading it needs `GetItem`.
 
 ### Retention
 

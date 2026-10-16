@@ -50,8 +50,10 @@ function setup({
     }),
   };
   const create = vi.fn(
-    async (event: WebhookEventRepository.Event): Promise<WebhookEventRepository.CreateResult> =>
-      stored ? { created: false, event: stored } : { created: true, event },
+    async (event: WebhookEventRepository.NewEvent): Promise<WebhookEventRepository.CreateResult> =>
+      stored
+        ? { created: false, event: stored }
+        : { created: true, event: { ...event, processingStatus: "received" } },
   );
   const recordDuplicateDelivery = vi.fn(async () => {});
   const recordStatus = vi.fn(
@@ -95,14 +97,15 @@ test("ingest stores a new event with the provider's name, the status its type re
   expect(provider.authenticate).toHaveBeenCalledWith(request);
   expect(provider.parse).toHaveBeenCalledWith(request);
   expect(provider.process).not.toHaveBeenCalled();
-  const stored = {
+  const received = {
     ...parsedEvent,
     provider: "simulated",
     status: "succeeded",
     receivedAt: now,
     payload: request.rawBody,
   };
-  expect(create).toHaveBeenCalledWith(stored);
+  expect(create).toHaveBeenCalledWith(received);
+  const stored = { ...received, processingStatus: "received" };
   expect(recordDuplicateDelivery).not.toHaveBeenCalled();
   expect(recordStatus).toHaveBeenCalledWith(stored, 2);
   expect(dispatch).toHaveBeenCalledWith(stored);
@@ -119,6 +122,7 @@ test("ingest records a repeated delivery against the stored event instead of sto
     status: "succeeded",
     receivedAt: new Date("2026-10-10T09:59:00.000Z"),
     payload: request.rawBody,
+    processingStatus: "received",
   };
   const { useCase, recordDuplicateDelivery, recordStatus, dispatch } = setup({ stored });
 
