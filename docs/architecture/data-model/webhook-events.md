@@ -63,6 +63,30 @@ Timestamps are UTC ISO 8601 strings with fixed millisecond precision, so they so
 | `GSI2PK` | String | `GSI2` partition key, omitted when the event has no subject |
 | `expires_at` | Number | TTL in epoch seconds; see [Retention](#retention) |
 
+A payment event after receipt, with the binary `payload` shown as shortened base64:
+
+```json
+{
+  "PK": "gatewayGlobal#evt_8f2c41",
+  "SK": "META",
+  "provider": "gatewayGlobal",
+  "provider_event_id": "evt_8f2c41",
+  "event_type": "payment.succeeded",
+  "occurred_at": "2026-10-16T10:53:09.120Z",
+  "received_at": "2026-10-16T10:53:09.348Z",
+  "subject_type": "payment",
+  "subject_id": "pay_5d19a7",
+  "subscription_id": "sub_30b6e2",
+  "status": "succeeded",
+  "payload": "H4sIAAAAAAAAA…",
+  "processing_status": "enqueued",
+  "outdated": false,
+  "GSI1PK": "gatewayGlobal#2",
+  "GSI2PK": "gatewayGlobal#payment#pay_5d19a7",
+  "expires_at": 1799923989
+}
+```
+
 ### Attempt
 
 | Attribute | Type | Description |
