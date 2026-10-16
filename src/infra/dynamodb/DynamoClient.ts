@@ -4,6 +4,7 @@ import {
   GetCommand,
   PutCommand,
   QueryCommand,
+  UpdateCommand,
   type PutCommandInput,
   type QueryCommandInput,
 } from "@aws-sdk/lib-dynamodb";
@@ -77,6 +78,23 @@ export class DynamoClient {
     }
   }
 
+  // Updates the item under the key only if the condition holds for it; true if updated.
+  async updateIf(
+    table: string,
+    key: DynamoClient.Item,
+    update: DynamoClient.ConditionalUpdate,
+  ): Promise<boolean> {
+    try {
+      await this.document.send(new UpdateCommand({ TableName: table, Key: key, ...update }));
+      return true;
+    } catch (error) {
+      if (error instanceof ConditionalCheckFailedException) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
   // Runs a query and follows every page, returning all matching items in index order.
   async queryAll<T extends DynamoClient.Item>(input: QueryCommandInput): Promise<T[]> {
     const items: T[] = [];
@@ -100,4 +118,7 @@ export namespace DynamoClient {
   // A condition expression with the attribute names and values it refers to.
   export type Condition = Required<Pick<PutCommandInput, "ConditionExpression">> &
     Pick<PutCommandInput, "ExpressionAttributeNames" | "ExpressionAttributeValues">;
+
+  // An update expression and the condition it requires, sharing their attribute names and values.
+  export type ConditionalUpdate = Condition & { UpdateExpression: string };
 }

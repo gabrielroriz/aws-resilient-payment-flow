@@ -1,5 +1,5 @@
 import { ConditionalCheckFailedException } from "@aws-sdk/client-dynamodb";
-import { PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
 import { expect, test, vi, type MockInstance } from "vitest";
@@ -8,7 +8,7 @@ import { expect, test, vi, type MockInstance } from "vitest";
 // is overloaded; tests only use its promise form.
 function stubSend(client: DynamoClient) {
   return vi.spyOn(client.document, "send") as unknown as MockInstance<
-    (command: PutCommand | QueryCommand) => Promise<unknown>
+    (command: PutCommand | QueryCommand | UpdateCommand) => Promise<unknown>
   >;
 }
 
@@ -96,6 +96,44 @@ test("putIf rethrows other failures", async () => {
   stubSend(client).mockRejectedValue(failure);
 
   await expect(client.putIf("events", { PK: "a", SK: "STATUS" }, condition)).rejects.toBe(failure);
+});
+
+const update = {
+  UpdateExpression: "SET processing_status = :next",
+  ConditionExpression: "processing_status = :current",
+  ExpressionAttributeValues: { ":next": "enqueued", ":current": "received" },
+};
+
+test("updateIf updates the item with its condition and reports that it was updated", async () => {
+  const client = new DynamoClient();
+  const send = stubSend(client).mockResolvedValue({});
+
+  await expect(client.updateIf("events", { PK: "a", SK: "META" }, update)).resolves.toBe(true);
+
+  const [command] = send.mock.calls[0];
+  expect(command).toBeInstanceOf(UpdateCommand);
+  expect(command.input).toEqual({
+    TableName: "events",
+    Key: { PK: "a", SK: "META" },
+    ...update,
+  });
+});
+
+test("updateIf reports that nothing was updated when the condition does not hold", async () => {
+  const client = new DynamoClient();
+  stubSend(client).mockRejectedValue(
+    new ConditionalCheckFailedException({ message: "moved on", $metadata: {} }),
+  );
+
+  await expect(client.updateIf("events", { PK: "a", SK: "META" }, update)).resolves.toBe(false);
+});
+
+test("updateIf rethrows other failures", async () => {
+  const client = new DynamoClient();
+  const failure = new Error("throttled");
+  stubSend(client).mockRejectedValue(failure);
+
+  await expect(client.updateIf("events", { PK: "a", SK: "META" }, update)).rejects.toBe(failure);
 });
 
 test("queryAll follows every page", async () => {

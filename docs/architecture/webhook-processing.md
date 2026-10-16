@@ -20,6 +20,7 @@ sequenceDiagram
     Gateway-->>Entry: Valid event
     Entry->>Store: Store event once / record duplicate delivery
     Entry->>Queue: provider + providerEventId
+    Entry->>Store: Record enqueued
     Entry-->>Provider: 200
     Note over Queue,Worker: Delivery runs independently of the HTTP response
     Queue->>Worker: Batch of event references

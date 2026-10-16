@@ -20,7 +20,8 @@ flowchart TD
     Status -->|yes| Rank["Record it as the payment's latest status, unless outranked"]
     Status -->|no| Dispatch["Dispatch the event to the processing queue"]
     Rank --> Dispatch
-    Dispatch --> Ack["200"]
+    Dispatch --> Enqueued["Record the event as enqueued"]
+    Enqueued --> Ack["200"]
 ```
 
 - The path segment selects the provider adapter with exactly that name.
@@ -28,6 +29,7 @@ flowchart TD
 - The stored event keeps the body exactly as received, so it can be audited and reprocessed.
 - A repeated delivery is acknowledged like a new one, because providers retry until they receive a 2xx response, and is recorded with the stored event.
 - A repeated delivery is ranked and dispatched again, so an event whose ranking or dispatch failed completes both when the provider retries.
+- The event is recorded as enqueued only after its dispatch succeeds, so an event that stays received never reached the queue; see [Processing status](data-model/webhook-events.md#processing-status).
 - Events are keyed by provider and event ID, so providers that reuse each other's IDs never collide.
 
 ## Responses

@@ -62,11 +62,13 @@ function setup({
       _precedence: number,
     ): Promise<WebhookEventRepository.RecordStatusResult> => ({ outdated }),
   );
+  const recordEnqueued = vi.fn(async (_id: WebhookEventRepository.EventId) => {});
   // Receipt calls only these repository operations.
   const events = {
     create,
     recordDuplicateDelivery,
     recordStatus,
+    recordEnqueued,
   } as Partial<WebhookEventRepository> as WebhookEventRepository;
   const dispatcher = {
     dispatch: vi.fn(async (_event: WebhookEventRepository.EventId) => {}),
@@ -77,13 +79,15 @@ function setup({
     create,
     recordDuplicateDelivery,
     recordStatus,
+    recordEnqueued,
     dispatch: dispatcher.dispatch,
   };
 }
 
-test("ingest stores a new event with the provider's name, the status its type reports, the receipt time, and the exact payload, then dispatches it", async () => {
+test("ingest stores a new event with the provider's name, the status its type reports, the receipt time, and the exact payload, then dispatches it and records it as enqueued", async () => {
   const provider = fakeProvider();
-  const { useCase, create, recordDuplicateDelivery, recordStatus, dispatch } = setup({ provider });
+  const { useCase, create, recordDuplicateDelivery, recordStatus, recordEnqueued, dispatch } =
+    setup({ provider });
 
   await expect(
     useCase.execute({ provider: "simulated", requestId: "req-1", request }),
@@ -113,6 +117,10 @@ test("ingest stores a new event with the provider's name, the status its type re
   expect(recordStatus.mock.invocationCallOrder[0]).toBeLessThan(
     dispatch.mock.invocationCallOrder[0],
   );
+  expect(recordEnqueued).toHaveBeenCalledWith(stored);
+  expect(dispatch.mock.invocationCallOrder[0]).toBeLessThan(
+    recordEnqueued.mock.invocationCallOrder[0],
+  );
 });
 
 test("ingest records a repeated delivery against the stored event instead of storing it again, and dispatches it again", async () => {
@@ -124,7 +132,9 @@ test("ingest records a repeated delivery against the stored event instead of sto
     payload: request.rawBody,
     processingStatus: "received",
   };
-  const { useCase, recordDuplicateDelivery, recordStatus, dispatch } = setup({ stored });
+  const { useCase, recordDuplicateDelivery, recordStatus, recordEnqueued, dispatch } = setup({
+    stored,
+  });
 
   await expect(
     useCase.execute({ provider: "simulated", requestId: "req-2", request }),
@@ -139,9 +149,10 @@ test("ingest records a repeated delivery against the stored event instead of sto
     receivedAt: now,
     requestId: "req-2",
   });
-  // The earlier delivery may have failed to record or dispatch, so both run again.
+  // The earlier delivery may have failed to record or dispatch, so every step runs again.
   expect(recordStatus).toHaveBeenCalledWith(stored, 2);
   expect(dispatch).toHaveBeenCalledWith(stored);
+  expect(recordEnqueued).toHaveBeenCalledWith(stored);
 });
 
 test("ingest flags an event that another event of its subject outranks as outdated, and still stores and dispatches it", async () => {
@@ -208,8 +219,8 @@ test("ingest fails without dispatching when the status cannot be recorded, so th
   expect(dispatch).not.toHaveBeenCalled();
 });
 
-test("ingest fails when the event cannot be dispatched, so the provider retries the stored event", async () => {
-  const { useCase, create, dispatch } = setup();
+test("ingest fails when the event cannot be dispatched, so the provider retries the stored event, which stays received", async () => {
+  const { useCase, create, recordEnqueued, dispatch } = setup();
   const failure = new Error("queue unavailable");
   dispatch.mockRejectedValue(failure);
 
@@ -217,6 +228,18 @@ test("ingest fails when the event cannot be dispatched, so the provider retries 
     useCase.execute({ provider: "simulated", requestId: "req-1", request }),
   ).rejects.toBe(failure);
   expect(create).toHaveBeenCalled();
+  expect(recordEnqueued).not.toHaveBeenCalled();
+});
+
+test("ingest fails when the event cannot be recorded as enqueued, so the provider retries", async () => {
+  const { useCase, recordEnqueued, dispatch } = setup();
+  const failure = new Error("storage unavailable");
+  recordEnqueued.mockRejectedValue(failure);
+
+  await expect(
+    useCase.execute({ provider: "simulated", requestId: "req-1", request }),
+  ).rejects.toBe(failure);
+  expect(dispatch).toHaveBeenCalled();
 });
 
 test("ingest rejects a provider that is not supported and stores nothing", async () => {

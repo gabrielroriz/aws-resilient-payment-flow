@@ -11,6 +11,10 @@ export abstract class WebhookEventRepository {
     id: WebhookEventRepository.EventId,
   ): Promise<WebhookEventRepository.Event | undefined>;
 
+  // Records that the event is on the processing queue. Only a `received` event moves to
+  // `enqueued`, so a processing status never moves back.
+  abstract recordEnqueued(id: WebhookEventRepository.EventId): Promise<void>;
+
   // Records another delivery of an event that `create` reported as already stored.
   abstract recordDuplicateDelivery(
     event: WebhookEventRepository.Event,
@@ -59,8 +63,9 @@ export namespace WebhookEventRepository {
     "pending" | "overdue" | "failed" | "succeeded" | "refunded" | "charged_back";
 
   // How far the platform has handled the event, unlike `SubjectStatus`, which the event reports.
-  // `received`: stored at receipt.
-  export type ProcessingStatus = "received";
+  // `received`: stored at receipt, but not yet dispatched to the processing queue.
+  // `enqueued`: dispatched to the processing queue.
+  export type ProcessingStatus = "received" | "enqueued";
 
   export type Event = EventId & {
     // The provider's own event type, such as Stripe's `invoice.paid`.

@@ -40,6 +40,19 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     return item && fromEventItem(item);
   }
 
+  async recordEnqueued(id: WebhookEventRepository.EventId): Promise<void> {
+    // A failed condition means the event already moved on, which leaves nothing to record.
+    await this.dynamo.updateIf(
+      this.table,
+      { PK: eventKey(id), SK: DynamoWebhookEventRepository.EVENT_SK },
+      {
+        UpdateExpression: "SET processing_status = :enqueued",
+        ConditionExpression: "processing_status = :received",
+        ExpressionAttributeValues: { ":enqueued": "enqueued", ":received": "received" },
+      },
+    );
+  }
+
   async recordDuplicateDelivery(
     event: WebhookEventRepository.Event,
     delivery: WebhookEventRepository.Delivery,

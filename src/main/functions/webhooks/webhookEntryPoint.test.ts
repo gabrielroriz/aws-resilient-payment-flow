@@ -45,6 +45,7 @@ test("the webhook function stores and dispatches an event from the provider name
   const putIfAbsent = vi
     .spyOn(DynamoClient.prototype, "putIfAbsent")
     .mockResolvedValue({ created: true });
+  const updateIf = vi.spyOn(DynamoClient.prototype, "updateIf").mockResolvedValue(true);
   const dispatch = vi.spyOn(SqsWebhookEventDispatcher.prototype, "dispatch").mockResolvedValue();
 
   const response = await invokeHttp(handler, webhookTo("simulated"));
@@ -60,6 +61,11 @@ test("the webhook function stores and dispatches an event from the provider name
   expect(gunzipSync(item.payload as Uint8Array).toString("utf8")).toBe(body);
   expect(dispatch).toHaveBeenCalledWith(
     expect.objectContaining({ provider: "simulated", providerEventId: "evt_1" }),
+  );
+  expect(updateIf).toHaveBeenCalledWith(
+    "configured_events",
+    { PK: "simulated#evt_1", SK: "META" },
+    expect.objectContaining({ UpdateExpression: "SET processing_status = :enqueued" }),
   );
   expect(simulated.process).not.toHaveBeenCalled();
 });

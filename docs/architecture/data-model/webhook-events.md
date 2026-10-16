@@ -8,6 +8,7 @@ The `webhook_events` DynamoDB table records the webhook events received from pay
 |---|---|---|---|
 | Create an event once, or get the stored one if it exists | `PutItem` if `attribute_not_exists(PK)` | Table | `PK = event_key`, `SK = META` |
 | Get an event | `GetItem` | Table | `PK = event_key`, `SK = META` |
+| Record that a received event is enqueued | `UpdateItem` if `processing_status = received` | Table | `PK = event_key`, `SK = META` |
 | Record a duplicate delivery | `PutItem` | Table | `PK = event_key`, `SK = DELIVERY#{received_at}#{request_id}` |
 | Get the full trace of an event | `Query` | Table | `PK = event_key` |
 | Get events received in a time interval | `Query` per shard of every provider | `GSI1` | `GSI1PK = {provider}#{shard}`, `received_at` within the interval |
@@ -31,7 +32,7 @@ All items of an event share its `event_key`, so one `Query` returns the whole ev
 
 | Item | `SK` | Written |
 |---|---|---|
-| [Event](#event) | `META` | Once, at receipt, by the conditional `PutItem` |
+| [Event](#event) | `META` | Once, at receipt, by the conditional `PutItem`; afterwards only its [processing status](#processing-status) changes |
 | [Attempt](#attempt) | `ATTEMPT#{started_at}#{attempt_id}` | Once per processing attempt |
 | [Effect](#effect) | `EFFECT#{effect}` | When a business effect of the event completes or fails |
 | [Delivery](#delivery) | `DELIVERY#{received_at}#{request_id}` | On each duplicate delivery |
@@ -148,9 +149,10 @@ A subscription has no status item, and its events are never ranked. Its status i
 
 | Processing status | Meaning | Written by |
 |---|---|---|
-| `received` | The event is stored | Receipt, in the conditional `PutItem` that creates the event |
+| `received` | The event is stored, but not yet dispatched to the processing queue | Receipt, in the conditional `PutItem` that creates the event |
+| `enqueued` | The event was dispatched to the processing queue | Receipt, after the dispatch succeeds, by an `UpdateItem` conditioned on `received` |
 
-> **Note:** A repeated delivery never changes the processing status, since it is recorded as a delivery of the stored event. `processing_status` is not projected into the indexes, so reading it needs `GetItem`.
+> **Note:** Each change is a conditional update from the statuses that may precede it, so a processing status never moves back and needs no read first. `enqueued` is recorded only after the dispatch succeeds, so an event that stays `received` never reached the queue: its dispatch failed, and the provider has not retried it yet. A repeated delivery dispatches the event again and records `enqueued` once more, which completes an event left `received` and changes nothing otherwise. `processing_status` is not projected into the indexes, so reading it needs `GetItem`.
 
 ### Retention
 

@@ -115,6 +115,30 @@ test("get reads the event item, or returns undefined when it does not exist", as
   expect(get).toHaveBeenCalledWith(tableName, { PK: "stripe#evt_1", SK: "META" });
 });
 
+test("recordEnqueued moves the event from received to enqueued", async () => {
+  const { dynamo, repository } = setup();
+  const updateIf = vi.spyOn(dynamo, "updateIf").mockResolvedValue(true);
+
+  await repository.recordEnqueued(event);
+
+  expect(updateIf).toHaveBeenCalledWith(
+    tableName,
+    { PK: "stripe#evt_1", SK: "META" },
+    {
+      UpdateExpression: "SET processing_status = :enqueued",
+      ConditionExpression: "processing_status = :received",
+      ExpressionAttributeValues: { ":enqueued": "enqueued", ":received": "received" },
+    },
+  );
+});
+
+test("recordEnqueued leaves an event that already moved on unchanged, without failing", async () => {
+  const { dynamo, repository } = setup();
+  vi.spyOn(dynamo, "updateIf").mockResolvedValue(false);
+
+  await expect(repository.recordEnqueued(event)).resolves.toBeUndefined();
+});
+
 test("recordDuplicateDelivery stores a delivery item that expires with the event", async () => {
   const { dynamo, repository } = setup();
   const put = vi.spyOn(dynamo, "put").mockResolvedValue();

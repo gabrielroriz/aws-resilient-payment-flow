@@ -84,8 +84,9 @@ output "webhook_events_table" {
   }
 }
 
-// The webhook entry point stores received webhook events. Conditional writes return the stored
-// item on conflict without a separate read, so writing needs PutItem only.
+// The webhook entry point stores received webhook events and records them as enqueued.
+// Conditional writes return the stored item on conflict without a separate read, so no read
+// permission is needed.
 resource "aws_iam_role_policy" "webhook_events_write" {
   name = "webhook-events-write"
   role = aws_iam_role.webhook_entry_point.id
@@ -94,7 +95,7 @@ resource "aws_iam_role_policy" "webhook_events_write" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["dynamodb:PutItem"]
+        Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem"]
         Resource = aws_dynamodb_table.webhook_events.arn
       }
     ]
