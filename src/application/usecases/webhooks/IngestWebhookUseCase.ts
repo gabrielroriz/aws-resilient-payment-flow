@@ -8,14 +8,13 @@ import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { WebhookProviderRegistry } from "@application/ports/webhooks/WebhookProviderRegistry";
 import { Injectable } from "@kernel/decorators/injectable";
 
-// Ingests a webhook from any supported provider: authenticates it, stores its event once with the
-// exact payload, flags it outdated when another event of its subject outranks it, and dispatches
-// it, recording it as enqueued.
+// Authenticates a webhook from any supported provider and stores its event once.
+// The event is flagged outdated if outranked, then dispatched and marked enqueued.
 // Ingestion applies no business effects, which keeps the acknowledgment fast.
 @Injectable(WebhookProviderRegistry, WebhookEventRepository, WebhookEventDispatcher, Clock)
 export class IngestWebhookUseCase {
-  // Harder-to-undo statuses rank higher, so a refund outranks its payment in any arrival order.
-  // Equal ranks can follow each other (pending, then overdue), so occurrence time breaks ties.
+  // Harder-to-undo statuses rank higher, so a refund always outranks its payment.
+  // Equal ranks can follow each other, so occurrence time breaks ties.
   private static readonly PRECEDENCE: Record<WebhookEventRepository.SubjectStatus, number> = {
     pending: 1,
     overdue: 1,
@@ -37,27 +36,27 @@ export class IngestWebhookUseCase {
     requestId,
     request,
   }: IngestWebhookUseCase.Input): Promise<IngestWebhookUseCase.Output> {
-    // Read first, so the receipt time does not include the time spent authenticating.
+    // Read first, so the receipt time excludes the time spent authenticating.
     const receivedAt = this.clock.now();
 
-    // The URL names the provider; one this deployment does not support is answered with 404.
+    // The URL names the provider; an unsupported one is answered with 404.
     const provider = this.providerRegistry.find(providerName);
     if (!provider) {
       throw new ErrorWebhookProviderNotFound(providerName);
     }
 
-    // Nothing from an unauthenticated request is parsed or stored, so a forged request has no effect.
+    // Unauthenticated requests are not parsed or stored, so forgeries are harmless.
     if (!(await provider.authenticate(request))) {
       throw new ErrorWebhookAuthenticationFailed();
     }
 
-    // An authentic body that is not one of the provider's events means its adapter needs updating.
+    // An authentic body that is not a known event means the adapter needs updating.
     const parsed = provider.parse(request);
     if (!parsed) {
       throw new ErrorWebhookMalformedEvent();
     }
 
-    // Stored once with its exact payload; a repeated delivery gets the earlier stored event back.
+    // Stored once with its exact payload; a repeat gets the stored event back.
     const { created, event } = await this.events.create({
       ...parsed,
       provider: provider.name,
@@ -65,27 +64,28 @@ export class IngestWebhookUseCase {
       receivedAt,
       payload: request.rawBody,
     });
-    // The repeat is kept in the event's history, so operators can see every delivery.
+    // The repeat is kept in the event's history, so operators see every delivery.
     if (!created) {
       await this.events.recordDuplicateDelivery(event, { receivedAt, requestId });
     }
 
-    // Recorded before dispatch so processing never sees a status that misses the event;
-    // repeated deliveries record it again in case an earlier one failed first.
+    // Recorded before dispatch so processing never sees a status without the event.
+    // Repeated deliveries record it again in case an earlier one failed first.
     const { outdated } = await this.recordStatus(event);
-    // Flags arrival only: a repeat of an enqueued event can be outranked even though the event
-    // arrived in order, while a repeat of a `received` one completes an unfinished receipt.
+    // Flags arrival only, never a later repeat.
+    // An enqueued event's repeat can be outranked though the event came in order.
+    // A repeat of a `received` event completes an unfinished receipt.
     if (outdated && event.processingStatus === "received") {
       await this.events.recordOutdated(event);
     }
 
-    // Repeated deliveries are dispatched too: when dispatching fails, the provider gets an error
-    // and retries, and only that retry can still dispatch the already stored event.
+    // Repeats are dispatched too: after a failed dispatch, the provider retries.
+    // Only that retry can still dispatch the already stored event.
     await this.dispatcher.dispatch(event);
-    // Only after a successful dispatch, so an event left `received` never reached the queue.
+    // Only once dispatched, so an event left `received` never reached the queue.
     await this.events.recordEnqueued(event);
 
-    // Describes the delivery only; every outcome that reaches here is acknowledged the same way.
+    // Describes the delivery only; every outcome here is acknowledged the same way.
     return {
       provider: event.provider,
       providerEventId: event.providerEventId,
@@ -94,8 +94,8 @@ export class IngestWebhookUseCase {
     };
   }
 
-  // Only payment events report a status; `hasOwn` keeps a type named like an object property, such
-  // as `constructor`, from matching.
+  // Only payment events report a status.
+  // `hasOwn` skips inherited properties, so a `constructor` type never matches.
   private paymentStatus(
     provider: WebhookProvider,
     { eventType, subject }: WebhookProvider.Event,
@@ -106,7 +106,7 @@ export class IngestWebhookUseCase {
     return provider.paymentStatuses[eventType];
   }
 
-  // Outdated events are still dispatched since they can carry facts, like a late payment's amount.
+  // Outdated events are still dispatched since they can carry facts, like an amount.
   private async recordStatus(
     event: WebhookEventRepository.Event,
   ): Promise<WebhookEventRepository.RecordStatusResult> {
@@ -125,7 +125,7 @@ export namespace IngestWebhookUseCase {
   export type Input = {
     // Provider name as it appears in the webhook URL.
     provider: string;
-    // ID of the request that delivered the webhook, recorded when the delivery is a duplicate.
+    // ID of the delivering request, recorded when the delivery is a duplicate.
     requestId: string;
     request: WebhookProvider.Request;
   };
@@ -135,7 +135,7 @@ export namespace IngestWebhookUseCase {
     providerEventId: string;
     // True when an earlier delivery already stored the event.
     duplicate: boolean;
-    // True when another event of its subject outranks this one; false when it reports no status.
+    // True when outranked by another event of its subject; false without a status.
     outdated: boolean;
   };
 }

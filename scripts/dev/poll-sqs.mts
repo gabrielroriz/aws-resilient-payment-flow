@@ -17,7 +17,7 @@ const sqs = new SQSClient({
 });
 const consumers = consumersFromPlan(JSON.parse(await readFile(planFile, 'utf8')));
 
-// Wait before receiving messages: starting SAM must not spend the queues' receive attempts.
+// Wait for SAM first, so its startup does not spend the queues' receive attempts.
 for (let attempt = 0; ; attempt++) {
   try {
     await fetch(lambdaEndpoint, { signal: AbortSignal.timeout(1000) });
@@ -36,7 +36,7 @@ const invoke: Invoke = async (functionName, event) => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(event),
-      // Includes container startup time; SAM enforces the function's own configured timeout.
+      // Covers container startup; SAM enforces the function's own timeout.
       signal: AbortSignal.timeout(120_000),
     },
   );

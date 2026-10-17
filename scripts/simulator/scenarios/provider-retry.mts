@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { Scenario } from '../engine/runner.types.mts';
 
-// A provider stops waiting for an acknowledgment after the timeout, then retries after the delay.
+// A provider awaits acknowledgment until the timeout, then retries after the delay.
 const ACK_TIMEOUT_MS = 50;
 const RETRY_DELAY_MS = 3000;
 
@@ -15,7 +15,7 @@ export const providerRetry: Scenario = {
       await api.deliver(gateway, event, { timeoutMs: ACK_TIMEOUT_MS });
       await sleep(RETRY_DELAY_MS);
       return [
-        // The retry is a duplicate when the unacknowledged delivery was stored, and new otherwise.
+        // The retry is a duplicate only if the unacknowledged delivery was stored.
         checks.reply('retry after the timeout', await api.deliver(gateway, event), {
           status: 200,
         }),

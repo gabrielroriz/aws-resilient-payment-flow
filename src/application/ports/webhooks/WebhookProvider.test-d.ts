@@ -1,8 +1,9 @@
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { test } from "vitest";
 
-// A provider lists its status-reporting event types as the port's type argument, so a table that
-// misses one or maps an unlisted type must fail type checking; so does an unused expect-error.
+// A provider lists its status-reporting event types as the port's type argument.
+// A table missing one or mapping an unlisted type must fail type checking.
+// So must an unused expect-error.
 test("the type checker requires a status for every listed event type, and no other", () => {
   type StatusEventType = "payment.succeeded" | "refund.created";
 

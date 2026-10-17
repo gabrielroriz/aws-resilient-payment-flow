@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Erases DynamoDB Local: removes its container and data volume, then starts it again empty.
+# Erases DynamoDB Local: removes its container and data volume, then starts it empty.
 # The next npm run dev creates the tables Terraform defines.
 set -euo pipefail
 
@@ -11,7 +11,7 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-# Naming the service limits the removal to it and its volume; ElasticMQ and the UIs keep running.
+# Only the named service and its volume go; ElasticMQ and the UIs keep running.
 docker compose -f "$COMPOSE_FILE" down --volumes dynamodb
 docker compose -f "$COMPOSE_FILE" up --detach --wait dynamodb
 

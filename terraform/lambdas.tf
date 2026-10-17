@@ -4,7 +4,7 @@ locals {
   lambda_archives = {
     for name, config in local.lambdas : name => "${path.module}/../dist/${name}_${var.lambdasVersion}.zip"
   }
-  # Roles a function can select with "role" in lambdas.json; functions that select none use "default".
+  # Roles a function selects with "role" in lambdas.json, falling back to "default".
   lambda_roles = {
     default             = aws_iam_role.lambda_default
     webhook_entry_point = aws_iam_role.webhook_entry_point
@@ -25,13 +25,13 @@ locals {
   })
 }
 
-// Functions that select no role run with this one, which only lets them write their logs.
+// Functions that select no role run with this one, which only allows writing logs.
 resource "aws_iam_role" "lambda_default" {
   name               = "lambda-default-role"
   assume_role_policy = local.lambda_assume_role_policy
 }
 
-// The webhook entry point receives every provider's webhooks; the permissions it needs attach here.
+// The entry point receives every provider's webhooks; its permissions attach here.
 resource "aws_iam_role" "webhook_entry_point" {
   name               = "webhook-entry-point-role"
   assume_role_policy = local.lambda_assume_role_policy
@@ -50,7 +50,7 @@ resource "aws_iam_role_policy_attachment" "lambda_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-// Moves the worker's existing attachment rather than replacing it, so it never loses log access.
+// Moves the worker's attachment instead of replacing it, so logging never stops.
 moved {
   from = aws_iam_role_policy_attachment.webhook_worker_logs
   to   = aws_iam_role_policy_attachment.lambda_logs["webhook_worker"]
@@ -62,14 +62,14 @@ resource "aws_lambda_function" "all_lambdas" {
   filename         = local.lambda_archives[each.key]
   source_code_hash = filebase64sha256(local.lambda_archives[each.key])
   function_name    = each.key
-  // The role selected by "role" in lambdas.json; a name missing from lambda_roles fails the plan.
+  // The role selected by "role"; a name missing from lambda_roles fails the plan.
   role        = local.lambda_roles[lookup(each.value, "role", "default")].arn
   handler     = "index.handler"
   runtime     = "nodejs24.x"
   memory_size = lookup(each.value, "memory_size", 1024)
   timeout     = lookup(each.value, "timeout", 300)
 
-  // Lambda filters the functions' JSON lines by level and writes its own records as JSON too.
+  // Lambda filters the JSON log lines by level and writes its own records as JSON.
   logging_config {
     log_format            = "JSON"
     application_log_level = "INFO"
@@ -77,8 +77,7 @@ resource "aws_lambda_function" "all_lambdas" {
   }
 
   // Only functions listed in lambda_environments get an environment.
-  // The condition reads names only, because Terraform cannot decide which blocks to create from
-  // sensitive values.
+  // Only names are checked, since sensitive values cannot decide which blocks exist.
   dynamic "environment" {
     for_each = contains(keys(local.lambda_environments), each.key) ? [each.key] : []
     content {

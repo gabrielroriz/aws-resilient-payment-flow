@@ -7,8 +7,7 @@ import type { AcknowledgedReply } from './replies.types.mts';
 // English issue messages; zod/mini's default is a bare "Invalid input".
 z.config(en());
 
-// The simulator's own copy of the API's reply contract, written apart from the API so an
-// unintended change fails a scenario.
+// The simulator's own copy of the API's reply contract, so unintended changes fail.
 // Extra fields are allowed, as adding one keeps replies compatible.
 export const acknowledgedReply = z.object({
   provider: z.string(),
@@ -19,7 +18,7 @@ export const acknowledgedReply = z.object({
 const rejection = z.object({ code: z.string(), message: z.string() });
 export const rejectedReply = z.object({ success: z.literal(false), error: rejection });
 
-// The body of an acknowledged reply that matches the contract, or undefined for any other outcome.
+// The body of an acknowledged reply matching the contract, or undefined otherwise.
 export function acknowledged(outcome: Outcome): AcknowledgedReply | undefined {
   if ('timedOut' in outcome || outcome.status !== 200) {
     return undefined;
@@ -28,13 +27,13 @@ export function acknowledged(outcome: Outcome): AcknowledgedReply | undefined {
   return result.success ? result.data : undefined;
 }
 
-// What is wrong with an outcome, one line per problem: its status, the contract for that status,
-// the values the step expects, and the gateway and event it must name.
+// What is wrong with an outcome, one line per problem.
+// Checks the status, its contract, the expected values, and the gateway and event.
 export function problemsWith(outcome: Outcome, expected: Expected): string[] {
   if ('timedOut' in outcome) {
     return [`status: expected ${expected.status}, received no reply`];
   }
-  // A wrong status makes the whole body wrong too, so it is the only problem reported.
+  // A wrong status makes the whole body wrong, so it is the only problem reported.
   if (outcome.status !== expected.status) {
     return [`status: expected ${expected.status}, received ${outcome.status}`];
   }
@@ -79,7 +78,7 @@ function expectedReply(expected: Expected, delivery: Delivery): z.ZodMiniType {
   return z.extend(acknowledgedReply, values);
 }
 
-// One problem as `path: expected …, received …`, naming the value received rather than its type.
+// One problem as `path: expected …, received …`, showing the value, not its type.
 function describeIssue(issue: z.core.$ZodIssue): string {
   const path = issue.path.join('.') || 'body';
   const expected =

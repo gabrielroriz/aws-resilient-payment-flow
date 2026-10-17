@@ -2,7 +2,7 @@ import { ErrorCode } from "../enums/ErrorCode";
 import { ErrorKind } from "../enums/ErrorKind";
 import { HttpError } from "./HttpError";
 
-// The body is valid JSON but does not match the controller's schema, so the caller must fix it.
+// A valid JSON body that fails the controller's schema, so the caller must fix it.
 // The response lists each issue, so the caller can see which fields to correct.
 export class ErrorHttpInvalidBody extends HttpError {
   constructor(issues: string[]) {

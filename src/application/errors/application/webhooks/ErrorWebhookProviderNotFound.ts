@@ -10,7 +10,7 @@ export class ErrorWebhookProviderNotFound extends ApplicationError {
       statusCode: 404,
       code: ErrorCode.WEBHOOK_PROVIDER_NOT_FOUND,
       category: ErrorCategory.WEBHOOKS,
-      // Unknown public paths are normal; an already accepted event with no provider needs attention.
+      // Unknown paths are normal; a stored event with no provider needs attention.
       kind,
     });
   }

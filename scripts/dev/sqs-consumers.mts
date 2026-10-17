@@ -8,7 +8,7 @@ import type { SQSRecord } from 'aws-lambda';
 import type { Invoke, LocalConsumer, QueueSource } from './sqs-consumers.types.mts';
 import type { TerraformPlan } from './terraform-plan.types.mts';
 
-// Terraform exports settings from its actual mappings, using names that exist before deployment.
+// Terraform exports its real mapping settings, with names known before deployment.
 export function consumersFromPlan(plan: TerraformPlan): LocalConsumer[] {
   const value = plan.planned_values?.outputs?.local_sqs_consumers?.value;
   if (!value || typeof value !== 'object') {
@@ -32,7 +32,8 @@ export function consumersFromPlan(plan: TerraformPlan): LocalConsumer[] {
     .filter(({ enabled }) => enabled);
 }
 
-// One local delivery: failed invocations leave the entire batch for visibility timeout and redrive.
+// Runs one local delivery.
+// A failed invocation leaves the whole batch to visibility timeout and redrive.
 export async function consumeBatch(
   sqs: SQSClient,
   consumer: LocalConsumer,
@@ -74,7 +75,7 @@ export async function consumeBatch(
 }
 
 function failedIds(response: unknown, messages: Message[]): Set<string> {
-  // An invalid response must never turn into a successful acknowledgement of the batch.
+  // An invalid response must never acknowledge the batch as successful.
   if (
     !response ||
     typeof response !== 'object' ||

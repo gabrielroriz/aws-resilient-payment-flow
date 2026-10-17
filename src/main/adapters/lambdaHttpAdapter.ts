@@ -12,11 +12,11 @@ import {
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Context } from "aws-lambda";
 
 // Driving adapter for API Gateway HTTP API events (payload format 2.0).
-// Converts the event into a controller request, validating its body against the controller's
-// schema, and maps the result, or any error, to a response.
+// Converts the event into a controller request, validating the body by its schema.
+// Maps the result, or any error, to a response.
 export function lambdaHttpAdapter(controller: Controller, logger: Logger) {
   return (event: APIGatewayProxyEventV2, context?: Context): Promise<APIGatewayProxyResultV2> =>
-    // Every entry logged while handling the request names it, so its logs can be found together.
+    // Every entry logged for the request names it, so its logs are found together.
     logger.withContext(
       {
         lambdaRequestId: context?.awsRequestId,
@@ -47,7 +47,7 @@ async function handle(
   } catch (error) {
     logger.error("application_error", errorLogFields(error));
 
-    // Only errors the application defines reach the caller; other details stay in the logs.
+    // Only application errors reach the caller; other details stay in the logs.
     if (error instanceof BaseError) {
       return buildHttpResponse(error.statusCode, {
         success: false,

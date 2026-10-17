@@ -1,5 +1,5 @@
 {
-  // Development scripts run directly on Node.js, like the build tooling, and share its settings.
+  // These scripts run on Node.js like the build tooling and share its settings.
   "extends": "../../build/tsconfig.json",
   "include": ["*.mts"]
 }

@@ -36,7 +36,7 @@ function fakeProvider(overrides: Partial<WebhookProvider> = {}) {
   };
 }
 
-// `stored` is the event an earlier delivery already stored, making this delivery a duplicate.
+// `stored` is the event an earlier delivery stored, making this one a duplicate.
 // `outdated` is what recording the event's status reports.
 function setup({
   provider = fakeProvider(),
@@ -161,7 +161,7 @@ test("ingest records a repeated delivery against the stored event instead of sto
     receivedAt: now,
     requestId: "req-2",
   });
-  // The earlier delivery may have failed to record or dispatch, so every step runs again.
+  // The earlier delivery may have failed to record or dispatch, so all steps rerun.
   expect(recordStatus).toHaveBeenCalledWith(stored, 2);
   expect(dispatch).toHaveBeenCalledWith(stored);
   expect(recordEnqueued).toHaveBeenCalledWith(stored);
@@ -180,7 +180,7 @@ test("ingest flags an event that another event of its subject outranks as outdat
   expect(recordOutdated.mock.invocationCallOrder[0]).toBeLessThan(
     dispatch.mock.invocationCallOrder[0],
   );
-  // An outdated event can still carry facts that count, such as the amount of a late payment.
+  // An outdated event's facts can still count, such as a late payment's amount.
   expect(create).toHaveBeenCalled();
   expect(dispatch).toHaveBeenCalled();
 });

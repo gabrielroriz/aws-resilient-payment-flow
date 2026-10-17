@@ -1,6 +1,6 @@
 import * as z from "@kernel/utils/zod";
 
-// The functions' environment variables and their validation, grouped by the code that uses them.
+// Environment variables, validated and grouped by the code that uses them.
 // Must match the variables Terraform gives each function.
 export const envSchema = {
   webhooks: z.object({

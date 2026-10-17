@@ -6,16 +6,16 @@ import { samTemplateFromPlan } from './sam-template.mts';
 import { syncTable, tablesFromPlan } from './dynamodb-tables.mts';
 import { queuesFromPlan, syncQueue } from './sqs-queues.mts';
 
-// Prepares a local run from a Terraform plan, read as `terraform show -json` output: creates the
-// planned tables in DynamoDB Local and the planned queues in ElasticMQ, and writes the SAM template
-// that runs the planned Lambdas.
+// Prepares a local run from a Terraform plan, read as `terraform show -json` output.
+// Creates the planned tables in DynamoDB Local and the planned queues in ElasticMQ.
+// Writes the SAM template that runs the planned Lambdas.
 const [planFile, templateFile] = process.argv.slice(2);
 if (!planFile || !templateFile) {
   throw new Error('Usage: node scripts/dev/prepare.mts <plan.json> <template.json>');
 }
 
-// Must match the DynamoDB Local and ElasticMQ services of the Docker Compose configuration:
-// their published ports on the host, and their service names on the network that the Lambda containers join.
+// Must match the DynamoDB Local and ElasticMQ services in Docker Compose.
+// Host endpoints use published ports; Lambda containers reach services by name.
 const ENDPOINT_DYNAMODB_HOST = 'http://localhost:8000';
 const ENDPOINT_DYNAMODB_LAMBDA = 'http://dynamodb:8000';
 const ENDPOINT_SQS_HOST = 'http://localhost:9324';
@@ -23,7 +23,7 @@ const ENDPOINT_SQS_LAMBDA = 'http://sqs:9324';
 
 const plan = JSON.parse(await readFile(planFile, 'utf8'));
 
-// The local services accept any credentials; fixed ones keep this script from ever signing as a real AWS identity.
+// Local services accept any credentials; fixed ones never use a real AWS identity.
 const local = {
   region: 'us-east-1',
   credentials: { accessKeyId: 'local', secretAccessKey: 'local' },
@@ -47,8 +47,7 @@ for (const queue of queuesFromPlan(plan)) {
 
 const template = samTemplateFromPlan(plan, {
   bundlesDir: fileURLToPath(new URL('../../dist/bundles/', import.meta.url)),
-  // The AWS SDK sends DynamoDB and SQS requests to these endpoints instead of AWS, so handlers need
-  // no local-only code.
+  // The AWS SDK calls these instead of AWS, so handlers need no local-only code.
   environment: {
     AWS_ENDPOINT_URL_DYNAMODB: ENDPOINT_DYNAMODB_LAMBDA,
     AWS_ENDPOINT_URL_SQS: ENDPOINT_SQS_LAMBDA,

@@ -1,4 +1,4 @@
-// Driven port for structured logs: each entry is a message from a fixed catalog plus fields.
+// Driven port for structured logs: each entry is a catalog message plus fields.
 export abstract class Logger {
   abstract debug(message: Logger.Message, fields?: Logger.Fields): void;
 
@@ -22,7 +22,8 @@ export namespace Logger {
     // The worker handed a stored event to its gateway adapter.
     | "webhook_routed";
 
-  // JSON values, never payloads, credentials, or card data; the entry's own keys are reserved.
+  // JSON values, never payloads, credentials, or card data.
+  // The entry's own keys are reserved.
   export type Fields = Record<string, unknown> & {
     timestamp?: never;
     level?: never;

@@ -7,8 +7,8 @@ import { lambdaHttpAdapter } from "@main/adapters/lambdaHttpAdapter";
 import { bindRuntime } from "@main/bindings/runtime";
 import { bindWebhooks } from "@main/bindings/webhooks";
 
-// Composition root: one function receives webhooks from every provider, so its bundle includes
-// every provider adapter in the registry.
+// Composition root: one function receives webhooks from every provider.
+// Its bundle therefore includes every provider adapter in the registry.
 const registry = Registry.getInstance();
 bindRuntime(registry);
 bindWebhooks(registry);

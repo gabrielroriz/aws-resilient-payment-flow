@@ -10,7 +10,7 @@ import type { Simulation } from './simulation.types.mts';
 export const NOW = new Date('2026-10-10T10:00:00.000Z');
 export const fixedClock = createClock(() => NOW);
 
-// Sends an event as its ID alone and names the credentials in a header, so tests see what was sent.
+// Sends only the event ID and a credentials header, so tests see what was sent.
 export const testGateway: SimulatedGateway = {
   name: 'gatewayGlobal',
   render: (event) => JSON.stringify({ id: event.eventId }),
@@ -25,7 +25,7 @@ export function testEvent(
   return { eventId, kind, paymentId: 'pay_1', occurredAt: NOW };
 }
 
-// The outcome of an acknowledged delivery of `event`, as the API's contract shapes it.
+// The outcome of an acknowledged delivery of `event`, shaped by the API's contract.
 export function acknowledgedOutcome(
   event: SimulatedEvent,
   { duplicate = false, outdated = false } = {},
@@ -48,7 +48,7 @@ export function fakeApi(answer: (event: SimulatedEvent) => Outcome): WebhookApi 
   };
 }
 
-// A simulation wired with the fixed clock, the given gateways, and an API answering with `answer`.
+// A fixed-clock simulation of `gateways` whose API answers with `answer`.
 export function testSimulation(
   gateways: SimulatedGateway[] = [testGateway],
   answer: (event: SimulatedEvent) => Outcome = (event) => acknowledgedOutcome(event),

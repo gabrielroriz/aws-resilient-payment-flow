@@ -30,7 +30,8 @@ export async function bundleLambdas(
       outfile,
     });
 
-    // Deployment ships only index.js. Only Node built-ins and packages the runtime provides may remain external.
+    // Deployment ships only index.js.
+    // Only Node built-ins and runtime-provided packages may remain external.
     const outputs = Object.values(result.metafile.outputs);
     if (
       result.outputFiles.length !== 1 ||

@@ -4,7 +4,7 @@ import { DynamoWebhookEventRepository } from "@infra/repositories/webhook-event/
 import { InMemoryWebhookProviderRegistry } from "@infra/webhooks/InMemoryWebhookProviderRegistry";
 import { Registry } from "@kernel/di/Registry";
 
-// Binds the ports both webhook functions use: the provider adapters and the stored events.
+// Binds the ports both webhook functions use: provider adapters and stored events.
 export function bindWebhooks(registry: Registry): void {
   registry.bind(WebhookProviderRegistry, InMemoryWebhookProviderRegistry);
   registry.bind(WebhookEventRepository, DynamoWebhookEventRepository);

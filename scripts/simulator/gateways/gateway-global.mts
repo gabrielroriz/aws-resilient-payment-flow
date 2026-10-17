@@ -1,8 +1,7 @@
 import { createHmac } from 'node:crypto';
 import type { SimulatedEvent, SimulatedGateway } from './gateways.types.mts';
 
-// gatewayGlobal's type for each event kind, with either the payment's status or the reversing
-// object and its ID prefix.
+// gatewayGlobal's type for each event kind, with the payment's status or reversal.
 const globalEvents: Record<
   SimulatedEvent['kind'],
   { type: string; status?: string; reversal?: { object: string; prefix: string } }
@@ -17,7 +16,7 @@ const globalEvents: Record<
   },
 };
 
-// Stripe-like: event envelope, Unix-second times, amounts in cents, timestamped HMAC signature.
+// Stripe-like: event envelope, Unix-second times, cents, timestamped HMAC signature.
 export function createGatewayGlobal({
   signingSecret,
 }: {
@@ -33,7 +32,7 @@ export function createGatewayGlobal({
         type,
         created: Math.floor(occurredAt.getTime() / 1000),
         data: {
-          // A reversal names its payment, and only the payment names its subscription.
+          // A reversal names its payment, which alone names its subscription.
           object: reversal
             ? {
                 object: reversal.object,

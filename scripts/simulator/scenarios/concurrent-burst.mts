@@ -18,7 +18,7 @@ export const concurrentBurst: Scenario = {
       const outcomesOf = (event: SimulatedEvent) =>
         outcomes.filter((_, index) => deliveries[index] === event);
 
-      // Every reply must match the contract and name its event, whichever delivery stored it.
+      // Each reply must match the contract and name its event, stored or duplicate.
       const storeProblems = outcomes.flatMap((outcome, index) =>
         problemsWith(outcome, { status: 200 }).map(
           (problem) => `${label(deliveries[index])}: ${problem}`,

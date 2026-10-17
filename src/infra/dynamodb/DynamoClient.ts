@@ -12,13 +12,12 @@ import { unmarshall } from "@aws-sdk/util-dynamodb";
 import { Injectable } from "@kernel/decorators/injectable";
 
 // Shared DynamoDB access for every table adapter.
-// The registry builds one instance per execution environment, so connections are reused across
-// invocations.
-// Items are plain objects; the document client converts them to and from DynamoDB attribute values.
+// The registry builds one per Lambda environment, so invocations reuse connections.
+// Items are plain objects; the document client handles DynamoDB attribute values.
 @Injectable()
 export class DynamoClient {
   // The region comes from the Lambda environment.
-  // Undefined attributes are left out of items, so adapters can map optional fields directly.
+  // Undefined attributes are left out, so adapters can map optional fields directly.
   readonly document = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
     marshallOptions: { removeUndefinedValues: true },
   });
@@ -36,7 +35,7 @@ export class DynamoClient {
   }
 
   // Writes an item only when no item with its key exists.
-  // Otherwise nothing is written and the stored item is returned, without a second read.
+  // Otherwise it writes nothing and returns the stored item without a second read.
   async putIfAbsent<T extends DynamoClient.Item>(
     table: string,
     item: T,
@@ -55,14 +54,14 @@ export class DynamoClient {
       return { created: true };
     } catch (error) {
       if (error instanceof ConditionalCheckFailedException && error.Item) {
-        // The document client converts responses but not errors, so the stored item arrives raw.
+        // The document client does not convert errors, so this item arrives raw.
         return { created: false, existing: unmarshall(error.Item) as T };
       }
       throw error;
     }
   }
 
-  // Puts the item only if the condition holds for what is stored under its key; true if written.
+  // Puts the item if the condition holds for what its key stores; true if written.
   async putIf(
     table: string,
     item: DynamoClient.Item,
@@ -79,7 +78,7 @@ export class DynamoClient {
     }
   }
 
-  // Updates the item under the key only if the condition holds for it; true if updated.
+  // Updates the item under the key if the condition holds for it; true if updated.
   async updateIf(
     table: string,
     key: DynamoClient.Item,
@@ -96,7 +95,7 @@ export class DynamoClient {
     }
   }
 
-  // Runs a query and follows every page, returning all matching items in index order.
+  // Runs a query through every page, returning all matching items in index order.
   async queryAll<T extends DynamoClient.Item>(input: QueryCommandInput): Promise<T[]> {
     const items: T[] = [];
     let startKey: DynamoClient.Item | undefined;
@@ -120,6 +119,6 @@ export namespace DynamoClient {
   export type Condition = Required<Pick<PutCommandInput, "ConditionExpression">> &
     Pick<PutCommandInput, "ExpressionAttributeNames" | "ExpressionAttributeValues">;
 
-  // An update expression and the condition it requires, sharing their attribute names and values.
+  // An update expression and its condition, sharing attribute names and values.
   export type ConditionalUpdate = Condition & { UpdateExpression: string };
 }

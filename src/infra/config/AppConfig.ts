@@ -2,10 +2,9 @@ import { envSchema } from "@infra/config/envSchema";
 import { Injectable } from "@kernel/decorators/injectable";
 import * as z from "@kernel/utils/zod";
 
-// Typed configuration from the function's environment variables, validated against their schema.
-// Each group is validated when it is read, not when the function starts: a function needs only
-// the variables of the groups it uses, and a missing variable fails only the code that needs it,
-// such as webhook receipt, with an error naming the variable.
+// Typed configuration from environment variables, validated against their schema.
+// Each group is validated when read, so a function needs only the groups it uses.
+// A missing variable fails only the code that needs it, with an error naming it.
 @Injectable()
 export class AppConfig {
   get webhooks(): AppConfig.Webhooks {
@@ -26,7 +25,7 @@ export class AppConfig {
     return { webhookEvents: { name: env.WEBHOOK_EVENTS_TABLE_NAME } };
   }
 
-  // Parsing on every read costs microseconds and keeps no state, so tests can change the environment.
+  // Parsing every read is cheap and stateless, so tests can change the environment.
   private parseGroup<Schema extends z.ZodMiniType>(
     group: string,
     schema: Schema,

@@ -1,5 +1,5 @@
-// Webhook events, their processing attempts, effects, and duplicate deliveries, and each
-// subject's latest status.
+// Webhook events with their processing attempts, effects, and duplicate deliveries.
+// It also holds each subject's latest status.
 resource "aws_dynamodb_table" "webhook_events" {
   name = "webhook_events"
   // On-demand capacity absorbs provider bursts without capacity planning.
@@ -7,7 +7,7 @@ resource "aws_dynamodb_table" "webhook_events" {
   hash_key     = "PK"
   range_key    = "SK"
 
-  // Only key attributes of the table and its indexes are declared; DynamoDB is schemaless otherwise.
+  // Only table and index keys are declared; DynamoDB is schemaless otherwise.
   attribute {
     name = "PK"
     type = "S"
@@ -38,7 +38,8 @@ resource "aws_dynamodb_table" "webhook_events" {
     type = "S"
   }
 
-  // Events by receipt time. GSI1PK is sharded per provider so one provider's burst cannot throttle writes.
+  // Events by receipt time.
+  // GSI1PK is sharded per provider so one provider's burst cannot throttle writes.
   global_secondary_index {
     name = "GSI1"
     key_schema {
@@ -50,11 +51,11 @@ resource "aws_dynamodb_table" "webhook_events" {
       key_type       = "RANGE"
     }
     projection_type = "INCLUDE"
-    // Projections leave out the payload so each index entry stays within one write unit.
+    // Projections omit the payload so each index entry fits in one write unit.
     non_key_attributes = ["provider", "event_type", "occurred_at", "subject_type", "subject_id"]
   }
 
-  // Events of one payment or subscription, in the order the provider says they occurred.
+  // Events of one payment or subscription, by when the provider says they occurred.
   global_secondary_index {
     name = "GSI2"
     key_schema {
@@ -69,7 +70,7 @@ resource "aws_dynamodb_table" "webhook_events" {
     non_key_attributes = ["provider", "event_type", "received_at"]
   }
 
-  // Every item of an event shares one expiry, so TTL removes the whole event together.
+  // All items of an event share one expiry, so TTL removes the event as a whole.
   ttl {
     attribute_name = "expires_at"
     enabled        = true
@@ -84,9 +85,8 @@ output "webhook_events_table" {
   }
 }
 
-// The webhook entry point stores received webhook events and records them as enqueued.
-// Conditional writes return the stored item on conflict without a separate read, so no read
-// permission is needed.
+// The webhook entry point stores received events and records them as enqueued.
+// Conditional writes return the conflicting item, so no read permission is needed.
 resource "aws_iam_role_policy" "webhook_events_write" {
   name = "webhook-events-write"
   role = aws_iam_role.webhook_entry_point.id

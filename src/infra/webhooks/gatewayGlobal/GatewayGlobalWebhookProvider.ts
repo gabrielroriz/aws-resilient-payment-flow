@@ -11,8 +11,8 @@ import * as z from "@kernel/utils/zod";
 import { createHmac } from "node:crypto";
 
 // Simulated global card gateway, shaped like Stripe.
-// Events arrive in an envelope with the object they are about under `data.object`, times are Unix
-// seconds, and amounts are integers in the currency's minor unit.
+// Events carry their object under `data.object` and times in Unix seconds.
+// Amounts are integers in the currency's minor unit.
 // Each webhook is signed with HMAC-SHA256 over its timestamp and body.
 @Injectable(Clock, AppConfig, Logger)
 export class GatewayGlobalWebhookProvider implements WebhookProvider<GatewayGlobalWebhookProvider.StatusEventType> {
@@ -28,7 +28,7 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider<GatewayGlob
     };
 
   private static readonly SIGNATURE_HEADER = "gateway-global-signature";
-  // A signature older than this is rejected, so a captured webhook cannot be replayed later.
+  // Older signatures are rejected, so a captured webhook cannot be replayed later.
   private static readonly TOLERANCE_SECONDS = 5 * 60;
 
   constructor(
@@ -38,7 +38,7 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider<GatewayGlob
   ) {}
 
   async authenticate({ rawBody, headers }: WebhookProvider.Request): Promise<boolean> {
-    // A missing secret fails the request with a 5xx, so the gateway retries until it is configured.
+    // A missing secret fails with a 5xx, so the gateway retries until it is set.
     const { signingSecret } = this.config.webhooks.gatewayGlobal;
     const signature = parseSignature(
       headerValue(headers, GatewayGlobalWebhookProvider.SIGNATURE_HEADER),
@@ -55,7 +55,7 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider<GatewayGlob
     const expected = createHmac("sha256", signingSecret)
       .update(`${signature.timestamp}.${rawBody}`)
       .digest("hex");
-    // While the gateway rotates its secret, it sends one signature per active secret.
+    // During secret rotation, the gateway sends one signature per active secret.
     return signature.signatures.some((candidate) => constantTimeEqual(candidate, expected));
   }
 
@@ -78,7 +78,7 @@ export class GatewayGlobalWebhookProvider implements WebhookProvider<GatewayGlob
   }
 
   async process(event: WebhookEventRepository.Event): Promise<void> {
-    // Receipt already authenticated the stored event; processing needs no signing credentials.
+    // Receipt already authenticated the event; processing needs no credentials.
     this.logger.info("webhook_routed", {
       provider: this.name,
       providerEventId: event.providerEventId,
@@ -112,17 +112,17 @@ function parseSignature(
   return { timestamp: Number(timestamp), signatures };
 }
 
-// Objects that reverse a payment, such as a refund, and name it in their `payment` field.
+// Objects that reverse a payment and name it in their `payment` field.
 const REVERSALS = ["refund", "chargeback"];
 
-// The object an event is about, such as a payment, refund, chargeback, or subscription.
+// The object an event is about, such as a payment, refund, or subscription.
 const eventObjectSchema = z
   .object({
     object: z.string().check(z.minLength(1)),
     id: z.string().check(z.minLength(1)),
     // The payment a refund or chargeback reverses.
     payment: z.optional(z.string().check(z.minLength(1))),
-    // The subscription a payment bills; refunds and chargebacks name only their payment.
+    // The subscription a payment bills; reversals name only their payment.
     subscription: z.optional(z.string().check(z.minLength(1))),
   })
   .check(
@@ -133,7 +133,7 @@ const eventObjectSchema = z
     }),
   );
 
-// The fields of a gatewayGlobal event that receipt reads; the body is stored exactly as received.
+// The event fields receipt reads; the body is stored exactly as received.
 const eventSchema = z.object({
   id: z.string().check(z.minLength(1)),
   // Such as `payment.succeeded` or `refund.created`.
@@ -143,8 +143,8 @@ const eventSchema = z.object({
   data: z.object({ object: eventObjectSchema }),
 });
 
-// Payments and subscriptions are subjects themselves, and reversals affect the payment they
-// reverse; other objects affect no subject.
+// Payments and subscriptions are subjects; reversals affect their payment.
+// Other objects affect no subject.
 function subjectOf(object: z.output<typeof eventObjectSchema>): WebhookProvider.Event["subject"] {
   if (object.object === "payment" || object.object === "subscription") {
     return { type: object.object, id: object.id };

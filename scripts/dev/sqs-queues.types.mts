@@ -5,11 +5,12 @@ export type LocalQueue = {
   name: string;
   // Attributes the queue is created with, apart from its redrive policy.
   attributes: Partial<Record<QueueAttributeName, string>>;
-  // Where messages go after too many receives, naming the dead-letter queue by its queue name.
+  // The dead-letter queue, by name, for messages received too many times.
   deadLetter?: { queueName: string; maxReceiveCount: number };
 };
 
-// Planned values of an aws_sqs_queue resource. Values known only after apply are missing.
+// Planned values of an aws_sqs_queue resource.
+// Values known only after apply are missing.
 export type QueueValues = {
   name: string;
   fifo_queue: boolean;

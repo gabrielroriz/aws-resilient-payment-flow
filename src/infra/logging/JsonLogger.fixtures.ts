@@ -1,6 +1,7 @@
 import { vi } from "vitest";
 
-// Test helpers for code that logs through `JsonLogger`. Never imported by Lambda entries.
+// Test helpers for code that logs through `JsonLogger`.
+// Lambda entries never import them.
 
 export type LogEntry = Record<string, unknown>;
 

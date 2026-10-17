@@ -9,9 +9,10 @@ import { parseJson } from "@kernel/utils/json";
 import * as z from "@kernel/utils/zod";
 
 // Simulated Brazilian gateway, shaped like Asaas.
-// Events are flat, with the payment or subscription they affect at the top level, upper-case event
-// names, Brasília local times without an offset, and amounts in decimal reais without a currency
-// field. Each webhook carries a static access token instead of a signature.
+// Events are flat, with the payment or subscription they affect at the top level.
+// Event names are upper case and times are Brasília local time without an offset.
+// Amounts are decimal reais without a currency field.
+// Each webhook carries a static access token instead of a signature.
 @Injectable(AppConfig, Logger)
 export class GatewayBrazilWebhookProvider implements WebhookProvider<GatewayBrazilWebhookProvider.StatusEventType> {
   readonly name = "gatewayBrazil";
@@ -19,10 +20,10 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider<GatewayBraz
   readonly paymentStatuses: WebhookProvider.PaymentStatuses<GatewayBrazilWebhookProvider.StatusEventType> =
     {
       PAYMENT_CREATED: "pending",
-      // A boleto or PIX charge that passed its due date unpaid; it can still be paid later.
+      // A boleto or PIX charge unpaid by its due date; it can still be paid later.
       PAYMENT_OVERDUE: "overdue",
       PAYMENT_CREDIT_CARD_CAPTURE_REFUSED: "failed",
-      // A confirmed card payment is paid, even though its funds are not available yet.
+      // A confirmed card payment is paid, though its funds are not available yet.
       PAYMENT_CONFIRMED: "succeeded",
       PAYMENT_RECEIVED: "succeeded",
       PAYMENT_REFUNDED: "refunded",
@@ -37,7 +38,7 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider<GatewayBraz
   ) {}
 
   async authenticate({ headers }: WebhookProvider.Request): Promise<boolean> {
-    // A missing token fails the request with a 5xx, so the gateway retries until it is configured.
+    // An unset token fails with a 5xx, so the gateway retries until it is set.
     const { accessToken } = this.config.webhooks.gatewayBrazil;
     const token = headerValue(headers, GatewayBrazilWebhookProvider.TOKEN_HEADER);
     return token !== undefined && constantTimeEqual(token, accessToken);
@@ -63,7 +64,7 @@ export class GatewayBrazilWebhookProvider implements WebhookProvider<GatewayBraz
   }
 
   async process(event: WebhookEventRepository.Event): Promise<void> {
-    // Routing is observable without logging payment payloads or claiming business effects occurred.
+    // Routing is observable without logging payloads or claiming business effects.
     this.logger.info("webhook_routed", {
       provider: this.name,
       providerEventId: event.providerEventId,
@@ -85,7 +86,7 @@ export namespace GatewayBrazilWebhookProvider {
 }
 
 // A `YYYY-MM-DD HH:mm:ss` Brasília time, read as the moment it names.
-// Brasília has stayed at UTC-3 all year since Brazil abolished daylight saving time in 2019.
+// Brasília has kept UTC-3 all year since Brazil ended daylight saving time in 2019.
 const brasiliaTime = z.pipe(
   z.pipe(
     z.string().check(z.regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)),
@@ -95,7 +96,8 @@ const brasiliaTime = z.pipe(
   z.date(),
 );
 
-// The fields of a gatewayBrazil event that receipt reads; the body is stored exactly as received.
+// The fields of a gatewayBrazil event that receipt reads.
+// The body is stored exactly as received.
 const eventSchema = z.object({
   id: z.string().check(z.minLength(1)),
   // Such as `PAYMENT_RECEIVED` or `PAYMENT_REFUNDED`.
@@ -104,7 +106,7 @@ const eventSchema = z.object({
   payment: z.optional(
     z.object({
       id: z.string().check(z.minLength(1)),
-      // The subscription the payment bills, on every charge of one, its reversals included.
+      // The subscription the payment bills, named on charges and their reversals.
       subscription: z.optional(z.string().check(z.minLength(1))),
     }),
   ),

@@ -7,8 +7,8 @@ type Instances<TDependencies extends readonly Registry.Token[]> = {
 // Registers a class with the DI registry.
 //
 // List the constructor dependencies in order.
-// esbuild cannot emit decorator metadata, so the list replaces it, and TypeScript rejects a list
-// that does not match the constructor's parameters.
+// esbuild cannot emit decorator metadata, so the list replaces it.
+// TypeScript rejects a list that does not match the constructor's parameters.
 export function Injectable<const TDependencies extends readonly Registry.Token[]>(
   ...dependencies: TDependencies
 ) {

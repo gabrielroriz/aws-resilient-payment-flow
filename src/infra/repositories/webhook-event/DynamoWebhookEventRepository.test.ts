@@ -34,7 +34,7 @@ function setup() {
   return { dynamo, repository: new DynamoWebhookEventRepository(dynamo, new AppConfig()) };
 }
 
-// The item that create writes for `event`, standing in for what DynamoDB would return.
+// The item create writes for `event`, standing in for what DynamoDB would return.
 async function storedEventItem() {
   const { dynamo, repository } = setup();
   const putIfAbsent = vi.spyOn(dynamo, "putIfAbsent").mockResolvedValue({ created: true });
@@ -414,7 +414,7 @@ test("listBySubject queries GSI2 for the subject and returns its events", async 
     subject: { type: "payment", id: "pi_1" },
   });
 
-  // GSI2 projects neither the payload, the subscription, nor how the event was handled.
+  // GSI2 projects neither the payload, the subscription, nor the event's handling.
   const { payload, status, subscriptionId, processingStatus, outdated, ...summary } = event;
   expect(events).toEqual([summary]);
   expect(queryAll.mock.calls[0][0]).toEqual({

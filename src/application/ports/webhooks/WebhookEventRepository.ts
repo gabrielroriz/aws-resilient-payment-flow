@@ -1,9 +1,10 @@
-// Driven port for received webhook events: detects repeated deliveries, keeps each event's
-// processing history for tracing and reprocessing, and tracks each subject's latest status.
+// Driven port for received webhook events, detecting repeated deliveries.
+// Keeps each event's processing history for tracing and reprocessing.
+// Tracks each subject's latest status.
 export abstract class WebhookEventRepository {
   // Stores a newly received event once, as `received`.
-  // When an event with the same identity already exists, nothing is written and the stored event is
-  // returned instead, marking a duplicate delivery.
+  // If an event with the same identity exists, nothing is written.
+  // The stored event is returned instead, marking a duplicate delivery.
   abstract create(
     event: WebhookEventRepository.NewEvent,
   ): Promise<WebhookEventRepository.CreateResult>;
@@ -13,7 +14,7 @@ export abstract class WebhookEventRepository {
   ): Promise<WebhookEventRepository.Event | undefined>;
 
   // Records that the event is on the processing queue.
-  // Only a `received` event moves to `enqueued`, so a processing status never moves back.
+  // Only a `received` event moves to `enqueued`, so the status never moves back.
   abstract recordEnqueued(id: WebhookEventRepository.EventId): Promise<void>;
 
   // Records another delivery of an event that `create` reported as already stored.
@@ -22,18 +23,19 @@ export abstract class WebhookEventRepository {
     delivery: WebhookEventRepository.Delivery,
   ): Promise<void>;
 
-  // Flags the event as outdated after `recordStatus` reports that another event outranks it.
+  // Flags the event as outdated after `recordStatus` reports it is outranked.
   abstract recordOutdated(id: WebhookEventRepository.EventId): Promise<void>;
 
-  // Records the event's status as its subject's latest unless another event outranks it: higher
-  // `precedence` wins, then later occurrence, then greater ID, so arrival order never matters.
+  // Records the status as its subject's latest unless another event outranks it.
+  // Higher `precedence` wins, then later occurrence, then greater ID.
+  // Arrival order therefore never matters.
   // Recording the same event again changes nothing.
   abstract recordStatus(
     event: WebhookEventRepository.StatusEvent,
     precedence: number,
   ): Promise<WebhookEventRepository.RecordStatusResult>;
 
-  // Returns the event with its processing attempts, business effects, and duplicate deliveries.
+  // Returns the event with its attempts, business effects, and duplicate deliveries.
   abstract getTrace(
     id: WebhookEventRepository.EventId,
   ): Promise<WebhookEventRepository.Trace | undefined>;
@@ -43,7 +45,7 @@ export abstract class WebhookEventRepository {
     query: WebhookEventRepository.ReceivedQuery,
   ): Promise<WebhookEventRepository.Summary[]>;
 
-  // Lists the events of one business subject in the order the provider says they occurred.
+  // Lists a business subject's events by when the provider says they occurred.
   abstract listBySubject(
     query: WebhookEventRepository.SubjectQuery,
   ): Promise<WebhookEventRepository.Summary[]>;
@@ -66,7 +68,7 @@ export namespace WebhookEventRepository {
   export type SubjectStatus =
     "pending" | "overdue" | "failed" | "succeeded" | "refunded" | "charged_back";
 
-  // How far the platform has handled the event, unlike `SubjectStatus`, which the event reports.
+  // How far the platform has handled the event, unlike the reported `SubjectStatus`.
   // `received`: stored at receipt, but not yet dispatched to the processing queue.
   // `enqueued`: dispatched to the processing queue.
   export type ProcessingStatus = "received" | "enqueued";
@@ -80,15 +82,15 @@ export namespace WebhookEventRepository {
     receivedAt: Date;
     // Absent when the event affects no payment or subscription.
     subject?: Subject;
-    // The subscription the payment bills, when the provider names it; processing derives a
-    // subscription's status from its payments instead of ranking subscription events.
+    // The subscription the payment bills, when the provider names it.
+    // A subscription's status comes from its payments, not from ranking its events.
     subscriptionId?: string;
     // Absent when the event reports no status the business rules use.
     status?: SubjectStatus;
     // Request body exactly as received, kept for audit and reprocessing.
     payload: string;
     processingStatus: ProcessingStatus;
-    // True when the event arrived after another event of its subject that outranks it.
+    // True when the event arrived after an event of its subject that outranks it.
     outdated: boolean;
   };
 
@@ -98,14 +100,14 @@ export namespace WebhookEventRepository {
   // An event that reports its subject's status.
   export type StatusEvent = Event & { subject: Subject; status: SubjectStatus };
 
-  // `event` is the stored event: the new one when created, the earlier one otherwise.
+  // `event` is the stored event: the new one when created, else the earlier one.
   export type CreateResult = {
     created: boolean;
     event: Event;
   };
 
   export type RecordStatusResult = {
-    // True when another event of the subject outranks this one, so it must not change the status.
+    // True when another event outranks this one, so it must not change the status.
     outdated: boolean;
   };
 
@@ -121,7 +123,7 @@ export namespace WebhookEventRepository {
     outcome: "succeeded" | "failed";
     // Stable machine-readable error code, present when the attempt failed.
     errorCode?: string;
-    // Code version that ran the attempt, used to select events for reprocessing after a defect.
+    // Code version that ran the attempt, to find events to reprocess after a defect.
     handlerVersion: string;
     traceId?: string;
   };
@@ -129,7 +131,7 @@ export namespace WebhookEventRepository {
   export type Effect = {
     effect: string;
     status: "completed" | "failed";
-    // Idempotency key of the business write, linking the effect to the record it changed.
+    // Business write's idempotency key, linking the effect to the record it changed.
     businessKey: string;
     updatedAt: Date;
   };
@@ -141,8 +143,8 @@ export namespace WebhookEventRepository {
     deliveries: Delivery[];
   };
 
-  // A listed event: indexes omit the payload, subscription, and how the event was handled, which
-  // `get` returns.
+  // A listed event: indexes omit the payload, subscription, and how it was handled.
+  // `get` returns them.
   export type Summary = Omit<
     Event,
     "payload" | "status" | "subscriptionId" | "processingStatus" | "outdated"

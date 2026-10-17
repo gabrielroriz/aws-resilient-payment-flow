@@ -1,8 +1,8 @@
 import { Injectable } from "@kernel/decorators/injectable";
 import { test } from "vitest";
 
-// The decorator's dependency list replaces runtime metadata, so a list that does not match the
-// constructor must fail type checking. Unused @ts-expect-error directives fail it too.
+// Dependency lists replace runtime metadata, so a mismatch must fail type checking.
+// Unused @ts-expect-error directives fail it too.
 test("the type checker rejects dependency lists that do not match the constructor", () => {
   abstract class A {
     abstract a(): void;

@@ -19,7 +19,7 @@ const body = JSON.stringify({
   data: { object: { object: "payment", id: "pay_1", amount: 1990, currency: "usd" } },
 });
 
-// The webhooks configuration holds every provider's credentials and is validated as a whole.
+// Webhook configuration is validated whole, so every provider needs credentials.
 beforeEach(() => {
   vi.stubEnv("GATEWAY_GLOBAL_SIGNING_SECRET", SECRET);
   vi.stubEnv("GATEWAY_BRAZIL_ACCESS_TOKEN", "unused-access-token");

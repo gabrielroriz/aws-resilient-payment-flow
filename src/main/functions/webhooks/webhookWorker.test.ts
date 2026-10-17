@@ -8,7 +8,7 @@ import { handler } from "@main/functions/webhooks/webhookWorker";
 import { gzipSync } from "node:zlib";
 import { beforeEach, expect, test, vi } from "vitest";
 
-// A name unlike the deployed one shows that the worker reads the table from configuration.
+// A name unlike the deployed one proves the table comes from configuration.
 const tableName = "configured_events";
 
 beforeEach(() => {
@@ -52,7 +52,7 @@ test.each([
     expect(authenticate).not.toHaveBeenCalled();
     expect(parse).not.toHaveBeenCalled();
     expect(credentials).not.toHaveBeenCalled();
-    // The gateway's entry carries the queue message it came from, and never the payload.
+    // The gateway's entry carries its source queue message, and never the payload.
     expect(logs()).toEqual([
       {
         timestamp: expect.any(String),

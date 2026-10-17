@@ -7,10 +7,10 @@ import * as z from "@kernel/utils/zod";
 // Whitespace alone cannot name a provider or an event.
 const identifier = z.string().check(z.regex(/\S/, "Must not be blank"));
 
-// The identity of a stored event, as receipt queues it; the payload itself stays in storage.
+// The identity of a stored event, as receipt queues it; the payload stays stored.
 const messageSchema = z.object({ provider: identifier, providerEventId: identifier });
 
-// Receives queued event identities from every provider and routes each to its gateway adapter.
+// Receives queued event identities and routes each to its gateway adapter.
 @Injectable(WebhookProviderRegistry)
 @Schema(messageSchema)
 export class WebhookWorkerController implements MessageHandler {

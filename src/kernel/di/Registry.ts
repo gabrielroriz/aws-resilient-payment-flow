@@ -1,10 +1,9 @@
 // Process-wide dependency container.
 //
-// `@Injectable` registers each class with its constructor dependencies, a function's
-// composition root binds ports to infrastructure adapters, and `resolve` builds the
-// graph.
-// Instances are cached, so each Lambda execution environment builds every object once and shares it
-// across invocations.
+// `@Injectable` registers each class with its constructor dependencies.
+// A function's composition root binds ports to infrastructure adapters.
+// `resolve` then builds the graph.
+// Instances are cached, so each Lambda environment reuses them across invocations.
 export class Registry {
   private static instance: Registry | undefined;
 
@@ -19,7 +18,7 @@ export class Registry {
   private readonly instances = new Map<Registry.Token, unknown>();
 
   register(implementation: Registry.Implementation, dependencies: readonly Registry.Token[]): void {
-    // A dependency that is undefined at decoration time usually means a circular import.
+    // A dependency undefined at decoration time usually means a circular import.
     const missing = dependencies.findIndex((dependency) => !dependency);
     if (missing !== -1) {
       throw new Error(
@@ -30,7 +29,8 @@ export class Registry {
     this.providers.set(implementation, { implementation, dependencies });
   }
 
-  // Point a port at the adapter that implements it. Bind before resolving dependents.
+  // Point a port at the adapter that implements it.
+  // Bind before resolving dependents.
   bind<T>(port: Registry.Token<T>, adapter: Registry.Implementation<T>): void {
     this.bindings.set(port, adapter);
   }
@@ -61,7 +61,7 @@ export class Registry {
 
 export namespace Registry {
   // A class usable as a DI token.
-  // Ports are abstract classes rather than interfaces because tokens must exist at runtime.
+  // Ports are abstract classes, not interfaces, since tokens must exist at runtime.
   export type Token<T = unknown> = abstract new (...args: any[]) => T;
 
   // A concrete class the registry can instantiate.

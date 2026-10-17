@@ -4,7 +4,7 @@ import { ErrorCode } from "../../enums/ErrorCode";
 import { ErrorKind } from "../../enums/ErrorKind";
 import { ApplicationError } from "../ApplicationError";
 
-// The queued identity has no stored event, so processing cannot safely acknowledge it.
+// The queued identity has no stored event, so it cannot be safely acknowledged.
 export class ErrorWebhookEventNotFound extends ApplicationError {
   constructor({ provider, providerEventId }: WebhookEventRepository.EventId) {
     super(`Stored webhook event not found: ${provider}/${providerEventId}`, {

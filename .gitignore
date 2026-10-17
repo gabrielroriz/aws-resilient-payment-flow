@@ -1,35 +1,35 @@
-# Downloaded providers and modules
+# Downloaded providers and modules.
 **/.terraform/*
 
-# State files can contain secrets
+# State files can contain secrets.
 *.tfstate
 *.tfstate.*
 
-# Local variable values can contain secrets
+# Local variable values can contain secrets.
 *.tfvars
 *.tfvars.json
-# Local-only secrets npm run dev uses, safe to share
+# Local-only secrets npm run dev uses, safe to share.
 !terraform/secrets.local.tfvars
 
-# Saved plans (use these extensions when saving plans)
+# Saved plans (use these extensions when saving plans).
 *.tfplan
 *.tfplan.*
 
-# Crash logs
+# Crash logs.
 crash.log
 crash.*.log
 
-# Local CLI configuration
+# Local CLI configuration.
 .terraformrc
 terraform.rc
 
-# Node.js dependencies and Lambda build output
+# Node.js dependencies and Lambda build output.
 node_modules/
 /dist/
 
-# Local Lambda invocation output
+# Local Lambda invocation output.
 /response.json
 
-# SAM's generated Terraform metadata and extracted local artifacts
+# SAM's generated Terraform metadata and extracted local artifacts.
 **/.aws-sam/
 **/.aws-sam-iacs/

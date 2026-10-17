@@ -8,7 +8,7 @@ import { handler } from "@main/functions/webhooks/webhookEntryPoint";
 import { gunzipSync } from "node:zlib";
 import { expect, test, vi } from "vitest";
 
-// Stands in for a gateway adapter: it accepts requests that carry the expected signature header.
+// A stand-in gateway adapter accepting requests with the expected signature header.
 const simulated: WebhookProvider = {
   name: "simulated",
   paymentStatuses: {},
@@ -37,7 +37,7 @@ function webhookTo(provider: string) {
 }
 
 test("the webhook function stores and dispatches an event from the provider named in the URL", async () => {
-  // A name unlike the deployed one shows that the function reads the table from configuration.
+  // A name unlike the deployed one shows the table name comes from configuration.
   vi.stubEnv("WEBHOOK_EVENTS_TABLE_NAME", "configured_events");
   vi.spyOn(InMemoryWebhookProviderRegistry.prototype, "find").mockImplementation((name) =>
     name === simulated.name ? simulated : undefined,
@@ -57,7 +57,7 @@ test("the webhook function stores and dispatches an event from the provider name
   const [table, item] = putIfAbsent.mock.calls[0];
   expect(table).toBe("configured_events");
   expect(item).toMatchObject({ PK: "simulated#evt_1", event_type: "payment.succeeded" });
-  // The request body reaches storage byte for byte, as signature checks and reprocessing need.
+  // The body is stored byte for byte, as signature checks and reprocessing need.
   expect(gunzipSync(item.payload as Uint8Array).toString("utf8")).toBe(body);
   expect(dispatch).toHaveBeenCalledWith(
     expect.objectContaining({ provider: "simulated", providerEventId: "evt_1" }),

@@ -1,23 +1,23 @@
 # Local stand-ins for AWS services, started by npm run dev.
-# Lambdas that SAM runs join this Compose network, so they reach each service by its name; host
-# tools use the published ports.
+# Lambdas that SAM runs join this network, so they reach each service by its name.
+# Host tools use the published ports.
 name: aws-resilient-payment-flow
 
 services:
   # Starts without tables; npm run dev creates the ones Terraform defines.
   dynamodb:
     image: amazon/dynamodb-local:3.3.1
-    # One database for every access key and region, so the Lambdas, setup scripts, and the admin UI
-    # see the same tables. It lives in a volume, so data survives container restarts.
+    # One database for every access key and region, so all clients share the tables.
+    # It lives in a volume, so data survives container restarts.
     command: -jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data
-    # A new named volume is owned by root, which the image's default user cannot write to.
+    # The image's default user cannot write to a new named volume, which root owns.
     user: root
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
       - dynamodb-data:/home/dynamodblocal/data
     healthcheck:
-      # Any HTTP response, even the error for this unsigned request, means the server accepts requests.
+      # Any reply, even an error for this unsigned request, means the server is up.
       test: ["CMD-SHELL", "curl -s -o /dev/null http://localhost:8000"]
       interval: 2s
       timeout: 2s
@@ -37,11 +37,12 @@ services:
       dynamodb:
         condition: service_healthy
 
-  # SQS-compatible queues. Starts without queues; npm run dev creates the ones Terraform defines.
+  # SQS-compatible queues.
+  # Starts without queues; npm run dev creates the ones Terraform defines.
   sqs:
     image: softwaremill/elasticmq-native:1.7.1
-    # Queue URLs take the host of each request, so the Lambdas get URLs with this service's name and
-    # host tools get localhost URLs. Queues and messages live in memory and end with the container.
+    # Queue URLs take each request's host, so they work for Lambdas and host tools.
+    # Queues and messages live in memory and end with the container.
     command: -Dnode-address.host=*
     ports:
       - "127.0.0.1:9324:9324"
@@ -52,7 +53,7 @@ services:
       retries: 15
 
   # Web UI for browsing queues and sending, receiving, and deleting their messages.
-  # It receives messages only on request, so browsing never counts toward a queue's redrive limit.
+  # It receives only on request, so browsing never counts toward redrive limits.
   sqs-admin:
     image: softwaremill/elasticmq-ui:1.7.1
     environment:

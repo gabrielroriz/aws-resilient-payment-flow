@@ -15,8 +15,8 @@ function newDispatcher() {
   return new SqsWebhookEventDispatcher(new AppConfig());
 }
 
-// Replaces the SDK call, answering the queue lookup with `queueUrl`, so tests check the commands
-// sent without reaching AWS. The SDK's send is overloaded; tests only use its promise form.
+// Stubs the SDK call so tests never reach AWS, answering the lookup with `queueUrl`.
+// The SDK's send is overloaded; tests only use its promise form.
 function stubSend(dispatcher: SqsWebhookEventDispatcher) {
   const send = vi.spyOn(dispatcher.sqs, "send") as unknown as MockInstance<
     (command: GetQueueUrlCommand | SendMessageCommand) => Promise<unknown>
@@ -80,7 +80,7 @@ test("dispatch gives an event the same deduplication ID every time, distinct fro
 
   await dispatcher.dispatch({ provider: "gatewayGlobal", providerEventId: "evt_1" });
   await dispatcher.dispatch({ provider: "gatewayGlobal", providerEventId: "evt_1" });
-  // Providers reuse each other's event IDs, which must not make SQS drop the other event.
+  // Providers can share event IDs, which must not make SQS drop the other event.
   await dispatcher.dispatch({ provider: "gatewayBrazil", providerEventId: "evt_1" });
 
   const [first, repeated, otherProvider] = sentMessages(send).map(

@@ -44,7 +44,7 @@ export const sameSecond: Scenario = {
 };
 
 // A payment and its refund in the same second.
-// The payment's ID sorts after the refund's, so only precedence can rank the refund higher.
+// The payment's ID sorts last, so only precedence can rank the refund higher.
 function sameSecondPair(
   events: EventFactory,
   occurredAt: Date,

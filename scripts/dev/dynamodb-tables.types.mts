@@ -8,7 +8,7 @@ import type {
   ScalarAttributeType,
 } from '@aws-sdk/client-dynamodb';
 
-// A table as DynamoDB Local should have it: the request that creates it and its TTL attribute.
+// A table as DynamoDB Local should have it: its create request and TTL attribute.
 export type LocalTable = { input: CreateTableCommandInput; ttlAttribute?: string };
 
 // Planned values of an aws_dynamodb_table resource.
@@ -31,7 +31,7 @@ export type IndexValues = {
   non_key_attributes?: string[] | null;
 };
 
-// Fields shared by table requests and table descriptions, which are compared with each other.
+// Fields shared by table requests and descriptions, so the two can be compared.
 export type IndexDefinition = {
   IndexName?: string;
   KeySchema?: KeySchemaElement[];

@@ -8,7 +8,7 @@ import type {
 // The gateway a delivery came from, and the ID of the event it carried, if any.
 export type Delivery = { gateway: GatewayName; eventId?: string };
 
-// The API's reply, with a JSON body parsed and any other kept as text, or none before the timeout.
+// The API's reply, its body parsed if JSON, or none before the timeout.
 export type Outcome = Delivery & ({ status: number; body: unknown } | { timedOut: true });
 
 export type DeliveryOptions = {
@@ -26,7 +26,7 @@ export type WebhookApi = {
     event: SimulatedEvent,
     options?: DeliveryOptions,
   ): Promise<Outcome>;
-  // Sends a body that is not one of the gateway's events, authenticated as the gateway.
+  // Sends an arbitrary body instead of an event, authenticated as the gateway.
   deliverBody(gateway: SimulatedGateway, body: string, options?: DeliveryOptions): Promise<Outcome>;
 };
 

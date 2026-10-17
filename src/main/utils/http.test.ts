@@ -45,7 +45,7 @@ test("parseHttpBody rejects malformed JSON with a ErrorHttpBadRequest", () => {
 
   expect(() => parseHttpBody("{not json")).toThrow(badRequest);
   expect(() => parseHttpBody('{"amount":')).toThrow(badRequest);
-  // Whitespace is not an empty body, so it is parsed and rejected like any other invalid JSON.
+  // Whitespace is not an empty body, so it is rejected like other invalid JSON.
   expect(() => parseHttpBody("   ")).toThrow(badRequest);
 });
 

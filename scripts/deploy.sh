@@ -13,7 +13,7 @@ for command in node npm zip terraform; do
   fi
 done
 
-# Isolate dependencies and build output; clean up the workspace even if deployment fails.
+# Isolate dependencies and build output; clean up even if deployment fails.
 BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/lambda-deploy.XXXXXXXX")"
 trap 'rm -rf -- "$BUILD_DIR"' EXIT
 
@@ -30,26 +30,26 @@ cp -R "$PROJECT_ROOT/build" "$BUILD_DIR/build"
 
 (
   cd "$BUILD_DIR"
-  # Build tools are development dependencies and must be installed even in production environments.
+  # Build tools are development dependencies, so install them even in production.
   npm ci --include=dev
   npm run build
-  # Retain one archive per function outside the temporary workspace for Terraform to upload.
+  # Keep one archive per function outside the workspace for Terraform to upload.
   mkdir -p "$PROJECT_ROOT/dist"
   for bundle in dist/bundles/*; do
     name="${bundle##*/}"
     archive="$PROJECT_ROOT/dist/${name}_$VERSION.zip"
-    # Match Terraform's index.handler entry point; imported dependencies are already bundled,
-    # except the AWS SDK, which the Lambda runtime provides.
+    # Match Terraform's index.handler entry point; dependencies are already bundled.
+    # Only the AWS SDK is left out, since the Lambda runtime provides it.
     (cd "$bundle" && zip -q "$archive" index.js)
     printf 'Packaged %s: %s\n' "$name" "$archive"
   done
 )
 
-# Prepare the backend and providers, then point every function at this release's archive.
+# Prepare the backend and providers, then point every function at the new archives.
 terraform -chdir="$PROJECT_ROOT/terraform" init -input=false
 terraform -chdir="$PROJECT_ROOT/terraform" plan -input=false \
   -var="lambdasVersion=$VERSION" -out="$PLAN"
-# Apply the exact saved plan automatically, including any other infrastructure changes it contains.
+# Apply the exact saved plan unprompted, including any other infrastructure changes.
 terraform -chdir="$PROJECT_ROOT/terraform" apply -input=false "$PLAN"
 
 printf 'Deployed all registered Lambdas with version %s\nArchives: %s/dist/\n' "$VERSION" "$PROJECT_ROOT"

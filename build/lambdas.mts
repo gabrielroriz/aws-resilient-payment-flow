@@ -1,14 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-// The build settings of one function in lambdas.json; Terraform reads its other fields.
+// The build settings of one registered function; Terraform reads its other fields.
 export type LambdaConfig = { entry: string };
 
 // Registered functions keyed by their AWS function name.
 export type LambdaRegistry = Record<string, LambdaConfig>;
 
 export async function extractAndValidateLambdas(root: string): Promise<LambdaRegistry> {
-  // Terraform reads this same registry, keeping build targets and deployed functions aligned.
+  // Terraform reads the same registry, so build targets match deployed functions.
   const registry: unknown = JSON.parse(await readFile(path.join(root, 'lambdas.json'), 'utf8'));
 
   if (
@@ -20,13 +20,13 @@ export async function extractAndValidateLambdas(root: string): Promise<LambdaReg
     throw new Error('lambdas.json must contain at least one Lambda.');
   }
 
-  // Names become both AWS identities and output folders, so they must be safe for both.
+  // Names become AWS identities and output folders, so they must be safe for both.
   for (const [name, config] of Object.entries(registry)) {
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(name)) {
       throw new Error(`Invalid Lambda name: ${name}`);
     }
-    // Terraform creates HTTP resources only for `http` functions, so a route on a queue worker
-    // would be silently ignored.
+    // Terraform creates HTTP resources only for `http` functions.
+    // A route on a queue worker would be silently ignored.
     if (config?.trigger !== undefined && !['http', 'sqs'].includes(config.trigger)) {
       throw new Error(`Invalid trigger for ${name}: expected http or sqs`);
     }
@@ -36,7 +36,7 @@ export async function extractAndValidateLambdas(root: string): Promise<LambdaReg
     ) {
       throw new Error(`SQS Lambda ${name} must not declare an HTTP route.`);
     }
-    // Catch invalid entry paths here; esbuild checks file availability and imports later.
+    // Catch invalid entry paths here; esbuild later checks the files and imports.
     const entry: unknown = config?.entry;
     if (
       typeof entry !== 'string' ||

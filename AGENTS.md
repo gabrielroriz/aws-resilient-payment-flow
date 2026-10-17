@@ -10,7 +10,7 @@ Add concise, plain-English comments where they help humans and AI understand pur
 
 Write every comment as `//` line comments, including those describing classes, functions, types, and modules. Do not use `/** */` or `/* */` block comments.
 
-When a comment wraps onto several lines, never start a sentence at the end of a line that breaks; break the line right after the previous sentence's period, so the new sentence starts the next line.
+Write each comment line as one complete sentence, ending with its punctuation, within 85 columns including indentation. When a sentence does not fit, shorten it or split it into two sentences; never continue a sentence on the next line. This applies to every comment in the repository, including shell, Terraform, and YAML files.
 
 ## References to files
 

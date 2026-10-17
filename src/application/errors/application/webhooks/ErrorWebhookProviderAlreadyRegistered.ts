@@ -3,7 +3,7 @@ import { ErrorCode } from "../../enums/ErrorCode";
 import { ErrorKind } from "../../enums/ErrorKind";
 import { ApplicationError } from "../ApplicationError";
 
-// Conflicting registrations would silently route a gateway's events to the wrong adapter.
+// A duplicate name would silently route a gateway's events to the wrong adapter.
 export class ErrorWebhookProviderAlreadyRegistered extends ApplicationError {
   constructor(provider: string) {
     super(`Duplicate webhook provider name: ${provider}`, {

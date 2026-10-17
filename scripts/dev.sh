@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Runs HTTP and queue-triggered Lambdas in SAM containers with DynamoDB Local and ElasticMQ.
+# Runs HTTP and queue Lambdas in SAM containers with DynamoDB Local and ElasticMQ.
 set -euo pipefail
 
 PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-# Must match the Compose network, which Lambda containers join to reach the local services.
+# Must match the Compose network that Lambda containers join to reach local services.
 DOCKER_NETWORK=aws-resilient-payment-flow
 
 # Catch missing tools before spending time building.
@@ -27,8 +27,8 @@ fi
 cd "$PROJECT_ROOT"
 npm run build
 
-# Terraform plans need each function's archive to exist; 
-# the "local" version leaves deployment archives untouched.
+# Terraform plans need each function's archive to exist.
+# The "local" version leaves deployment archives untouched.
 for bundle in "$PROJECT_ROOT"/dist/bundles/*; do
   name="${bundle##*/}"
   archive="$PROJECT_ROOT/dist/${name}_local.zip"
@@ -40,7 +40,7 @@ done
 # They outlive this script, so data stays between runs.
 docker compose -f "$PROJECT_ROOT/compose.dev.yaml" up --detach --wait
 
-# The plan can contain secrets, so it and everything made from it are deleted on exit.
+# The plan can hold secrets, so it and everything made from it are deleted on exit.
 WORK_DIR="$(mktemp --directory "${TMPDIR:-/tmp}/lambda-dev.XXXXXXXX")"
 DEV_PIDS=()
 cleanup() {
@@ -52,23 +52,23 @@ cleanup() {
   rm -rf -- "$WORK_DIR"
 }
 trap cleanup EXIT # Cleanup on exit, including Ctrl+C and kill.
-# https://tldp.org/LDP/abs/html/exitcodes.html
+# Exit codes follow https://tldp.org/LDP/abs/html/exitcodes.html.
 # Turn Ctrl+C and kill into exit codes 130 and 143, so the cleanup trap runs.
 trap 'exit 130' INT 
 trap 'exit 143' TERM
 
-# Plan, never apply: the plan only describes what to run, so nothing has to be deployed first.
-# -var-file overrides the auto-loaded deployment secrets, so the local API gets local secrets.
+# Plan, never apply: the plan describes what to run, so no prior deploy is needed.
+# -var-file overrides the auto-loaded deployment secrets with the local ones.
 printf 'Planning Terraform for the local setup; the plan is never applied.\n'
 terraform -chdir="$PROJECT_ROOT/terraform" init -input=false >/dev/null
 terraform -chdir="$PROJECT_ROOT/terraform" plan -input=false -out="$WORK_DIR/local.tfplan" \
   -var="lambdasVersion=local" -var-file=secrets.local.tfvars >/dev/null
 terraform -chdir="$PROJECT_ROOT/terraform" show -json "$WORK_DIR/local.tfplan" >"$WORK_DIR/local.json"
 
-# Create the planned tables and queues locally and generate the SAM template for the planned Lambdas.
+# Create the planned tables and queues locally and build the Lambdas' SAM template.
 node "$PROJECT_ROOT/scripts/dev/prepare.mts" "$WORK_DIR/local.json" "$WORK_DIR/template.json"
 
-# SAM exposes invocation but does not poll ElasticMQ; the local consumer supplies SQS batches.
+# SAM only exposes invocation; a local consumer feeds it SQS batches from ElasticMQ.
 DEV_LAMBDA_PORT="${DEV_LAMBDA_PORT:-3002}"
 sam local start-lambda --template "$WORK_DIR/template.json" --docker-network "$DOCKER_NETWORK" \
   --region us-east-1 --port "$DEV_LAMBDA_PORT" &

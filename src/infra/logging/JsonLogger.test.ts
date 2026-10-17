@@ -18,7 +18,7 @@ test("every level writes one JSON line led by its timestamp, level, and message"
     '{"timestamp":"2026-10-10T10:00:00.000Z","level":"DEBUG","message":"webhook_routed","provider":"gatewayGlobal"}\n',
     '{"timestamp":"2026-10-10T10:00:00.000Z","level":"INFO","message":"webhook_routed"}\n',
     '{"timestamp":"2026-10-10T10:00:00.000Z","level":"WARN","message":"webhook_routed"}\n',
-    // Undefined fields are left out, so optional values need no checks before logging.
+    // Undefined fields are omitted, so optional values need no check before logging.
     '{"timestamp":"2026-10-10T10:00:00.000Z","level":"ERROR","message":"application_error","errorCode":"INTERNAL_SERVER_ERROR"}\n',
   ]);
 });

@@ -1,14 +1,13 @@
 // Stored webhook events waiting to be processed.
-// Each provider's events form one message group, so they are delivered in the order they were
-// received, one batch at a time per provider.
+// Each provider's events form one message group, so they keep their arrival order.
+// Each group is delivered one batch at a time.
 resource "aws_sqs_queue" "webhook_events" {
   name       = "webhook_events.fifo"
   fifo_queue = true
   // Allow Lambda's retries time to finish before a batch becomes visible again.
   visibility_timeout_seconds = 6 * local.lambdas.webhook_worker.timeout
 
-  // A message that keeps failing moves to the dead-letter queue instead of holding back the rest
-  // of its provider's events.
+  // A message that keeps failing is dead-lettered instead of blocking its provider.
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.webhook_events_dlq.arn
     maxReceiveCount     = local.webhook_max_receive_count
@@ -20,7 +19,7 @@ resource "aws_sqs_queue" "webhook_events" {
 resource "aws_sqs_queue" "webhook_events_dlq" {
   name       = "webhook_events_dlq.fifo"
   fifo_queue = true
-  // FIFO redrive resets the enqueue time; keep failed events for the maximum investigation window.
+  // FIFO redrive resets the enqueue time; keep failed events as long as SQS allows.
   message_retention_seconds = 1209600
 }
 
@@ -66,7 +65,7 @@ resource "aws_iam_role_policy" "webhook_events_consume" {
   })
 }
 
-// Names are known before apply, so local polling also works for an undeployed event source.
+// Names are known before apply, so local polling works without a deployed mapping.
 output "local_sqs_consumers" {
   description = "Local consumers derived from the deployed event source configuration"
   value = {
@@ -90,8 +89,7 @@ output "webhook_events_queue" {
   }
 }
 
-// The webhook entry point dispatches each stored event to the queue, which it finds by the name in
-// its environment.
+// The webhook entry point dispatches stored events to the queue it finds by name.
 resource "aws_iam_role_policy" "webhook_events_dispatch" {
   name = "webhook-events-dispatch"
   role = aws_iam_role.webhook_entry_point.id

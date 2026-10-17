@@ -9,21 +9,21 @@ locals {
   }
 }
 
-// HTTP API Gateway for Lambda functions
+// HTTP API Gateway for Lambda functions.
 resource "aws_apigatewayv2_api" "lambdas" {
   name = "aws-resilient-payment-flow"
   // HTTP APIs are cheaper and faster than REST APIs, but have fewer features.
   protocol_type = "HTTP"
 }
 
-// Create a default stage for the API Gateway
+// Create a default stage for the API Gateway.
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.lambdas.id
   name        = "$default"
   auto_deploy = true
 }
 
-// Integrate Lambdas with API Gateway
+// Integrate Lambdas with API Gateway.
 resource "aws_apigatewayv2_integration" "lambda" {
   for_each = local.http_lambdas
 
@@ -46,7 +46,7 @@ resource "aws_apigatewayv2_route" "lambda" {
   target             = "integrations/${aws_apigatewayv2_integration.lambda[each.key].id}"
 }
 
-// Allow API Gateway to invoke the Lambda functions
+// Allow API Gateway to invoke the Lambda functions.
 resource "aws_lambda_permission" "api_gateway" {
   for_each = local.http_lambdas
 

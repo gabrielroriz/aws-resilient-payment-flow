@@ -11,7 +11,7 @@ const gateway = new GatewayBrazilWebhookProvider(
   new JsonLogger(new SystemClock()),
 );
 
-// The webhooks configuration holds every provider's credentials and is validated as a whole.
+// The webhooks configuration validates every provider's credentials together.
 beforeEach(() => {
   vi.stubEnv("GATEWAY_BRAZIL_ACCESS_TOKEN", TOKEN);
   vi.stubEnv("GATEWAY_GLOBAL_SIGNING_SECRET", "unused-signing-secret");

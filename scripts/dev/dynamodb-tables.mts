@@ -20,12 +20,9 @@ import type { SyncResult } from './local-resources.types.mts';
 import { plannedResources } from './terraform-plan.mts';
 import type { TerraformPlan } from './terraform-plan.types.mts';
 
-// Converts every DynamoDB table in a Terraform plan into the request that creates it in DynamoDB
-// Local.
-// Terraform cannot create them itself: its AWS provider calls APIs that DynamoDB Local lacks, such
-// as DescribeContinuousBackups.
-// Only what changes how requests behave is kept; capacity, backups, and encryption mean nothing
-// locally.
+// Converts each planned DynamoDB table into its DynamoDB Local create request.
+// Terraform cannot create them: its AWS provider calls APIs DynamoDB Local lacks.
+// Only settings that change how requests behave are kept.
 export function tablesFromPlan(plan: TerraformPlan): LocalTable[] {
   return plannedResources<TableValues>(plan, 'aws_dynamodb_table').map((resource) =>
     toLocalTable(resource.values),
@@ -33,8 +30,8 @@ export function tablesFromPlan(plan: TerraformPlan): LocalTable[] {
 }
 
 // Makes DynamoDB Local match a table definition.
-// A table whose keys, indexes, or TTL differ is deleted and created again, losing its items: local
-// data is disposable, and a stale table would reject requests that the deployed one accepts.
+// A table whose keys, indexes, or TTL differ is recreated, losing its items.
+// Local data is disposable, and a stale table would reject requests AWS accepts.
 export async function syncTable(client: DynamoDBClient, table: LocalTable): Promise<SyncResult> {
   const TableName = table.input.TableName;
   const current = await currentSchema(client, TableName);
@@ -61,7 +58,7 @@ function toLocalTable(table: TableValues): LocalTable {
   return {
     input: {
       TableName: table.name,
-      // DynamoDB Local ignores capacity, so on-demand mode avoids carrying throughput settings over.
+      // DynamoDB Local ignores capacity, so on-demand mode needs no throughput.
       BillingMode: 'PAY_PER_REQUEST',
       AttributeDefinitions: table.attribute.map(({ name, type }) => ({
         AttributeName: name,
@@ -71,7 +68,7 @@ function toLocalTable(table: TableValues): LocalTable {
       GlobalSecondaryIndexes: nonEmpty(
         table.global_secondary_index?.map((index) => ({
           IndexName: index.name,
-          // Terraform declares index keys either as key_schema blocks or as hash_key and range_key.
+          // Index keys come as key_schema blocks or as hash_key and range_key.
           KeySchema: index.key_schema?.length
             ? index.key_schema.map(({ attribute_name, key_type }) => ({
                 AttributeName: attribute_name,
@@ -113,7 +110,7 @@ function projection(index: IndexValues): Projection {
   };
 }
 
-// DynamoDB rejects empty lists where Terraform reports empty blocks, so they are left out.
+// Drops empty lists, which Terraform reports for empty blocks but DynamoDB rejects.
 function nonEmpty<T>(items: T[] | null | undefined): T[] | undefined {
   return items?.length ? items : undefined;
 }
@@ -139,8 +136,8 @@ async function currentSchema(
   }
 }
 
-// The settings DynamoDB Local enforces, in a canonical form: descriptions list attributes and
-// indexes in any order and carry status fields that requests do not have.
+// The settings DynamoDB Local enforces, in a canonical form.
+// Descriptions list attributes and indexes in any order, plus status fields.
 function schemaOf(table: TableDefinition, ttlAttribute: string | undefined): string {
   const keys = (schema: KeySchemaElement[] = []) =>
     schema.map(({ AttributeName, KeyType }) => [AttributeName, KeyType]);

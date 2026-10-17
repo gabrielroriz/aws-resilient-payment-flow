@@ -41,7 +41,7 @@ export function createChecks(api: WebhookApi): Checks {
   };
 }
 
-// A step that passes when nothing is wrong, printing what was observed and then each problem.
+// A step that passes with no problems, detailing the observation and each problem.
 export function checkOf(
   gateway: string,
   step: string,

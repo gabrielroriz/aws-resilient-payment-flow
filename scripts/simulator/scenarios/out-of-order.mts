@@ -19,7 +19,7 @@ export const outOfOrder: Scenario = {
           duplicate: false,
           outdated: true,
         }),
-        // Delivered again, the latest event stays the latest and the outdated one stays outdated.
+        // Delivered again, each event stays latest or outdated as before.
         checks.reply('refund again', await api.deliver(gateway, refund), {
           status: 200,
           duplicate: true,

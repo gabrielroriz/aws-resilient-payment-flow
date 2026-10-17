@@ -7,12 +7,12 @@ import type {
   WebhookApiOptions,
 } from './api.types.mts';
 
-// Thrown when a delivery cannot reach the API, so the runner can tell it from a broken scenario.
+// Thrown for an unreachable API, so the runner can tell it from a broken scenario.
 export class ApiUnreachableError extends Error {
   name = 'ApiUnreachableError';
 
   constructor(baseUrl: string, cause: unknown) {
-    // fetch reports every network failure as "fetch failed", with the reason in its cause.
+    // A network failure reads "fetch failed"; its cause holds the real reason.
     const reason = cause instanceof Error && cause.cause instanceof Error ? cause.cause : cause;
     super(`could not reach ${baseUrl}: ${reason instanceof Error ? reason.message : reason}`, {
       cause,
@@ -20,7 +20,7 @@ export class ApiUnreachableError extends Error {
   }
 }
 
-// Sends webhooks to the API through the injected `fetch`, as the simulated gateways do.
+// Sends webhooks to the API via the injected `fetch`, as the simulated gateways do.
 export function createWebhookApi({ baseUrl, fetch }: WebhookApiOptions): WebhookApi {
   const url = baseUrl.replace(/\/$/, '');
 
@@ -42,7 +42,7 @@ export function createWebhookApi({ baseUrl, fetch }: WebhookApiOptions): Webhook
       status = response.status;
       text = await response.text();
     } catch (error) {
-      // A timeout is an outcome scenarios check; any other failure means the API is unreachable.
+      // Scenarios check timeouts; any other failure means the API is unreachable.
       if (error instanceof DOMException && error.name === 'TimeoutError') {
         return { ...delivery, timedOut: true };
       }

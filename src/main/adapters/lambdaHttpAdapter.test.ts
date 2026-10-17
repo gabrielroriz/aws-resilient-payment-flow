@@ -24,7 +24,7 @@ class Conflict extends ApplicationError {
   }
 }
 
-// An error the application defines but declares unexpected, such as data a supported provider sent.
+// An application error declared unexpected, such as data a supported provider sent.
 class Unreadable extends ApplicationError {
   constructor() {
     super("Event cannot be read", {
@@ -80,7 +80,7 @@ test("the HTTP adapter maps requests, application errors, and unknown errors to 
     body: { success: false, error: { code: "CONFLICT", message: "Already processed" } },
   });
 
-  // An error the application defines keeps its status and code even when it needs attention.
+  // An application error keeps its status and code even when it needs attention.
   expect(await call({ body: '{"mode":"unreadable"}' })).toEqual({
     statusCode: 400,
     body: { success: false, error: { code: "UNREADABLE", message: "Event cannot be read" } },
@@ -146,7 +146,8 @@ test("the HTTP adapter logs every error with its category, kind, and code", asyn
       errorName: "ErrorHttpBadRequest",
     },
   ]);
-  // Errors the application does not define have no category; the route and function identify them.
+  // Errors the application does not define have no category.
+  // The route and function identify them instead.
   expect(logs[2]).not.toHaveProperty("category");
   // Stacks are logged only for the errors that need investigating.
   expect(logs.map((log) => "errorStack" in log)).toEqual([false, true, true, false]);
@@ -200,7 +201,7 @@ test("the HTTP adapter validates the body against the controller's schema before
   }
   const createPayment = lambdaHttpAdapter(new CreatePaymentController(), logger);
 
-  // Undeclared fields are dropped, so the controller receives only what its schema describes.
+  // Undeclared fields are dropped, so the controller sees only its schema's fields.
   expect(await invokeHttp(createPayment, { body: '{"amount":100,"extra":true}' })).toMatchObject({
     statusCode: 201,
     body: { amount: 100 },

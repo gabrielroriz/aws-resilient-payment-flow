@@ -10,8 +10,8 @@ import { createGateways } from './gateways/gateways.mts';
 import { scenarios } from './scenarios/scenarios.mts';
 
 // Delivers webhooks as the simulated gateways do and checks the API's replies.
-// Runs the named scenarios, or every non-optional one, and exits with an error when any check
-// fails.
+// Runs the named scenarios, or every non-optional one.
+// Exits with an error when any check fails.
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: { url: { type: 'string', default: 'http://localhost:3000' } },
@@ -28,8 +28,8 @@ if (unknown.length) {
   process.exit(1);
 }
 
-// The composition root: the only place that reads the environment, the system clock, and the
-// network. Everything else receives them through the simulation.
+// This composition root alone reads the environment, the clock, and the network.
+// Everything else receives them through the simulation.
 const clock = createClock(() => new Date());
 const api = createWebhookApi({ baseUrl: values.url, fetch });
 const simulation = createSimulation({

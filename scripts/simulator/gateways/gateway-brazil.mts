@@ -1,6 +1,6 @@
 import type { SimulatedEvent, SimulatedGateway } from './gateways.types.mts';
 
-// gatewayBrazil's name for each kind of event, and the status of the payment it is about.
+// gatewayBrazil's name for each kind of event, and the status of its payment.
 const brazilEvents: Record<SimulatedEvent['kind'], { event: string; status: string }> = {
   'payment.created': { event: 'PAYMENT_CREATED', status: 'PENDING' },
   'payment.failed': { event: 'PAYMENT_CREDIT_CARD_CAPTURE_REFUSED', status: 'PENDING' },
@@ -9,7 +9,7 @@ const brazilEvents: Record<SimulatedEvent['kind'], { event: string; status: stri
   'payment.charged_back': { event: 'PAYMENT_CHARGEBACK_REQUESTED', status: 'CHARGEBACK_REQUESTED' },
 };
 
-// Asaas-like: flat event, upper-case names, Brasília local time, decimal reais, static token.
+// Asaas-like: flat, upper-case names, Brasília time, decimal reais, static token.
 export function createGatewayBrazil({ accessToken }: { accessToken: string }): SimulatedGateway {
   return {
     name: 'gatewayBrazil',
@@ -23,7 +23,7 @@ export function createGatewayBrazil({ accessToken }: { accessToken: string }): S
           .toISOString()
           .slice(0, 19)
           .replace('T', ' '),
-        // Card is the one method that can be both refused and charged back, so every event uses it.
+        // Only a card can be both refused and charged back, so every event uses it.
         payment: {
           object: 'payment',
           id: paymentId,

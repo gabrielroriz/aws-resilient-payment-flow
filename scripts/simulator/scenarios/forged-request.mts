@@ -17,7 +17,7 @@ export const forgedRequest: Scenario = {
           }),
         );
       }
-      // Had a rejected delivery been stored, this authentic one would be a duplicate.
+      // If a rejected delivery was stored, this authentic one would be a duplicate.
       results.push(
         checks.reply('authentic delivery after them', await api.deliver(gateway, event), {
           status: 200,

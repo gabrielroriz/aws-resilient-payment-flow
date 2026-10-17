@@ -9,12 +9,12 @@ import type { LambdaRegistry } from './lambdas.mts';
 const project = fileURLToPath(new URL('../', import.meta.url));
 
 async function fixture(files: Record<string, string>, registry: LambdaRegistry): Promise<string> {
-  // Exercise the real build in an isolated project without touching application artifacts.
+  // Run the real build in an isolated project to keep application artifacts intact.
   const root = await mkdtemp(path.join(tmpdir(), 'lambda-build-test-'));
   onTestFinished(() => rm(root, { recursive: true, force: true }));
   await cp(path.join(project, 'build'), path.join(root, 'build'), { recursive: true });
   await mkdir(path.join(root, 'node_modules'));
-  // Reuse the installed build tool while keeping each scenario's dependencies independent.
+  // Reuse the installed build tool but keep each scenario's dependencies separate.
   await symlink(
     path.join(project, 'node_modules/esbuild'),
     path.join(root, 'node_modules/esbuild'),
@@ -29,7 +29,7 @@ async function fixture(files: Record<string, string>, registry: LambdaRegistry):
 }
 
 test('each bundle runs alone with local and npm imports, excluding unrelated code', async () => {
-  // Distinct markers reveal dependency leakage between handlers and from unused files.
+  // Distinct markers reveal code leaking between handlers or from unused files.
   const root = await fixture(
     {
       'src/first.ts': 'import { message } from "./shared"; export const handler = () => message();',
@@ -58,7 +58,7 @@ test('each bundle runs alone with local and npm imports, excluding unrelated cod
     const source = await readFile(path.join(directory, 'index.js'), 'utf8');
     expect(source).not.toContain(excluded);
     expect(source).not.toContain('UNRELATED_FILE_MUST_NOT_BE_BUNDLED');
-    // A fresh process must execute the packaged handler without the original project.
+    // A fresh process must run the packaged handler without the original project.
     expect(
       execFileSync(
         process.execPath,
@@ -73,7 +73,7 @@ test('each bundle runs alone with local and npm imports, excluding unrelated cod
 });
 
 test('AWS SDK imports stay out of the bundle and load from the runtime', async () => {
-  // The fixture project has no AWS SDK installed, so the build must not try to bundle it.
+  // The fixture project lacks the AWS SDK, so the build must not try to bundle it.
   const root = await fixture(
     {
       'src/handler.ts':
@@ -86,7 +86,7 @@ test('AWS SDK imports stay out of the bundle and load from the runtime', async (
 
   const directory = path.join(root, 'dist/bundles/sdk');
   expect(await readdir(directory)).toEqual(['index.js']);
-  // Stand in for the SDK that the Lambda runtime provides, then run the packaged handler against it.
+  // Stand in for the Lambda runtime's SDK, then run the packaged handler against it.
   await mkdir(path.join(root, 'node_modules/@aws-sdk/fixture'), { recursive: true });
   await writeFile(
     path.join(root, 'node_modules/@aws-sdk/fixture/index.js'),
@@ -105,7 +105,7 @@ test('AWS SDK imports stay out of the bundle and load from the runtime', async (
 });
 
 test('a missing dependency stops bundling instead of leaving a broken runtime import', async () => {
-  // Surface missing imports during the build, before an unusable package reaches AWS.
+  // Catch missing imports during the build, before an unusable package reaches AWS.
   const root = await fixture(
     {
       'src/handler.ts':

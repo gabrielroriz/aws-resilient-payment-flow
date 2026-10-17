@@ -11,12 +11,11 @@ import type { LocalQueue, QueueValues } from './sqs-queues.types.mts';
 import { plannedResources } from './terraform-plan.mts';
 import type { TerraformPlan } from './terraform-plan.types.mts';
 
-// Converts every SQS queue in a Terraform plan into the queue to create in the local SQS service,
-// dead-letter queues first so they exist before the queues that use them.
-// Only what changes how requests behave is kept; retention, encryption, and access policies mean
-// nothing locally.
+// Converts each planned SQS queue into the queue to create in the local SQS service.
+// Dead-letter queues come first, so they exist before the queues that use them.
+// Only settings that change how requests behave are kept.
 export function queuesFromPlan(plan: TerraformPlan): LocalQueue[] {
-  // Named targets remain known even when the deployed redrive policy contains an unknown ARN.
+  // Named targets stay known even when the redrive policy holds an unknown ARN.
   const redrive = plan.planned_values?.outputs?.local_sqs_redrive?.value as
     Record<string, LocalQueue['deadLetter']> | undefined;
   const queues = plannedResources<QueueValues>(plan, 'aws_sqs_queue').map(({ values }) => {
@@ -32,12 +31,12 @@ export function queuesFromPlan(plan: TerraformPlan): LocalQueue[] {
 }
 
 // Makes the local SQS service match a queue definition.
-// A queue whose attributes differ is deleted and created again, losing its messages: the local
-// service cannot change most attributes of an existing queue, and local messages are disposable.
+// A queue whose attributes differ is recreated, losing its messages.
+// The local service cannot change most attributes, and its messages are disposable.
 export async function syncQueue(client: SQSClient, queue: LocalQueue): Promise<SyncResult> {
   const attributes = { ...queue.attributes };
   if (queue.deadLetter) {
-    // The planned redrive policy names the deployed dead-letter queue; locally it is the local one.
+    // The plan names the deployed dead-letter queue; locally it is the local one.
     const deadLetterQueue = await currentQueue(client, queue.deadLetter.queueName);
     if (!deadLetterQueue) {
       throw new Error(
@@ -63,12 +62,12 @@ export async function syncQueue(client: SQSClient, queue: LocalQueue): Promise<S
 }
 
 function toLocalQueue(queue: QueueValues): LocalQueue {
-  // Deployed queues can supply their redrive policy directly; undeployed targets use named outputs.
+  // Deployed queues supply their redrive policy; new targets use named outputs.
   const redrive = queue.redrive_policy ? JSON.parse(queue.redrive_policy) : undefined;
   return {
     name: queue.name,
     attributes: {
-      // Deduplication applies to FIFO queues only, which SQS recognizes by their .fifo name.
+      // Deduplication applies only to FIFO queues, whose names end in .fifo.
       ...(queue.fifo_queue && {
         FifoQueue: 'true',
         ContentBasedDeduplication: String(queue.content_based_deduplication),
@@ -77,7 +76,7 @@ function toLocalQueue(queue: QueueValues): LocalQueue {
       DelaySeconds: String(queue.delay_seconds),
       ReceiveMessageWaitTimeSeconds: String(queue.receive_wait_time_seconds),
     },
-    // A queue ARN ends with the queue name, which the local dead-letter queue shares.
+    // A queue ARN ends with its name, which the local dead-letter queue shares.
     deadLetter: redrive && {
       queueName: String(redrive.deadLetterTargetArn).split(':').at(-1) ?? '',
       maxReceiveCount: Number(redrive.maxReceiveCount),
@@ -100,8 +99,8 @@ async function currentQueue(client: SQSClient, QueueName: string) {
   }
 }
 
-// Queue descriptions also carry counters and timestamps, so only the defined attributes are
-// compared. The redrive policy is compared by content, since its JSON can be formatted either way.
+// Compares only defined attributes, as queues also report counters and timestamps.
+// The redrive policy is compared by content, as its JSON formatting may differ.
 function matches(current: Record<string, string>, defined: Record<string, string>): boolean {
   const redrive = (policy: string | undefined) => {
     const parsed = policy ? JSON.parse(policy) : undefined;

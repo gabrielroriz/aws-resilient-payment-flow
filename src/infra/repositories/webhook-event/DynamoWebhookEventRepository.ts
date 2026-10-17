@@ -5,16 +5,16 @@ import { joinKey, shardOf } from "@infra/dynamodb/keys";
 import { Injectable } from "@kernel/decorators/injectable";
 import { gunzipSync, gzipSync } from "node:zlib";
 
-// Stores webhook events in the configured table, one item collection per event, and each
-// subject's latest status in its own item.
+// Stores webhook events in the configured table, one item collection per event.
+// Each subject's latest status lives in its own item.
 @Injectable(DynamoClient, AppConfig)
 export class DynamoWebhookEventRepository implements WebhookEventRepository {
   private static readonly EVENT_SK = "META";
   private static readonly STATUS_SK = "STATUS";
-  // Write shards per provider in GSI1: one provider can burst to about 4,000 writes per second,
-  // and every time-interval query covers all of them.
+  // GSI1 shards per provider, so each can burst to about 4,000 writes a second.
+  // Every time-interval query reads all the shards.
   private static readonly GSI1_SHARDS = 4;
-  // Outlasts provider retries and the provider event history used for reconciliation.
+  // Outlasts provider retries and the provider event history used to reconcile.
   private static readonly RETENTION_SECONDS = 90 * 24 * 60 * 60;
 
   constructor(
@@ -45,7 +45,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
   }
 
   async recordEnqueued(id: WebhookEventRepository.EventId): Promise<void> {
-    // A failed condition means the event already moved on, which leaves nothing to record.
+    // A failed condition means the event has moved on, leaving nothing to record.
     await this.dynamo.updateIf(
       this.table,
       { PK: eventKey(id), SK: DynamoWebhookEventRepository.EVENT_SK },
@@ -58,7 +58,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
   }
 
   async recordOutdated(id: WebhookEventRepository.EventId): Promise<void> {
-    // The condition keeps an update from creating a partial event when none is stored.
+    // The condition keeps an update from creating a partial event if none is stored.
     await this.dynamo.updateIf(
       this.table,
       { PK: eventKey(id), SK: DynamoWebhookEventRepository.EVENT_SK },
@@ -84,29 +84,32 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     await this.dynamo.put(this.table, item);
   }
 
-  // One item per subject holds its latest status; an event replaces it only by outranking it.
+  // One item per subject holds its latest status.
+  // An event replaces it only by outranking it.
   async recordStatus(
     event: WebhookEventRepository.StatusEvent,
     precedence: number,
   ): Promise<WebhookEventRepository.RecordStatusResult> {
     const occurredAt = event.occurredAt.toISOString();
     const item: DynamoWebhookEventRepository.StatusItem = {
-      // Keyed by subject, not event, so all events of one payment compete for the same item.
+      // Keyed by subject, not event, so a payment's events compete for one item.
       PK: joinKey("SUBJECT", event.provider, event.subject.type, event.subject.id),
       SK: DynamoWebhookEventRepository.STATUS_SK,
-      // The event that holds the latest status, so operators can trace where it came from.
+      // The event behind the latest status, so operators can trace its origin.
       provider_event_id: event.providerEventId,
       status: event.status,
       occurred_at: occurredAt,
-      // Fixed-width fields make ranks compare as text by precedence, then occurrence, then ID.
+      // Fixed-width fields make ranks compare correctly as text.
+      // They order by precedence, then occurrence, then ID.
       rank: joinKey(String(precedence).padStart(2, "0"), occurredAt, event.providerEventId),
       // The status expires with the event that reported it.
       expires_at: this.expiresAt(event.receivedAt),
     };
 
-    // Atomic, so concurrent deliveries cannot both win. An equal rank means the same event again.
+    // Atomic, so concurrent deliveries cannot both win.
+    // An equal rank means the same event again.
     const recorded = await this.dynamo.putIf(this.table, item, {
-      // Written when the subject has no status yet, or when this event ranks at least as high.
+      // Written if the subject has no status or this event ranks at least as high.
       ConditionExpression: "attribute_not_exists(PK) OR #rank <= :rank",
       // A placeholder keeps the attribute name clear of DynamoDB's reserved words.
       ExpressionAttributeNames: { "#rank": "rank" },
@@ -133,7 +136,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       return undefined;
     }
 
-    // Items arrive sorted by SK, so attempts and deliveries are already in time order.
+    // Items arrive sorted by SK, so attempts and deliveries are in time order.
     const ofType = <T extends DynamoWebhookEventRepository.TraceItem>(type: string) =>
       items.filter((item) => item.SK.startsWith(`${type}#`)) as T[];
     return {
@@ -151,13 +154,13 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     to,
     eventType,
   }: WebhookEventRepository.ReceivedQuery): Promise<WebhookEventRepository.Summary[]> {
-    // BETWEEN includes both bounds; stopping 1 ms before `to` makes the interval half-open.
+    // BETWEEN is inclusive; ending 1 ms before `to` makes the interval half-open.
     const last = new Date(to.getTime() - 1);
     if (last < from) {
       return [];
     }
 
-    // GSI1 spreads each provider's events over shards, so every shard is queried in parallel.
+    // GSI1 shards each provider's events, so all shards are queried in parallel.
     const queries = providers.flatMap((provider) =>
       Array.from({ length: DynamoWebhookEventRepository.GSI1_SHARDS }, (_, shard) =>
         this.dynamo.queryAll<DynamoWebhookEventRepository.ReceivedItem>({
@@ -197,12 +200,12 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     return items.map((item) => ({ ...fromReceivedItem(item), subject }));
   }
 
-  // Read on each use, so a function without the table's variable fails only when it touches the table.
+  // Read on each use, so only functions that touch the table need its variable.
   private get table(): string {
     return this.config.tables.webhookEvents.name;
   }
 
-  // Every item of an event expires with the event, so TTL never leaves a partial trace behind.
+  // An event's items all expire with it, so TTL never leaves a partial trace.
   private expiresAt(eventReceivedAt: Date): number {
     return (
       Math.floor(eventReceivedAt.getTime() / 1000) + DynamoWebhookEventRepository.RETENTION_SECONDS
@@ -257,7 +260,7 @@ export namespace DynamoWebhookEventRepository {
     expires_at: number;
   };
 
-  // A subject's latest status and its event, keyed by subject outside any event's collection.
+  // A subject's latest status and its event, kept outside any event's collection.
   export type StatusItem = {
     PK: string;
     SK: "STATUS";
@@ -321,7 +324,7 @@ function fromReceivedItem(
 ): WebhookEventRepository.Summary {
   return {
     provider: item.provider,
-    // Index items carry the table key, which is the provider followed by its event ID.
+    // Index items carry the table key, the provider followed by its event ID.
     providerEventId: item.PK.slice(item.provider.length + 1),
     eventType: item.event_type,
     occurredAt: new Date(item.occurred_at),

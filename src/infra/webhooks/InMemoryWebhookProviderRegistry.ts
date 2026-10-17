@@ -19,7 +19,7 @@ export class InMemoryWebhookProviderRegistry implements WebhookProviderRegistry 
     ...providers: WebhookProvider[]
   ) {
     for (const provider of providers) {
-      // A second adapter with the same name would silently take over the first one's webhooks.
+      // A same-named adapter would silently take over the first one's webhooks.
       if (this.byName.has(provider.name)) {
         throw new ErrorWebhookProviderAlreadyRegistered(provider.name);
       }
@@ -32,16 +32,17 @@ export class InMemoryWebhookProviderRegistry implements WebhookProviderRegistry 
   }
 
   async route(id: WebhookEventRepository.EventId): Promise<void> {
-    // The queue carries only the identity; processing always uses the exact payload receipt stored.
+    // The queue carries only the identity; processing uses the exact stored payload.
     const event = await this.events.get(id);
     if (!event) {
-      // Missing records can reflect a transient read or a broken dispatch; never acknowledge them.
+      // Missing records can reflect a transient read or a broken dispatch.
+      // Never acknowledge them.
       throw new ErrorWebhookEventNotFound(id);
     }
 
     const provider = this.find(event.provider);
     if (!provider) {
-      // A stored event was already accepted, so a missing provider is a configuration problem.
+      // A stored event was accepted, so a missing provider means misconfiguration.
       throw new ErrorWebhookProviderNotFound(event.provider, ErrorKind.UNEXPECTED);
     }
     await provider.process(event);
