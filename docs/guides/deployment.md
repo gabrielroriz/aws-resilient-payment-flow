@@ -8,6 +8,7 @@ Build every registered function and deploy it to AWS, with its HTTP routes, Dyna
 |---|---|
 | Node.js 24 and npm | Installing build tools and building the functions |
 | Bash and `zip` | Running the deployment and packaging functions |
+| Git | Naming the deployed code version after the current commit |
 | Terraform matching the `required_version` in `terraform/` | Planning and applying infrastructure changes |
 | AWS credentials and network access | Accessing the state backend and managing AWS resources |
 | An existing S3 bucket for the state backend | Storing Terraform state |
@@ -17,7 +18,7 @@ Build every registered function and deploy it to AWS, with its HTTP routes, Dyna
 1. Install the tools above and configure credentials for the target AWS account.
 2. Review the state backend, provider region, and resource names in the Terraform configuration in `terraform/`.
 3. Ensure the backend bucket exists before initialization. The configuration also manages this bucket, so an existing bucket must be tracked in this Terraform state before applying.
-4. Set the values of the functions' environment variables that Terraform declares without a default, such as provider credentials. Planning fails while one is missing, and Terraform state stores the values in plain text. Keep them: every deployment must use the same ones, and the [delivery simulator](simulated-gateways.md) needs them to reach a deployed API. Generate secrets with `openssl rand -hex 32`.
+4. Set the values of the functions' environment variables that Terraform declares without a default, such as provider credentials; `npm run deploy` sets `CODE_VERSION` itself. Planning fails while one is missing, and Terraform state stores the values in plain text. Keep them: every deployment must use the same ones, and the [delivery simulator](simulated-gateways.md) needs them to reach a deployed API. Generate secrets with `openssl rand -hex 32`.
 
    | Option | How |
    |---|---|
@@ -46,7 +47,8 @@ flowchart TD
 | Artifact | Behavior |
 |---|---|
 | `dist/<name>_<version>.zip` | One archive per function containing `index.js`; kept after deployment |
-| Version suffix | UTC timestamp plus a unique suffix, passed as `lambdasVersion` |
+| Version suffix | The code version's deploy time plus a unique suffix, passed as `lambdasVersion` |
+| Code version | The UTC deploy time and the commit SHA, such as `20261017110316-339fc51a2130`, from `scripts/deploy/code-version.sh`; versions sort in deploy order and name the commit the code came from. Passed as `CODE_VERSION` to the worker |
 | Temporary workspace and saved plan | Removed when the deployment ends, including on failure |
 | Existing local dependencies and bundles | Preserved |
 
@@ -58,7 +60,9 @@ Run the [automated checks](testing.md), then deploy from the repository root:
 npm run deploy
 ```
 
-To review the infrastructure changes first, run `terraform -chdir=terraform plan -var=lambdasVersion=local` after `npm run dev` has packaged the local archives. The deployment stops on the first failure; inspect a fresh plan before retrying a failed infrastructure change.
+Commit the changes to the built files first, and preferably push them, so the code version names code anyone can check out. Deployment stops while `src/`, `build/`, the package files, `tsconfig.json`, or `lambdas.json` have uncommitted changes. `npm run deploy -- --allow-dirty` deploys them anyway and ends the code version in `-dirty`. Run `bash scripts/deploy/code-version.sh` to see the version a deployment would get.
+
+To review the infrastructure changes first, run `terraform -chdir=terraform plan -var=lambdasVersion=local -var=CODE_VERSION=local` after `npm run dev` has packaged the local archives. The deployment stops on the first failure; inspect a fresh plan before retrying a failed infrastructure change.
 
 ### Deployed resources
 

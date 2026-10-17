@@ -2,6 +2,7 @@ mock_provider "aws" {}
 
 variables {
   lambdasVersion                = "local"
+  CODE_VERSION                  = "test-version"
   GATEWAY_GLOBAL_SIGNING_SECRET = "test-secret"
   GATEWAY_BRAZIL_ACCESS_TOKEN   = "test-token"
 }

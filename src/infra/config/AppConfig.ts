@@ -25,6 +25,11 @@ export class AppConfig {
     return { webhookEvents: { name: env.WEBHOOK_EVENTS_TABLE_NAME } };
   }
 
+  get deployment(): AppConfig.Deployment {
+    const env = this.parseGroup("deployment", envSchema.deployment);
+    return { codeVersion: env.CODE_VERSION };
+  }
+
   // Parsing every read is cheap and stateless, so tests can change the environment.
   private parseGroup<Schema extends z.ZodMiniType>(
     group: string,
@@ -63,5 +68,11 @@ export namespace AppConfig {
   export type Tables = {
     // Table of received webhook events and their history.
     webhookEvents: { name: string };
+  };
+
+  // What the deployment says about the code the function runs.
+  export type Deployment = {
+    // Deploy time and commit SHA, such as `20261017110316-339fc51a2130`, or `local`.
+    codeVersion: string;
   };
 }

@@ -61,6 +61,7 @@ Sharing provider classes also shares their constructor dependencies, including t
 | Visibility timeout | 180 seconds, derived from six times the worker's 30-second timeout |
 | Redrive | After 5 receives, SQS moves a failing message to the FIFO dead-letter queue |
 | Permissions | Consume only the webhook queue, read only the webhook events table, and write execution logs |
+| Code version | `CODE_VERSION` names the deployed code; see [Deployment](../guides/deployment.md#how-it-works) |
 | Local delivery | A poller reads the same Terraform mapping settings, invokes the worker through SAM, and deletes only completed records; see [Development](../guides/development.md#local-functions) |
 
 The retry policy follows AWS's [FIFO partial batch response guidance](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html) and [visibility timeout guidance](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-configure.html). Invalid JSON, messages that do not match the schema, unknown gateways, missing stored events, and repository or processor errors all remain retryable; none is silently discarded. A function timeout or initialization failure retries the whole batch.

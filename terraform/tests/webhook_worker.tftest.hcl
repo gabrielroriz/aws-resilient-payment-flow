@@ -2,6 +2,7 @@ mock_provider "aws" {}
 
 variables {
   lambdasVersion                = "local"
+  CODE_VERSION                  = "test-version"
   GATEWAY_GLOBAL_SIGNING_SECRET = "test-secret"
   GATEWAY_BRAZIL_ACCESS_TOKEN   = "test-token"
 }
@@ -35,5 +36,9 @@ run "worker_event_source" {
       aws_lambda_function.all_lambdas[name].environment[0].variables.WEBHOOK_EVENTS_TABLE_NAME == aws_dynamodb_table.webhook_events.name
     ])
     error_message = "Receipt and the worker must read the webhook events table Terraform provisions."
+  }
+  assert {
+    condition     = aws_lambda_function.all_lambdas["webhook_worker"].environment[0].variables.CODE_VERSION == "test-version"
+    error_message = "The worker must receive the deployed code version."
   }
 }

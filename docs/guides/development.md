@@ -134,6 +134,7 @@ Queues removed from Terraform stay in ElasticMQ until the local services stop.
 | Routes | Each route's method and path run the function with the same registry key, with payload format `2.0`, as deployed |
 | Queue triggers | The poller receives batches from ElasticMQ and invokes SAM; completed records are deleted and failed records return after visibility timeout, then redrive after the receive limit |
 | Undeployed functions, routes, and mappings | Run locally using planned names, without deployed ARNs |
+| Code version | `CODE_VERSION` is `local`, from [`terraform/secrets.local.tfvars`](../../terraform/secrets.local.tfvars), so local runs never pass for a deployed commit |
 | Secrets | Local values from [`terraform/secrets.local.tfvars`](../../terraform/secrets.local.tfvars), such as the [simulated gateways'](simulated-gateways.md#setup); they take precedence over the deployment secrets file, which never applies to a secret they set |
 | DynamoDB and SQS endpoints | Every function gets `AWS_ENDPOINT_URL_DYNAMODB` and `AWS_ENDPOINT_URL_SQS`, so the AWS SDK sends DynamoDB requests to DynamoDB Local and SQS requests to ElasticMQ, and the code needs no local-only configuration |
 

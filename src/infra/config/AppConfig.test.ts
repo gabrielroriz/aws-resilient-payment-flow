@@ -23,6 +23,20 @@ test("AppConfig reads the table names", () => {
   expect(new AppConfig().tables).toEqual({ webhookEvents: { name: "webhook_events" } });
 });
 
+test("AppConfig reads the deployed code version", () => {
+  vi.stubEnv("CODE_VERSION", "20261017110316-339fc51a2130");
+
+  expect(new AppConfig().deployment).toEqual({ codeVersion: "20261017110316-339fc51a2130" });
+});
+
+test("AppConfig rejects an empty code version", () => {
+  vi.stubEnv("CODE_VERSION", "");
+
+  expect(() => new AppConfig().deployment).toThrow(
+    /Invalid environment variables for deployment:[\s\S]*CODE_VERSION/,
+  );
+});
+
 test("AppConfig names the group and the variable that fail validation", () => {
   vi.stubEnv("GATEWAY_GLOBAL_SIGNING_SECRET", "signing-secret");
   vi.stubEnv("GATEWAY_BRAZIL_ACCESS_TOKEN", "");
