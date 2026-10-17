@@ -9,8 +9,9 @@ import { createSimulation } from './engine/simulation.mts';
 import { createGateways } from './gateways/gateways.mts';
 import { scenarios } from './scenarios/scenarios.mts';
 
-// Delivers webhooks as the simulated gateways do and checks the API's replies. Runs the named
-// scenarios, or every non-optional one, and exits with an error when any check fails.
+// Delivers webhooks as the simulated gateways do and checks the API's replies.
+// Runs the named scenarios, or every non-optional one, and exits with an error when any check
+// fails.
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: { url: { type: 'string', default: 'http://localhost:3000' } },

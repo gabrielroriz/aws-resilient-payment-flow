@@ -1,8 +1,8 @@
 {
   // The README shows the architecture diagram in light mode, so saved draw.io images must keep it.
   "hediet.vscode-drawio.svgAppearance": "light",
-  // Format code with the project's Prettier on every save, matching the check CI runs. Other file
-  // types, such as Markdown, keep their own formatting.
+  // Format code with the project's Prettier on every save, matching the check CI runs.
+  // Other file types, such as Markdown, keep their own formatting.
   "[typescript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true

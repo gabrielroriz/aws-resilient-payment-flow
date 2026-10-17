@@ -12,8 +12,9 @@ import { plannedResources } from './terraform-plan.mts';
 import type { TerraformPlan } from './terraform-plan.types.mts';
 
 // Converts every SQS queue in a Terraform plan into the queue to create in the local SQS service,
-// dead-letter queues first so they exist before the queues that use them. Only what changes how
-// requests behave is kept; retention, encryption, and access policies mean nothing locally.
+// dead-letter queues first so they exist before the queues that use them.
+// Only what changes how requests behave is kept; retention, encryption, and access policies mean
+// nothing locally.
 export function queuesFromPlan(plan: TerraformPlan): LocalQueue[] {
   // Named targets remain known even when the deployed redrive policy contains an unknown ARN.
   const redrive = plan.planned_values?.outputs?.local_sqs_redrive?.value as
@@ -30,9 +31,9 @@ export function queuesFromPlan(plan: TerraformPlan): LocalQueue[] {
   ];
 }
 
-// Makes the local SQS service match a queue definition. A queue whose attributes differ is deleted
-// and created again, losing its messages: the local service cannot change most attributes of an
-// existing queue, and local messages are disposable.
+// Makes the local SQS service match a queue definition.
+// A queue whose attributes differ is deleted and created again, losing its messages: the local
+// service cannot change most attributes of an existing queue, and local messages are disposable.
 export async function syncQueue(client: SQSClient, queue: LocalQueue): Promise<SyncResult> {
   const attributes = { ...queue.attributes };
   if (queue.deadLetter) {

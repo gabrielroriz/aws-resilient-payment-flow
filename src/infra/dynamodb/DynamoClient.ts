@@ -11,13 +11,14 @@ import {
 import { unmarshall } from "@aws-sdk/util-dynamodb";
 import { Injectable } from "@kernel/decorators/injectable";
 
-// Shared DynamoDB access for every table adapter. The registry builds one instance per
-// execution environment, so connections are reused across invocations. Items are plain
-// objects; the document client converts them to and from DynamoDB attribute values.
+// Shared DynamoDB access for every table adapter.
+// The registry builds one instance per execution environment, so connections are reused across
+// invocations.
+// Items are plain objects; the document client converts them to and from DynamoDB attribute values.
 @Injectable()
 export class DynamoClient {
-  // The region comes from the Lambda environment. Undefined attributes are left out of items,
-  // so adapters can map optional fields directly.
+  // The region comes from the Lambda environment.
+  // Undefined attributes are left out of items, so adapters can map optional fields directly.
   readonly document = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
     marshallOptions: { removeUndefinedValues: true },
   });
@@ -34,8 +35,8 @@ export class DynamoClient {
     await this.document.send(new PutCommand({ TableName: table, Item: item }));
   }
 
-  // Writes an item only when no item with its key exists. Otherwise nothing is written and the
-  // stored item is returned, without a second read.
+  // Writes an item only when no item with its key exists.
+  // Otherwise nothing is written and the stored item is returned, without a second read.
   async putIfAbsent<T extends DynamoClient.Item>(
     table: string,
     item: T,

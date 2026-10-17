@@ -1,6 +1,7 @@
-// The Lambdas' environment variables. Values set per deployment, such as secrets, are Terraform
-// variables of the same name, so they can be set with TF_VAR_<NAME> and never live in the
-// repository; the others come from the resources Terraform manages.
+// The Lambdas' environment variables.
+// Values set per deployment, such as secrets, are Terraform variables of the same name, so they can
+// be set with TF_VAR_<NAME> and never live in the repository; the others come from the resources
+// Terraform manages.
 
 variable "GATEWAY_GLOBAL_SIGNING_SECRET" {
   type        = string

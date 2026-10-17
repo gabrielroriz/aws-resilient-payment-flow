@@ -10,9 +10,10 @@ import { parseJson } from "@kernel/utils/json";
 import * as z from "@kernel/utils/zod";
 import { createHmac } from "node:crypto";
 
-// Simulated global card gateway, shaped like Stripe. Events arrive in an envelope with the object
-// they are about under `data.object`, times are Unix seconds, and amounts are integers in the
-// currency's minor unit. Each webhook is signed with HMAC-SHA256 over its timestamp and body.
+// Simulated global card gateway, shaped like Stripe.
+// Events arrive in an envelope with the object they are about under `data.object`, times are Unix
+// seconds, and amounts are integers in the currency's minor unit.
+// Each webhook is signed with HMAC-SHA256 over its timestamp and body.
 @Injectable(Clock, AppConfig, Logger)
 export class GatewayGlobalWebhookProvider implements WebhookProvider<GatewayGlobalWebhookProvider.StatusEventType> {
   readonly name = "gatewayGlobal";

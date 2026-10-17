@@ -9,9 +9,10 @@ import type {
 import { plannedResources } from './terraform-plan.mts';
 import type { PlannedResource, TerraformPlan } from './terraform-plan.types.mts';
 
-// Builds a SAM template with every planned Lambda and the routes of HTTP functions. SAM's
-// own Terraform support links routes to functions through IDs that exist only after apply, so it
-// cannot run a function or route that was never deployed; this template needs no deployed resource.
+// Builds a SAM template with every planned Lambda and the routes of HTTP functions.
+// SAM's own Terraform support links routes to functions through IDs that exist only after apply, so
+// it cannot run a function or route that was never deployed; this template needs no deployed
+// resource.
 export function samTemplateFromPlan(plan: TerraformPlan, options: SamTemplateOptions): SamTemplate {
   const resources: SamTemplate['Resources'] = {};
   const functionsByKey = new Map<PlannedResource['index'], SamFunction>();
@@ -26,9 +27,9 @@ export function samTemplateFromPlan(plan: TerraformPlan, options: SamTemplateOpt
       Type: 'AWS::Serverless::Function',
       Properties: {
         FunctionName: values.function_name,
-        // SAM runs the unpacked bundle, the code Terraform uploads zipped. With a zip, SAM unpacks it
-        // per invocation and deletes every unpacked copy when any invocation ends, which breaks
-        // concurrent invocations of one function.
+        // SAM runs the unpacked bundle, the code Terraform uploads zipped.
+        // With a zip, SAM unpacks it per invocation and deletes every unpacked copy when any
+        // invocation ends, which breaks concurrent invocations of one function.
         CodeUri: path.join(options.bundlesDir, values.function_name),
         Handler: values.handler,
         Runtime: values.runtime,

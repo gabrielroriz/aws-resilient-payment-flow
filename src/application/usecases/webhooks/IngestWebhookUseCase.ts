@@ -10,8 +10,8 @@ import { Injectable } from "@kernel/decorators/injectable";
 
 // Ingests a webhook from any supported provider: authenticates it, stores its event once with the
 // exact payload, flags it outdated when another event of its subject outranks it, and dispatches
-// it, recording it as enqueued. Ingestion applies no business effects, which keeps the
-// acknowledgment fast.
+// it, recording it as enqueued.
+// Ingestion applies no business effects, which keeps the acknowledgment fast.
 @Injectable(WebhookProviderRegistry, WebhookEventRepository, WebhookEventDispatcher, Clock)
 export class IngestWebhookUseCase {
   // Harder-to-undo statuses rank higher, so a refund outranks its payment in any arrival order.

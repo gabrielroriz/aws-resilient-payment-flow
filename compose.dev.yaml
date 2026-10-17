@@ -1,5 +1,6 @@
-# Local stand-ins for AWS services, started by npm run dev. Lambdas that SAM runs join this
-# Compose network, so they reach each service by its name; host tools use the published ports.
+# Local stand-ins for AWS services, started by npm run dev.
+# Lambdas that SAM runs join this Compose network, so they reach each service by its name; host
+# tools use the published ports.
 name: aws-resilient-payment-flow
 
 services:
@@ -50,8 +51,8 @@ services:
       timeout: 2s
       retries: 15
 
-  # Web UI for browsing queues and sending, receiving, and deleting their messages. It receives
-  # messages only on request, so browsing never counts toward a queue's redrive limit.
+  # Web UI for browsing queues and sending, receiving, and deleting their messages.
+  # It receives messages only on request, so browsing never counts toward a queue's redrive limit.
   sqs-admin:
     image: softwaremill/elasticmq-ui:1.7.1
     environment:

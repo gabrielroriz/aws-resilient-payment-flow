@@ -8,8 +8,8 @@ import type { AcknowledgedReply } from './replies.types.mts';
 z.config(en());
 
 // The simulator's own copy of the API's reply contract, written apart from the API so an
-// unintended change fails a scenario. Extra fields are allowed, as adding one keeps replies
-// compatible.
+// unintended change fails a scenario.
+// Extra fields are allowed, as adding one keeps replies compatible.
 export const acknowledgedReply = z.object({
   provider: z.string(),
   providerEventId: z.string(),

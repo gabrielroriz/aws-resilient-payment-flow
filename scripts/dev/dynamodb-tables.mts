@@ -21,18 +21,20 @@ import { plannedResources } from './terraform-plan.mts';
 import type { TerraformPlan } from './terraform-plan.types.mts';
 
 // Converts every DynamoDB table in a Terraform plan into the request that creates it in DynamoDB
-// Local. Terraform cannot create them itself: its AWS provider calls APIs that DynamoDB Local
-// lacks, such as DescribeContinuousBackups. Only what changes how requests behave is kept;
-// capacity, backups, and encryption mean nothing locally.
+// Local.
+// Terraform cannot create them itself: its AWS provider calls APIs that DynamoDB Local lacks, such
+// as DescribeContinuousBackups.
+// Only what changes how requests behave is kept; capacity, backups, and encryption mean nothing
+// locally.
 export function tablesFromPlan(plan: TerraformPlan): LocalTable[] {
   return plannedResources<TableValues>(plan, 'aws_dynamodb_table').map((resource) =>
     toLocalTable(resource.values),
   );
 }
 
-// Makes DynamoDB Local match a table definition. A table whose keys, indexes, or TTL differ is
-// deleted and created again, losing its items: local data is disposable, and a stale table would
-// reject requests that the deployed one accepts.
+// Makes DynamoDB Local match a table definition.
+// A table whose keys, indexes, or TTL differ is deleted and created again, losing its items: local
+// data is disposable, and a stale table would reject requests that the deployed one accepts.
 export async function syncTable(client: DynamoDBClient, table: LocalTable): Promise<SyncResult> {
   const TableName = table.input.TableName;
   const current = await currentSchema(client, TableName);

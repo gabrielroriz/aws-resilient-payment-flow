@@ -76,8 +76,9 @@ resource "aws_lambda_function" "all_lambdas" {
     system_log_level      = "INFO"
   }
 
-  // Only functions listed in lambda_environments get an environment. The condition reads names
-  // only, because Terraform cannot decide which blocks to create from sensitive values.
+  // Only functions listed in lambda_environments get an environment.
+  // The condition reads names only, because Terraform cannot decide which blocks to create from
+  // sensitive values.
   dynamic "environment" {
     for_each = contains(keys(local.lambda_environments), each.key) ? [each.key] : []
     content {

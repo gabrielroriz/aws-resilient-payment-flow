@@ -7,8 +7,9 @@ import { parseJson } from "@kernel/utils/json";
 import { errorLogFields } from "@main/utils/errors";
 import type { Context, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
 
-// Processes FIFO batches in order and acknowledges only the messages that completed. Each message
-// is validated against the handler's schema, so the handler receives only messages it can read.
+// Processes FIFO batches in order and acknowledges only the messages that completed.
+// Each message is validated against the handler's schema, so the handler receives only messages it
+// can read.
 export function lambdaSqsAdapter(handler: MessageHandler, logger: Logger) {
   return (event: SQSEvent, context?: Context): Promise<SQSBatchResponse> =>
     logger.withContext({ lambdaRequestId: context?.awsRequestId }, async () => {

@@ -1,8 +1,9 @@
 // Driven port for received webhook events: detects repeated deliveries, keeps each event's
 // processing history for tracing and reprocessing, and tracks each subject's latest status.
 export abstract class WebhookEventRepository {
-  // Stores a newly received event once, as `received`. When an event with the same identity already
-  // exists, nothing is written and the stored event is returned instead, marking a duplicate delivery.
+  // Stores a newly received event once, as `received`.
+  // When an event with the same identity already exists, nothing is written and the stored event is
+  // returned instead, marking a duplicate delivery.
   abstract create(
     event: WebhookEventRepository.NewEvent,
   ): Promise<WebhookEventRepository.CreateResult>;
@@ -11,8 +12,8 @@ export abstract class WebhookEventRepository {
     id: WebhookEventRepository.EventId,
   ): Promise<WebhookEventRepository.Event | undefined>;
 
-  // Records that the event is on the processing queue. Only a `received` event moves to
-  // `enqueued`, so a processing status never moves back.
+  // Records that the event is on the processing queue.
+  // Only a `received` event moves to `enqueued`, so a processing status never moves back.
   abstract recordEnqueued(id: WebhookEventRepository.EventId): Promise<void>;
 
   // Records another delivery of an event that `create` reported as already stored.

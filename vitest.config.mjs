@@ -6,8 +6,9 @@ import options from './build/esbuild.config.mts';
 const tsconfigRaw = await readFile(new URL('./tsconfig.json', import.meta.url), 'utf8');
 
 // Vite's default TypeScript transform (Oxc) strips types but leaves standard decorators in place,
-// which Node cannot run. Compiling with esbuild, the production target, and the project tsconfig
-// gives tests the same decorator lowering and class semantics as the deployed Lambdas.
+// which Node cannot run.
+// Compiling with esbuild, the production target, and the project tsconfig gives tests the same
+// decorator lowering and class semantics as the deployed Lambdas.
 const esbuildTypeScript = {
   name: 'esbuild-typescript',
   async transform(code, id) {

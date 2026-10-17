@@ -2,8 +2,9 @@ import { ApiUnreachableError } from './api.mts';
 import type { Scenario } from './runner.types.mts';
 import type { Simulation } from './simulation.types.mts';
 
-// Runs scenarios in turn, printing each check as ✓ or ✗, and returns how many failed. A scenario
-// that throws counts as one failure, whether the API is unreachable or the scenario is broken.
+// Runs scenarios in turn, printing each check as ✓ or ✗, and returns how many failed.
+// A scenario that throws counts as one failure, whether the API is unreachable or the scenario is
+// broken.
 export async function runScenarios(scenarios: Scenario[], simulation: Simulation): Promise<number> {
   // Gateway names are padded to the longest one, so every check's step starts in the same column.
   const column = Math.max(...simulation.gateways.map(({ name }) => name.length));

@@ -4,8 +4,8 @@ import { marshall } from "@aws-sdk/util-dynamodb";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
 import { expect, test, vi, type MockInstance } from "vitest";
 
-// Replaces the SDK call, so tests check the commands sent without reaching AWS. The SDK's send
-// is overloaded; tests only use its promise form.
+// Replaces the SDK call, so tests check the commands sent without reaching AWS.
+// The SDK's send is overloaded; tests only use its promise form.
 function stubSend(client: DynamoClient) {
   return vi.spyOn(client.document, "send") as unknown as MockInstance<
     (command: PutCommand | QueryCommand | UpdateCommand) => Promise<unknown>

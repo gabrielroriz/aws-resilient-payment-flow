@@ -1,13 +1,15 @@
-// Transport-neutral HTTP controller. Driving adapters in `main` translate platform
-// events into this request shape, so controllers never depend on AWS types.
+// Transport-neutral HTTP controller.
+// Driving adapters in `main` translate platform events into this request shape, so controllers
+// never depend on AWS types.
 export interface Controller<TResponseBody = unknown> {
   handle(request: Controller.Request): Promise<Controller.Response<TResponseBody>>;
 }
 
 export namespace Controller {
   export type Request<TBody = unknown> = {
-    // Parsed JSON body; `undefined` when the request has no body. When the controller declares a
-    // `@Schema`, the body has already been validated and is the schema's output.
+    // Parsed JSON body; `undefined` when the request has no body.
+    // When the controller declares a `@Schema`, the body has already been validated and is the
+    // schema's output.
     body: TBody;
     // Body exactly as the client sent it, for signature checks and audit; `undefined` when there is none.
     rawBody: string | undefined;

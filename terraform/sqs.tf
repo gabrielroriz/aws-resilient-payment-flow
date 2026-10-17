@@ -1,5 +1,6 @@
-// Stored webhook events waiting to be processed. Each provider's events form one message group,
-// so they are delivered in the order they were received, one batch at a time per provider.
+// Stored webhook events waiting to be processed.
+// Each provider's events form one message group, so they are delivered in the order they were
+// received, one batch at a time per provider.
 resource "aws_sqs_queue" "webhook_events" {
   name       = "webhook_events.fifo"
   fifo_queue = true
@@ -14,8 +15,8 @@ resource "aws_sqs_queue" "webhook_events" {
   })
 }
 
-// Events whose processing kept failing, kept for investigation and redrive. A FIFO queue needs a
-// FIFO dead-letter queue.
+// Events whose processing kept failing, kept for investigation and redrive.
+// A FIFO queue needs a FIFO dead-letter queue.
 resource "aws_sqs_queue" "webhook_events_dlq" {
   name       = "webhook_events_dlq.fifo"
   fifo_queue = true

@@ -8,10 +8,10 @@ import { headerValue } from "@kernel/utils/headers";
 import { parseJson } from "@kernel/utils/json";
 import * as z from "@kernel/utils/zod";
 
-// Simulated Brazilian gateway, shaped like Asaas. Events are flat, with the payment or
-// subscription they affect at the top level, upper-case event names, Brasília local times without
-// an offset, and amounts in decimal reais without a currency field. Each webhook carries a static
-// access token instead of a signature.
+// Simulated Brazilian gateway, shaped like Asaas.
+// Events are flat, with the payment or subscription they affect at the top level, upper-case event
+// names, Brasília local times without an offset, and amounts in decimal reais without a currency
+// field. Each webhook carries a static access token instead of a signature.
 @Injectable(AppConfig, Logger)
 export class GatewayBrazilWebhookProvider implements WebhookProvider<GatewayBrazilWebhookProvider.StatusEventType> {
   readonly name = "gatewayBrazil";
@@ -84,8 +84,8 @@ export namespace GatewayBrazilWebhookProvider {
     | "PAYMENT_CHARGEBACK_REQUESTED";
 }
 
-// A `YYYY-MM-DD HH:mm:ss` Brasília time, read as the moment it names. Brasília has stayed at UTC-3
-// all year since Brazil abolished daylight saving time in 2019.
+// A `YYYY-MM-DD HH:mm:ss` Brasília time, read as the moment it names.
+// Brasília has stayed at UTC-3 all year since Brazil abolished daylight saving time in 2019.
 const brasiliaTime = z.pipe(
   z.pipe(
     z.string().check(z.regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)),

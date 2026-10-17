@@ -5,8 +5,9 @@ import { AppConfig } from "@infra/config/AppConfig";
 import { Injectable } from "@kernel/decorators/injectable";
 import { createHash } from "node:crypto";
 
-// Dispatches webhook events to an SQS FIFO queue, from which processing receives them. Each
-// provider's events form one message group, so SQS delivers them in the order they were received.
+// Dispatches webhook events to an SQS FIFO queue, from which processing receives them.
+// Each provider's events form one message group, so SQS delivers them in the order they were
+// received.
 @Injectable(AppConfig)
 export class SqsWebhookEventDispatcher implements WebhookEventDispatcher {
   // The region comes from the Lambda environment, and locally so does the endpoint, which makes
@@ -27,8 +28,9 @@ export class SqsWebhookEventDispatcher implements WebhookEventDispatcher {
         MessageBody: JSON.stringify(message),
         MessageGroupId: provider,
         // SQS drops a message with the same ID sent within five minutes, such as one from a quick
-        // provider retry. Provider event IDs may contain characters SQS rejects here, so the ID is
-        // a digest of the event's identity.
+        // provider retry.
+        // Provider event IDs may contain characters SQS rejects here, so the ID is a digest of the
+        // event's identity.
         MessageDeduplicationId: createHash("sha256")
           .update(JSON.stringify([provider, providerEventId]))
           .digest("hex"),
