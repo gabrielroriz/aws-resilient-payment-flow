@@ -45,9 +45,6 @@ function setup({
 }: { provider?: WebhookProvider; stored?: WebhookEventRepository.Event; outdated?: boolean } = {}) {
   const providerRegistry: WebhookProviderRegistry = {
     find: (name) => (name === provider.name ? provider : undefined),
-    route: vi.fn(async () => {
-      throw new Error("Receipt must not route events synchronously");
-    }),
   };
   const create = vi.fn(
     async (event: WebhookEventRepository.NewEvent): Promise<WebhookEventRepository.CreateResult> =>

@@ -56,7 +56,7 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 |---|---|
 | `application/usecases/<area>/` | One business operation per class; depends on ports and other application code |
 | `application/ports/` | Abstract classes describing what the core needs from outside, such as time, storage, or providers; ports of one area share a folder, such as `ports/webhooks/` |
-| `application/controller/<area>/` | Declares the schema of its request body or queue message and calls a use case, or a port directly when that port performs the whole operation, such as the webhook worker routing through the provider registry |
+| `application/controller/<area>/` | Declares the schema of its request body or queue message and calls a use case, or a port directly when that port performs the whole operation |
 | `application/contracts/` | Shapes shared across layers, such as `Controller` and `MessageHandler` |
 | `application/errors/` | Error codes and the base classes mapped to responses |
 | `infra/<concern>/` | Adapter classes implementing ports, grouped by concern, such as `infra/clock/`, `infra/logging/`, `infra/webhooks/`, or `infra/repositories/<entity>/` |
@@ -215,11 +215,11 @@ Payloads are validated with zod schemas instead of inline type checks, so each p
 ```ts
 const messageSchema = z.object({ provider: identifier, providerEventId: identifier });
 
-@Injectable(WebhookProviderRegistry)
+@Injectable(ProcessWebhookEventUseCase)
 @Schema(messageSchema)
 export class WebhookWorkerController implements MessageHandler {
   async handle(message: WebhookWorkerController.Message): Promise<void> {
-    await this.providerRegistry.route(message);
+    await this.processWebhookEventUseCase.execute(message);
   }
 }
 

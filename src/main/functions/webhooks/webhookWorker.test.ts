@@ -97,7 +97,7 @@ test.each([
   },
 );
 
-test("the registry rejects an unknown stored provider with the shared error and the worker retries", async () => {
+test("processing rejects an unknown stored provider with the shared error and the worker retries", async () => {
   const logs = captureLogs();
   const get = vi.spyOn(DynamoClient.prototype, "get").mockResolvedValue({
     PK: "unknown#evt",

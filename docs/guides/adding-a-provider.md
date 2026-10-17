@@ -1,6 +1,6 @@
 # Adding a provider
 
-Support a new payment gateway with one adapter that authenticates and parses incoming webhooks and processes stored events. The shared registry supplies receipt adapters through `find` and dispatches stored events through `route`, so each gateway is registered once. See [Webhook receipt](../architecture/webhook-receipt.md) and [Webhook processing](../architecture/webhook-processing.md) for the two stages.
+Support a new payment gateway with one adapter that authenticates and parses incoming webhooks and processes stored events. The shared registry supplies the adapter through `find` to both receipt and processing, so each gateway is registered once. See [Webhook receipt](../architecture/webhook-receipt.md) and [Webhook processing](../architecture/webhook-processing.md) for the two stages.
 
 ## Steps
 
@@ -9,8 +9,8 @@ Support a new payment gateway with one adapter that authenticates and parses inc
 3. In `parse`, validate the body with a zod schema of the fields you read and map the result into the fields below, or return `undefined` when the body does not match, since it is not one of the provider's events. See [Payload validation](../architecture/code-structure.md#payload-validation).
 4. Declare `paymentStatuses`: list the provider's event types that report a payment status as the type argument of `WebhookProvider`, in a type of the adapter's namespace, and map each to one of the statuses that [out-of-order events](../architecture/webhook-receipt.md#out-of-order-events) rank. Type checking fails when a listed type has no status or an unlisted one has.
 5. Implement `process` on the same adapter. It receives the original stored event and must reject on failure so SQS retries. Future business effects must be idempotent; do not authenticate the stored webhook again.
-6. List the adapter in the `@Injectable` decorator of `InMemoryWebhookProviderRegistry`. This registers it for both receipt and worker routing. Keep constructors free of credential reads: authentication reads credentials only when receipt calls it.
-7. Add tests for authentication, malformed requests, the status table, routing, and processor failures. See [Writing tests](testing.md#writing-tests).
+6. List the adapter in the `@Injectable` decorator of `InMemoryWebhookProviderRegistry`. This registers it for both receipt and processing. Keep constructors free of credential reads: authentication reads credentials only when receipt calls it.
+7. Add tests for authentication, malformed requests, the status table, and processor failures. See [Writing tests](testing.md#writing-tests).
 8. For a simulated provider, also add a sender for its format to the delivery simulator's gateways; see [How the simulator is organized](simulated-gateways.md#how-the-simulator-is-organized).
 
 ## Mapping an event

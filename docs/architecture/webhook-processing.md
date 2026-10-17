@@ -1,6 +1,6 @@
 # Webhook processing
 
-The `webhook_worker` Lambda consumes `webhook_events.fifo` and calls `route` on the shared provider registry with each queued event identity. The registry loads the original event from DynamoDB, identifies the payment gateway from it, and awaits the provider's `process` method. The worker has no HTTP route and needs no webhook authentication credentials. [Webhook receipt](webhook-receipt.md) uses the registry's `find` method to select those same provider classes for authentication and parsing.
+The `webhook_worker` Lambda consumes `webhook_events.fifo` and hands each queued event identity to the process use case. The use case loads the original event from DynamoDB, selects its payment gateway through the shared provider registry's `find` method, and awaits the provider's `process` method. The worker has no HTTP route and needs no webhook authentication credentials. [Webhook receipt](webhook-receipt.md) uses the registry's `find` method to select those same provider classes for authentication and parsing.
 
 ## How it works
 
@@ -11,6 +11,7 @@ sequenceDiagram
     participant Store as DynamoDB
     participant Queue as SQS FIFO
     participant Worker as Webhook Worker
+    participant Process as Process use case
     participant Registry as Provider registry
     participant Gateway as Gateway adapter
     Provider->>Entry: Webhook
@@ -24,13 +25,15 @@ sequenceDiagram
     Entry-->>Provider: 200
     Note over Queue,Worker: Delivery runs independently of the HTTP response
     Queue->>Worker: Batch of event references
-    Worker->>Registry: route(provider + providerEventId)
-    Registry->>Store: Load original event
-    Store-->>Registry: Event metadata and exact payload
-    Registry->>Gateway: Await process(event) for the selected gateway
-    alt Routing succeeds
-        Gateway-->>Registry: Complete
-        Registry-->>Worker: Complete
+    Worker->>Process: execute(provider + providerEventId)
+    Process->>Store: Load original event
+    Store-->>Process: Event metadata and exact payload
+    Process->>Registry: find(event provider)
+    Registry-->>Process: Provider adapter
+    Process->>Gateway: Await process(event)
+    alt Processing succeeds
+        Gateway-->>Process: Complete
+        Process-->>Worker: Complete
         Worker-->>Queue: Acknowledge successful records
     else Invalid message, missing event, or processor failure
         Worker-->>Queue: Failed and unprocessed message IDs
@@ -41,8 +44,9 @@ sequenceDiagram
 | Component | Responsibility |
 |---|---|
 | SQS driving adapter | Parse each record's JSON, validate it against the worker's schema, process the batch in order, and return partial batch failures |
-| Worker controller | Declare its message schema, with `provider` and `providerEventId` as strings that are not blank, and await `providerRegistry.route` with that identity |
-| Provider registry | `find` selects providers for receipt; `route` loads the stored event, selects its provider, and awaits `process`, rejecting missing events and unknown providers and propagating failures; registrations must be unique |
+| Worker controller | Declare its message schema, with `provider` and `providerEventId` as strings that are not blank, and await the process use case with that identity |
+| Process use case | Load the stored event, select its provider, and await `process`, rejecting missing events and unknown providers and propagating failures |
+| Provider registry | `find` selects providers for both receipt and processing; registrations must be unique |
 | Gateway adapters | One class per gateway exposes `authenticate`, `parse`, and `process`; each Lambda calls only the methods of its stage |
 
 Sharing provider classes also shares their constructor dependencies, including the clock and configuration. Each Lambda has its own instances. Credentials are read lazily by `authenticate`, so worker initialization and processing require none of the receipt secrets.
@@ -67,16 +71,16 @@ Failures caught during delivery use the shared [error log fields](code-structure
 |---|---|---|
 | `QUEUE_MALFORMED_MESSAGE` | `queue` | The SQS body is not valid JSON; the error never includes the raw body |
 | `QUEUE_INVALID_MESSAGE` | `queue` | The decoded message does not match the worker's schema, such as a missing or blank `provider` or `providerEventId` |
-| `WEBHOOK_PROVIDER_NOT_FOUND` | `webhooks` | The registry cannot route the stored event to a registered adapter; receipt shares this error but treats unknown public paths as expected |
+| `WEBHOOK_PROVIDER_NOT_FOUND` | `webhooks` | No registered adapter matches the stored event's provider; receipt shares this error but treats unknown public paths as expected |
 | `WEBHOOK_EVENT_NOT_FOUND` | `webhooks` | The queued identity has no stored event |
 | `INTERNAL_SERVER_ERROR` | Unspecified | An unclassified repository or provider failure |
 
 The shared registry raises `WEBHOOK_PROVIDER_ALREADY_REGISTERED` if two adapters have the same name. This is an unexpected initialization failure in either Lambda, so it stops startup before requests or batches are handled.
 
-Storage lookup precedes provider selection. If the queued identity has no stored record, the registry reports `WEBHOOK_EVENT_NOT_FOUND`; provider selection only happens after the record is loaded.
+Storage lookup precedes provider selection. If the queued identity has no stored record, the use case reports `WEBHOOK_EVENT_NOT_FOUND`; provider selection only happens after the record is loaded.
 
 ## Current scope
 
 The gateway classes currently emit `webhook_routed` logs containing the provider, event ID, and event type. Successful routing acknowledges the queue message; it does not mean a payment, subscription, or financial effect has been applied. The original event remains in DynamoDB for its configured retention period.
 
-Business effects, processing-attempt records, and business idempotency are not implemented. A later delivery of the same event can route again, so future effects must be safe to repeat. FIFO preserves receipt order, not the provider's occurrence order; receipt records which event reports each payment's [latest status](webhook-receipt.md#out-of-order-events) and the subscription each payment bills, but routing reads neither yet, and nothing derives a subscription's status from its payments. See [Adding a provider](../guides/adding-a-provider.md) for extending both receipt and processing.
+Business effects, processing-attempt records, and business idempotency are not implemented. A later delivery of the same event can be processed again, so future effects must be safe to repeat. FIFO preserves receipt order, not the provider's occurrence order; receipt records which event reports each payment's [latest status](webhook-receipt.md#out-of-order-events) and the subscription each payment bills, but processing reads neither yet, and nothing derives a subscription's status from its payments. See [Adding a provider](../guides/adding-a-provider.md) for extending both receipt and processing.

@@ -69,7 +69,7 @@ Subscription events are never ranked. A subscription's status is derived from th
 
 ## Provider adapters
 
-Each supported provider has one adapter that implements the `WebhookProvider` port. Receipt calls the registry's `find` method using the HTTP path, then calls `authenticate` and `parse` on that adapter. The [worker](webhook-processing.md) calls the registry's `route` method with the queued event identity; the registry loads the stored event, selects the provider, and awaits `process` in the worker's own Lambda execution environment.
+Each supported provider has one adapter that implements the `WebhookProvider` port. Receipt calls the registry's `find` method using the HTTP path, then calls `authenticate` and `parse` on that adapter. The [worker](webhook-processing.md) loads the stored event for each queued identity, selects its provider through the same `find` method, and awaits `process` in the worker's own Lambda execution environment.
 
 | Adapter member | Responsibility |
 |---|---|
@@ -91,9 +91,9 @@ flowchart LR
     DLQ@{ shape: h-cyl, label: "webhook_events_dlq.fifo" }
     Receipt["Webhook receipt"] -->|"provider and event ID"| Queue
     Queue --> Worker["Webhook Worker"]
-    Worker --> Registry["Provider registry: route"]
-    Registry --> Store["Read stored event"]
-    Store --> Processor["Gateway adapter: process"]
+    Worker --> Store["Read stored event"]
+    Store --> Registry["Provider registry: find"]
+    Registry --> Processor["Gateway adapter: process"]
     Queue -->|"after 5 receives"| DLQ
 ```
 
