@@ -30,6 +30,9 @@ locals {
       WEBHOOK_EVENTS_QUEUE_NAME     = aws_sqs_queue.webhook_events.name
       WEBHOOK_EVENTS_TABLE_NAME     = aws_dynamodb_table.webhook_events.name
     }
+    health = {
+      CODE_VERSION = var.CODE_VERSION
+    }
     webhook_worker = {
       CODE_VERSION              = var.CODE_VERSION
       WEBHOOK_EVENTS_TABLE_NAME = aws_dynamodb_table.webhook_events.name

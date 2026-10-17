@@ -39,7 +39,7 @@ flowchart TD
     Entry -. binds port to adapter .-> Adapter
 ```
 
-The [health function](../../src/main/functions/health.ts) is the reference example: `GetHealthController` calls `GetHealthUseCase`, which reads the time through the `Clock` port implemented by `SystemClock`.
+The [health function](../../src/main/functions/health.ts) is the reference example: `GetHealthController` calls `GetHealthUseCase`, which reads the time through the `Clock` port implemented by `SystemClock`, and the code version through the `Deployment` port implemented by `ConfiguredDeployment`.
 
 ## Layers
 
@@ -122,7 +122,7 @@ export class GetHealthUseCase {
 }
 
 export namespace GetHealthUseCase {
-  export type Output = { status: "ok"; checkedAt: string };
+  export type Output = { status: "ok"; checkedAt: string; codeVersion: string };
 }
 ```
 
@@ -138,9 +138,12 @@ export namespace GetHealthUseCase {
 Classes register themselves with `@Injectable`, listing their constructor dependencies in order. TypeScript rejects a list that does not match the constructor, so a mismatch fails `npm run build`. esbuild compiles the project's standard decorators but cannot emit constructor type metadata, so the explicit list replaces it.
 
 ```ts
-@Injectable(Clock)
+@Injectable(Clock, Deployment)
 export class GetHealthUseCase {
-  constructor(private readonly clock: Clock) {}
+  constructor(
+    private readonly clock: Clock,
+    private readonly deployment: Deployment,
+  ) {}
 }
 ```
 

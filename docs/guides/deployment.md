@@ -48,7 +48,7 @@ flowchart TD
 |---|---|
 | `dist/<name>_<version>.zip` | One archive per function containing `index.js`; kept after deployment |
 | Version suffix | The code version's deploy time plus a unique suffix, passed as `lambdasVersion` |
-| Code version | The UTC deploy time and the commit SHA, such as `20261017110316-339fc51a2130`, from `scripts/deploy/code-version.sh`; versions sort in deploy order and name the commit the code came from. Passed as `CODE_VERSION` to the worker |
+| Code version | The UTC deploy time and the commit SHA, such as `20261017110316-339fc51a2130`, from `scripts/deploy/code-version.sh`; versions sort in deploy order and name the commit the code came from. Passed as `CODE_VERSION` to the health function and the worker |
 | Temporary workspace and saved plan | Removed when the deployment ends, including on failure |
 | Existing local dependencies and bundles | Preserved |
 

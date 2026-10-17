@@ -38,7 +38,10 @@ run "worker_event_source" {
     error_message = "Receipt and the worker must read the webhook events table Terraform provisions."
   }
   assert {
-    condition     = aws_lambda_function.all_lambdas["webhook_worker"].environment[0].variables.CODE_VERSION == "test-version"
-    error_message = "The worker must receive the deployed code version."
+    condition = alltrue([
+      for name in ["health", "webhook_worker"] :
+      aws_lambda_function.all_lambdas[name].environment[0].variables.CODE_VERSION == "test-version"
+    ])
+    error_message = "Health and the worker must receive the deployed code version."
   }
 }
