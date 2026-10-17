@@ -178,7 +178,7 @@ A subscription has no status item, and its events are never ranked. Its status i
 | `received` | The event is stored, but not yet dispatched to the processing queue | Receipt, in the conditional `PutItem` that creates the event |
 | `enqueued` | The event was dispatched to the processing queue | Receipt, after the dispatch succeeds, by an `UpdateItem` conditioned on `received` |
 
-> **Note:** Each change is a conditional update from the statuses that may precede it, so a processing status never moves back and needs no read first. `enqueued` is recorded only after the dispatch succeeds, so an event that stays `received` never reached the queue: its dispatch failed, and the provider has not retried it yet. A repeated delivery dispatches the event again and records `enqueued` once more, which completes an event left `received` and changes nothing otherwise. `processing_status` is not projected into the indexes, so reading it needs `GetItem`.
+> **Note:** Each change is a conditional update from the statuses that may precede it, so a processing status never moves back and needs no read first. `enqueued` is recorded only after the dispatch succeeds, so an event that stays `received` never reached the queue: its dispatch failed, and the provider has not retried it yet. A repeated delivery dispatches the event again, and records `enqueued` only when the stored event is still `received`, which completes its unfinished receipt; for any other status the condition would fail, and a failed conditional write is still billed. `processing_status` is not projected into the indexes, so reading it needs `GetItem`.
 
 ### Retention
 

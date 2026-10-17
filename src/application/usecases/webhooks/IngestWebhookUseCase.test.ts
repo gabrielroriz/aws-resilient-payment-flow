@@ -167,6 +167,24 @@ test("ingest records a repeated delivery against the stored event instead of sto
   expect(recordEnqueued).toHaveBeenCalledWith(stored);
 });
 
+test("ingest dispatches a repeated delivery of an event that already moved on, without recording it as enqueued again", async () => {
+  const stored: WebhookEventRepository.Event = {
+    ...parsedEvent,
+    provider: "simulated",
+    status: "succeeded",
+    receivedAt: new Date("2026-10-10T09:59:00.000Z"),
+    payload: request.rawBody,
+    processingStatus: "enqueued",
+    outdated: false,
+  };
+  const { useCase, recordEnqueued, dispatch } = setup({ stored });
+
+  await useCase.execute({ provider: "simulated", requestId: "req-2", request });
+
+  expect(dispatch).toHaveBeenCalledWith(stored);
+  expect(recordEnqueued).not.toHaveBeenCalled();
+});
+
 test("ingest flags an event that another event of its subject outranks as outdated, on the stored event before dispatch, and still stores and dispatches it", async () => {
   const { useCase, create, recordOutdated, dispatch } = setup({ outdated: true });
 

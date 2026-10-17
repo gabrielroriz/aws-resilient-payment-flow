@@ -13,7 +13,6 @@ Deferred build and deployment tests:
 
 Processing status:
 
-- [ ] Skip recording `enqueued` for a repeated delivery whose stored event is no longer `received`: its condition would fail anyway, and a failed conditional write is still billed.
 - [ ] Move routing from the provider registry into a process use case, so the worker's status changes live in the application layer.
 - [ ] Give the worker the deployed code version, to record as each attempt's `handler_version`.
 - [ ] Record each processing attempt: write its attempt item, then move the event to `processing`, and afterwards to `processed` or `failed`, with conditional updates. Avoid transactions, which bill every write twice.

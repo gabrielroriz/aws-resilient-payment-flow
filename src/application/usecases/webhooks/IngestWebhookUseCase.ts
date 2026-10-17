@@ -83,7 +83,10 @@ export class IngestWebhookUseCase {
     // Only that retry can still dispatch the already stored event.
     await this.dispatcher.dispatch(event);
     // Only once dispatched, so an event left `received` never reached the queue.
-    await this.events.recordEnqueued(event);
+    // An event that moved on is skipped: its failed condition would still be billed.
+    if (event.processingStatus === "received") {
+      await this.events.recordEnqueued(event);
+    }
 
     // Describes the delivery only; every outcome here is acknowledged the same way.
     return {
