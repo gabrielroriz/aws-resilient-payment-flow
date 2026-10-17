@@ -37,6 +37,7 @@ export default defineConfig({
       'build/**/*.test.mts',
       'scripts/dev/**/*.test.mts',
       'scripts/simulator/**/*.test.mts',
+      'scripts/lint/**/*.test.mts',
     ],
     // Undo vi.spyOn after each test, so a replaced method never leaks to the next.
     restoreMocks: true,

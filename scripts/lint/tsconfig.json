@@ -1,0 +1,5 @@
+{
+  // Lint scripts run on Node.js like the build tooling, so they share its settings.
+  "extends": "../../build/tsconfig.json",
+  "include": ["*.mts"]
+}

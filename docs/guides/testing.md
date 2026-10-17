@@ -4,7 +4,7 @@ How the automated tests are organized, how they run, and how to write new ones. 
 
 ## Requirements
 
-Node.js 24 and npm. Tests need no Docker, SAM, Terraform, AWS credentials, or network access.
+Node.js 24, npm, and Git, which the comment check uses to list the repository's files. Tests need no Docker, SAM, Terraform, AWS credentials, or network access.
 
 ## Run tests
 
@@ -18,7 +18,7 @@ npm test
 | Command | Runs |
 |---|---|
 | `npm test` | Every test and type test once, as CI does |
-| `npm run typecheck` | Type checking of the functions, build tooling, local tooling, and simulator, as CI does |
+| `npm run typecheck` | Type checking of the functions, build tooling, local tooling, simulator, and lint scripts, as CI does |
 | `npm run test:watch` | Vitest in watch mode, rerunning the tests affected by each change |
 | `npx vitest run <path>` | Only the tests under a file or directory, such as `src/kernel` |
 
@@ -36,8 +36,9 @@ Each test sits next to the module it covers and shares its name, such as `<modul
 | `build/<script>.test.mts` | Tests for the build tooling | Vitest |
 | `scripts/dev/<script>.test.mts` | Local queue configuration, SQS event conversion, and acknowledgement behavior | Vitest |
 | `scripts/simulator/**/<module>.test.mts` | The delivery simulator's engine and gateways, with a fake `fetch` and a fixed clock | Vitest |
+| `scripts/lint/<script>.test.mts` | Checks over the whole repository, such as the comment rule | Vitest |
 
-`npm run typecheck` type-checks every `.ts` file under `src/` and every `.mts` file under `build/`, `scripts/dev/`, and `scripts/simulator/`, including tests, as CI does. `npm run build`, which deployment runs, checks only `src/` and `build/` before bundling, since local tooling and the simulator never reach AWS. No Lambda bundle contains test files, because each bundle starts from its entry file.
+`npm run typecheck` type-checks every `.ts` file under `src/` and every `.mts` file under `build/`, `scripts/dev/`, `scripts/simulator/`, and `scripts/lint/`, including tests, as CI does. `npm run build`, which deployment runs, checks only `src/` and `build/` before bundling, since local tooling and the simulator never reach AWS. No Lambda bundle contains test files, because each bundle starts from its entry file.
 
 ## Infrastructure checks
 
@@ -67,6 +68,8 @@ Vitest's type testing is experimental and may change outside SemVer, so `vitest`
 Each test file gets its own module graph, so the `Registry` singleton starts empty in every file but is shared by the tests within a file.
 
 A build test bundles every Lambda registered in `lambdas.json` with the production settings and loads it, so a missing port binding or a bundling problem fails `npm test` without a test per function.
+
+A comment test checks every comment in the repository against the [comment rule](../../AGENTS.md): each comment line holds one sentence ending with its punctuation, within 85 columns including indentation. It reads every file Git tracks or would track, so a new file is checked before it is added, and a failure lists each line with its reason.
 
 ## Writing tests
 

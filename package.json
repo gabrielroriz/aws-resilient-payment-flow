@@ -12,7 +12,7 @@
     "simulate": "node scripts/simulator/simulate.mts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit && tsc -p build && tsc -p scripts/dev && tsc -p scripts/simulator"
+    "typecheck": "tsc --noEmit && tsc -p build && tsc -p scripts/dev && tsc -p scripts/simulator && tsc -p scripts/lint"
   },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "^3.1149.0",
