@@ -10,6 +10,8 @@ Add concise, plain-English comments where they help humans and AI understand pur
 
 Write every comment as `//` line comments, including those describing classes, functions, types, and modules. Do not use `/** */` or `/* */` block comments.
 
+When a comment wraps onto several lines, never start a sentence at the end of a line that breaks; break the line right after the previous sentence's period, so the new sentence starts the next line.
+
 ## References to files
 
 Renaming or moving a file must never leave a stale reference behind, so comments and documentation avoid naming individual files.
