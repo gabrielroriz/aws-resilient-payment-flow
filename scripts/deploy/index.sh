@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Allow deployment from any working directory.
-PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # Catch missing tools before spending time building the application.
 for command in git node npm zip terraform; do

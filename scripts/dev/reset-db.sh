@@ -3,7 +3,7 @@
 # The next npm run dev creates the tables Terraform defines.
 set -euo pipefail
 
-PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/compose.dev.yaml"
 
 if ! docker info >/dev/null 2>&1; then

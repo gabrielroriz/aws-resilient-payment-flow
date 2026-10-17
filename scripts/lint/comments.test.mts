@@ -44,7 +44,7 @@ test('a line wider than the limit fails, indentation included, unless it holds a
 });
 
 test.each([
-  ['scripts/dev.sh', '#!/usr/bin/env bash\n# Runs the API.'],
+  ['scripts/dev/index.sh', '#!/usr/bin/env bash\n# Runs the API.'],
   ['src/a.ts', '//\n  #private = 1;'],
   ['compose.dev.yaml', '# Local services.'],
   ['terraform/main.tf', '// Creates the table.\n# Creates the queue.'],

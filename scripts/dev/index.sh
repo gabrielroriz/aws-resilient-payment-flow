@@ -2,7 +2,7 @@
 # Runs HTTP and queue Lambdas in SAM containers with DynamoDB Local and ElasticMQ.
 set -euo pipefail
 
-PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 # Must match the Compose network that Lambda containers join to reach local services.
 DOCKER_NETWORK=aws-resilient-payment-flow
 
