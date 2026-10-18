@@ -61,7 +61,7 @@ The design separates receiving an event from acting on it, and makes every step 
 |---|---|---|
 | Record before acknowledging | Each webhook is authenticated and stored once, keyed by its provider and event ID, before the provider gets a response. A repeated delivery is recognized and recorded instead of stored again, and no acknowledged event is lost. | Built |
 | Translate at the edge | An adapter per provider absorbs its authentication, vocabulary, and formats, so the rest of the system sees one event model and a new gateway changes no business rule. | Built |
-| Keep the full history | Each event keeps its exact payload and every repeated delivery, and will keep its processing attempts and business effects, so operators can trace and safely reprocess it. | Partly built |
+| Keep the full history | Each event keeps its exact payload, every repeated delivery, and each processing attempt with the code version that ran it, and will keep its business effects, so operators can trace and safely reprocess it. | Partly built |
 | Act after acknowledging | Receipt queues each stored event and business effects run from that queue, separately from receipt, so acknowledgments stay fast and a slow dependency never makes providers retry. | Partly built |
 | Make every effect idempotent | Each business effect carries a key that identifies it, so retries, recovery, and reprocessing never repeat a completed one. | Planned |
 | Follow the order events happened | Events about the same payment are ranked by status precedence, then by when the provider says they occurred, so a late event is recognized and cannot reverse a newer outcome. | Built for receipt |

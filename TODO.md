@@ -13,10 +13,8 @@ Deferred build and deployment tests:
 
 Processing status:
 
-- [ ] Record each processing attempt: write its attempt item, then move the event to `processing`, and afterwards to `processed` or `failed`, with conditional updates. Avoid transactions, which bill every write twice.
-- [ ] Make the worker skip `processed` and `dead_lettered` events, and take over a `processing` event whose attempt started longer ago than the worker timeout.
+- [ ] Let the worker take over a `processing` event whose attempt started longer ago than the worker timeout, and skip `dead_lettered` events.
 - [ ] Add a dead-letter queue consumer that marks events `dead_lettered`, from any status that is not final, since a message can reach the queue without ever being attempted.
-- [ ] Process events stored before processing statuses existed, which have no `processing_status`, until TTL removes them.
 - [ ] Check the processing statuses end to end with the simulator, including a failure that ends in the dead-letter queue.
 - [ ] Consider moving the payload into its own item, so a status update costs one write unit whatever the payload size.
 

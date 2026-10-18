@@ -1,6 +1,6 @@
 # Webhook processing
 
-The `webhook_worker` Lambda consumes `webhook_events.fifo` and hands each queued event identity to the process use case. The use case loads the original event from DynamoDB, selects its payment gateway through the shared provider registry's `find` method, and awaits the provider's `process` method. The worker has no HTTP route and needs no webhook authentication credentials. [Webhook receipt](webhook-receipt.md) uses the registry's `find` method to select those same provider classes for authentication and parsing.
+The `webhook_worker` Lambda consumes `webhook_events.fifo` and hands each queued event identity to the process use case. The use case loads the original event from DynamoDB, selects its payment gateway through the shared provider registry's `find` method, and awaits the provider's `process` method inside a recorded [processing attempt](#processing-attempts). The worker has no HTTP route and needs no webhook authentication credentials. [Webhook receipt](webhook-receipt.md) uses the registry's `find` method to select those same provider classes for authentication and parsing.
 
 ## How it works
 
@@ -30,12 +30,15 @@ sequenceDiagram
     Store-->>Process: Event metadata and exact payload
     Process->>Registry: find(event provider)
     Registry-->>Process: Provider adapter
+    Process->>Store: Start attempt: event to processing, store the attempt
     Process->>Gateway: Await process(event)
     alt Processing succeeds
         Gateway-->>Process: Complete
+        Process->>Store: Finish attempt: succeeded, event to processed
         Process-->>Worker: Complete
         Worker-->>Queue: Acknowledge successful records
     else Invalid message, missing event, or processor failure
+        Process->>Store: Finish attempt: failed, event to failed
         Worker-->>Queue: Failed and unprocessed message IDs
         Note over Queue: Retry after visibility timeout, DLQ after 5 receives
     end
@@ -45,7 +48,7 @@ sequenceDiagram
 |---|---|
 | SQS driving adapter | Parse each record's JSON, validate it against the worker's schema, process the batch in order, and return partial batch failures |
 | Worker controller | Declare its message schema, with `provider` and `providerEventId` as strings that are not blank, and await the process use case with that identity |
-| Process use case | Load the stored event, select its provider, and await `process`, rejecting missing events and unknown providers and propagating failures |
+| Process use case | Load the stored event, select its provider, and await `process` inside a recorded attempt, rejecting missing events and unknown providers and propagating failures |
 | Provider registry | `find` selects providers for both receipt and processing; registrations must be unique |
 | Gateway adapters | One class per gateway exposes `authenticate`, `parse`, and `process`; each Lambda calls only the methods of its stage |
 
@@ -60,7 +63,7 @@ Sharing provider classes also shares their constructor dependencies, including t
 | FIFO order | On the first failure, the worker stops and reports that record and all subsequent records in the batch; unrelated providers can still run in separate batches |
 | Visibility timeout | 180 seconds, derived from six times the worker's 30-second timeout |
 | Redrive | After 5 receives, SQS moves a failing message to the FIFO dead-letter queue |
-| Permissions | Consume only the webhook queue, read only the webhook events table, and write execution logs |
+| Permissions | Consume only the webhook queue, read events and record attempts and statuses in the webhook events table, and write execution logs |
 | Code version | `CODE_VERSION` names the deployed code; see [Deployment](../guides/deployment.md#how-it-works) |
 | Local delivery | A poller reads the same Terraform mapping settings, invokes the worker through SAM, and deletes only completed records; see [Development](../guides/development.md#local-functions) |
 
@@ -74,14 +77,30 @@ Failures caught during delivery use the shared [error log fields](code-structure
 | `QUEUE_INVALID_MESSAGE` | `queue` | The decoded message does not match the worker's schema, such as a missing or blank `provider` or `providerEventId` |
 | `WEBHOOK_PROVIDER_NOT_FOUND` | `webhooks` | No registered adapter matches the stored event's provider; receipt shares this error but treats unknown public paths as expected |
 | `WEBHOOK_EVENT_NOT_FOUND` | `webhooks` | The queued identity has no stored event |
+| `WEBHOOK_EVENT_IN_PROGRESS` | `webhooks` | Another attempt still holds the event; since the queue delivers each provider's events one at a time, this points to an attempt that stopped without finishing |
 | `INTERNAL_SERVER_ERROR` | Unspecified | An unclassified repository or provider failure |
 
 The shared registry raises `WEBHOOK_PROVIDER_ALREADY_REGISTERED` if two adapters have the same name. This is an unexpected initialization failure in either Lambda, so it stops startup before requests or batches are handled.
 
 Storage lookup precedes provider selection. If the queued identity has no stored record, the use case reports `WEBHOOK_EVENT_NOT_FOUND`; provider selection only happens after the record is loaded.
 
+## Processing attempts
+
+Each run of `process` is an attempt, stored with the event and moving its [processing status](data-model/webhook-events.md#processing-status):
+
+| Moment | What is written |
+|---|---|
+| Start | The event moves to `processing` and names the attempt in `current_attempt_id`; then the attempt item stores its ID, start time, and the deployed `CODE_VERSION` as `handler_version` |
+| Success | The attempt records its end time and `succeeded`; the event moves to `processed` |
+| Failure | The attempt records its end time, `failed`, and the error's code; the event moves to `failed`, and the error reaches the queue, which retries the message |
+
+- An event that is already `processed` is acknowledged without another attempt, such as when a provider delivers it again after SQS stopped deduplicating it.
+- The start is refused with `WEBHOOK_EVENT_IN_PROGRESS` while another attempt holds the event, so the queue retries later.
+- `handler_version` tells which deployed code ran each attempt, so the events a defect affected can be selected for reprocessing.
+- Events stored before processing statuses existed start an attempt like enqueued ones.
+
 ## Current scope
 
 The gateway classes currently emit `webhook_routed` logs containing the provider, event ID, and event type. Successful routing acknowledges the queue message; it does not mean a payment, subscription, or financial effect has been applied. The original event remains in DynamoDB for its configured retention period.
 
-Business effects, processing-attempt records, and business idempotency are not implemented. A later delivery of the same event can be processed again, so future effects must be safe to repeat. FIFO preserves receipt order, not the provider's occurrence order; receipt records which event reports each payment's [latest status](webhook-receipt.md#out-of-order-events) and the subscription each payment bills, but processing reads neither yet, and nothing derives a subscription's status from its payments. See [Adding a provider](../guides/adding-a-provider.md) for extending both receipt and processing.
+Business effects and business idempotency are not implemented. An attempt that stops without finishing, such as on a function timeout, leaves its event `processing`, so later deliveries fail with `WEBHOOK_EVENT_IN_PROGRESS` until the message moves to the dead-letter queue; nothing takes such an event over or marks it dead-lettered yet. A later delivery of the same event can be processed again, so future effects must be safe to repeat. FIFO preserves receipt order, not the provider's occurrence order; receipt records which event reports each payment's [latest status](webhook-receipt.md#out-of-order-events) and the subscription each payment bills, but processing reads neither yet, and nothing derives a subscription's status from its payments. See [Adding a provider](../guides/adding-a-provider.md) for extending both receipt and processing.

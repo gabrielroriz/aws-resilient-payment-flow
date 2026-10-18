@@ -10,6 +10,8 @@ The `webhook_events` DynamoDB table records the webhook events received from pay
 | Get an event | `GetItem` | Table | `PK = event_key`, `SK = META` |
 | Record that a received event is enqueued | `UpdateItem` if `processing_status = received` | Table | `PK = event_key`, `SK = META` |
 | Flag an event as outdated | `UpdateItem` if `attribute_exists(PK)` | Table | `PK = event_key`, `SK = META` |
+| Start a processing attempt | `UpdateItem` to `processing` if the status is missing, `received`, `enqueued`, or `failed`, then `PutItem` of the attempt | Table | `PK = event_key`, `SK = META`, then `SK = ATTEMPT#{started_at}#{attempt_id}` |
+| Finish a processing attempt | `UpdateItem` of the attempt's outcome, then `UpdateItem` to `processed` or `failed` if `processing_status = processing` and `current_attempt_id` is this attempt | Table | `SK = ATTEMPT#{started_at}#{attempt_id}`, then `SK = META` |
 | Record a duplicate delivery | `PutItem` | Table | `PK = event_key`, `SK = DELIVERY#{received_at}#{request_id}` |
 | Get the full trace of an event | `Query` | Table | `PK = event_key` |
 | Get events received in a time interval | `Query` per shard of every provider | `GSI1` | `GSI1PK = {provider}#{shard}`, `received_at` within the interval |
@@ -34,12 +36,12 @@ All items of an event share its `event_key`, so one `Query` returns the whole ev
 | Item | `SK` | Written |
 |---|---|---|
 | [Event](#event) | `META` | Once, at receipt, by the conditional `PutItem`; afterwards only its [processing status](#processing-status) and `outdated` flag change |
-| [Attempt](#attempt) | `ATTEMPT#{started_at}#{attempt_id}` | Once per processing attempt |
+| [Attempt](#attempt) | `ATTEMPT#{started_at}#{attempt_id}` | When a processing attempt starts, and again when it ends |
 | [Effect](#effect) | `EFFECT#{effect}` | When a business effect of the event completes or fails |
 | [Delivery](#delivery) | `DELIVERY#{received_at}#{request_id}` | On each duplicate delivery |
 | [Subject status](#subject-status) | `STATUS` | At receipt, when an event reports a status that outranks its subject's latest |
 
-Webhook receipt writes events, deliveries, and subject statuses. The [worker](../webhook-processing.md) reads events and routes them to gateway-specific classes; recording processing attempts and business effects is not implemented yet.
+Webhook receipt writes events, deliveries, and subject statuses. The [worker](../webhook-processing.md) records each processing attempt and moves its event's processing status; recording business effects is not implemented yet.
 
 Timestamps are UTC ISO 8601 strings with fixed millisecond precision, so they sort correctly in keys. `expires_at` is the exception: DynamoDB TTL requires a number of epoch seconds.
 
@@ -58,6 +60,7 @@ Timestamps are UTC ISO 8601 strings with fixed millisecond precision, so they so
 | `status` | String | The payment status the event reports, the same for every provider, such as `refunded`; omitted when it reports none; see [Event type](#event-type) |
 | `payload` | Binary | Exact request body, gzip-compressed; see [Payload size](#payload-size) |
 | `processing_status` | String | How far the platform has handled the event, such as `received`; see [Processing status](#processing-status) |
+| `current_attempt_id` | String | The attempt that last moved the event to `processing`; omitted until one does |
 | `outdated` | Boolean | `true` when the event arrived after another event of its subject that outranks it; see [Event order](#event-order) |
 | `GSI1PK` | String | `GSI1` partition key; see [Indexes](#indexes) |
 | `GSI2PK` | String | `GSI2` partition key, omitted when the event has no subject |
@@ -93,8 +96,8 @@ A payment event after receipt, with the binary `payload` shown as shortened base
 |---|---|---|
 | `attempt_id` | String | Unique ID of the attempt |
 | `started_at` | String | When processing started |
-| `finished_at` | String | When processing finished |
-| `outcome` | String | `succeeded` or `failed` |
+| `finished_at` | String | When processing finished; omitted while the attempt runs |
+| `outcome` | String | `succeeded` or `failed`; omitted while the attempt runs |
 | `error_code` | String | Stable machine-readable error code, present when the attempt failed |
 | `handler_version` | String | Code version that ran the attempt, used to select events for reprocessing after a defect |
 | `trace_id` | String | Links the attempt to its logs and traces |
@@ -177,8 +180,11 @@ A subscription has no status item, and its events are never ranked. Its status i
 |---|---|---|
 | `received` | The event is stored, but not yet dispatched to the processing queue | Receipt, in the conditional `PutItem` that creates the event |
 | `enqueued` | The event was dispatched to the processing queue | Receipt, after the dispatch succeeds, by an `UpdateItem` conditioned on `received` |
+| `processing` | A worker attempt is running | The worker, when an attempt starts, from a missing status, `received`, `enqueued`, or `failed` |
+| `processed` | The last attempt succeeded | The worker, when the attempt that holds the event succeeds |
+| `failed` | The last attempt failed, and the queue retries the event | The worker, when the attempt that holds the event fails |
 
-> **Note:** Each change is a conditional update from the statuses that may precede it, so a processing status never moves back and needs no read first. `enqueued` is recorded only after the dispatch succeeds, so an event that stays `received` never reached the queue: its dispatch failed, and the provider has not retried it yet. A repeated delivery dispatches the event again, and records `enqueued` only when the stored event is still `received`, which completes its unfinished receipt; for any other status the condition would fail, and a failed conditional write is still billed. `processing_status` is not projected into the indexes, so reading it needs `GetItem`.
+> **Note:** Each change is a conditional update from the statuses that may precede it, so a processing status never moves back and needs no read first. `enqueued` is recorded only after the dispatch succeeds, so an event that stays `received` never reached the queue: its dispatch failed, and the provider has not retried it yet. A repeated delivery dispatches the event again, and records `enqueued` only when the stored event is still `received`, which completes its unfinished receipt; for any other status the condition would fail, and a failed conditional write is still billed. `processing` can start from `received` because the worker may receive the message before receipt records `enqueued`, whose condition then fails harmlessly. The worker moves the status first and stores the attempt second, so a refused attempt leaves no item that never ran. Finishing changes the status only while `current_attempt_id` names that attempt, so an attempt can never overwrite a newer one, and the attempt item keeps its outcome either way. The worker acknowledges a repeated message for a `processed` event without another attempt. Events stored before processing statuses existed have no `processing_status`; they read as `enqueued`, as receipt left them, and can start an attempt. `processing_status` is not projected into the indexes, so reading it needs `GetItem`.
 
 ### Retention
 

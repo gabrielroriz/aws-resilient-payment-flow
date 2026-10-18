@@ -49,7 +49,12 @@ resource "aws_lambda_event_source_mapping" "sqs" {
   function_response_types = ["ReportBatchItemFailures"]
   enabled                 = true
 
-  depends_on = [aws_iam_role_policy.webhook_events_consume, aws_iam_role_policy.webhook_events_read, aws_iam_role_policy_attachment.lambda_logs]
+  depends_on = [
+    aws_iam_role_policy.webhook_events_consume,
+    aws_iam_role_policy.webhook_events_read,
+    aws_iam_role_policy.webhook_events_process,
+    aws_iam_role_policy_attachment.lambda_logs
+  ]
 }
 
 resource "aws_iam_role_policy" "webhook_events_consume" {

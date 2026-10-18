@@ -13,13 +13,14 @@ const tableName = "configured_events";
 
 beforeEach(() => {
   vi.stubEnv("WEBHOOK_EVENTS_TABLE_NAME", tableName);
+  vi.stubEnv("CODE_VERSION", "20261017110316-339fc51a2130");
 });
 
 test.each([
   ["gatewayGlobal", GatewayGlobalWebhookProvider, GatewayBrazilWebhookProvider],
   ["gatewayBrazil", GatewayBrazilWebhookProvider, GatewayGlobalWebhookProvider],
 ] as const)(
-  "the worker routes %s through its shared provider without webhook credentials",
+  "the worker routes %s through its shared provider without webhook credentials, recording the attempt",
   async (provider, target, other) => {
     vi.stubEnv("GATEWAY_GLOBAL_SIGNING_SECRET", undefined);
     vi.stubEnv("GATEWAY_BRAZIL_ACCESS_TOKEN", undefined);
@@ -30,6 +31,9 @@ test.each([
     const process = vi.spyOn(target.prototype, "process");
     const otherProcess = vi.spyOn(other.prototype, "process");
     const payload = '{ "exact": "payload" }';
+    const updateIf = vi.spyOn(DynamoClient.prototype, "updateIf").mockResolvedValue(true);
+    const put = vi.spyOn(DynamoClient.prototype, "put").mockResolvedValue();
+    // An event stored before processing statuses existed, which reads as enqueued.
     const get = vi.spyOn(DynamoClient.prototype, "get").mockResolvedValue({
       PK: `${provider}#evt_1`,
       SK: "META",
@@ -52,6 +56,24 @@ test.each([
     expect(authenticate).not.toHaveBeenCalled();
     expect(parse).not.toHaveBeenCalled();
     expect(credentials).not.toHaveBeenCalled();
+    // The event moves to processing, then both it and the attempt record success.
+    const eventKey = { PK: `${provider}#evt_1`, SK: "META" };
+    expect(updateIf.mock.calls[0].slice(0, 2)).toEqual([tableName, eventKey]);
+    expect(updateIf.mock.calls[0][2].ExpressionAttributeValues).toMatchObject({
+      ":processing": "processing",
+    });
+    expect(put).toHaveBeenCalledWith(
+      tableName,
+      expect.objectContaining({
+        PK: `${provider}#evt_1`,
+        SK: expect.stringMatching(/^ATTEMPT#/),
+        handler_version: "20261017110316-339fc51a2130",
+      }),
+    );
+    expect(updateIf.mock.calls[2].slice(0, 2)).toEqual([tableName, eventKey]);
+    expect(updateIf.mock.calls[2][2].ExpressionAttributeValues).toMatchObject({
+      ":status": "processed",
+    });
     // The gateway's entry carries its source queue message, and never the payload.
     expect(logs()).toEqual([
       {

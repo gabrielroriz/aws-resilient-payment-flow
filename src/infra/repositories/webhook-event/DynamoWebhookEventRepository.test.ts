@@ -158,6 +158,131 @@ test("recordOutdated flags the stored event as outdated, never creating a partia
   );
 });
 
+test("get reads an event stored before processing statuses existed as enqueued and not outdated", async () => {
+  const { dynamo, repository } = setup();
+  const { processing_status, outdated, ...older } = await storedEventItem();
+  vi.spyOn(dynamo, "get").mockResolvedValue(older);
+
+  await expect(repository.get(event)).resolves.toMatchObject({
+    processingStatus: "enqueued",
+    outdated: false,
+  });
+});
+
+const attempt: WebhookEventRepository.StartedAttempt = {
+  attemptId: "att-1",
+  startedAt: new Date("2026-10-10T10:00:02.000Z"),
+  handlerVersion: "20261017110316-339fc51a2130",
+};
+
+test("startAttempt moves the event to processing, then stores the attempt with its code version", async () => {
+  const { dynamo, repository } = setup();
+  const updateIf = vi.spyOn(dynamo, "updateIf").mockResolvedValue(true);
+  const put = vi.spyOn(dynamo, "put").mockResolvedValue();
+
+  await expect(repository.startAttempt(event, attempt)).resolves.toBe(true);
+
+  expect(updateIf).toHaveBeenCalledWith(
+    tableName,
+    { PK: "stripe#evt_1", SK: "META" },
+    {
+      UpdateExpression: "SET processing_status = :processing, current_attempt_id = :attempt",
+      ConditionExpression:
+        "attribute_exists(PK) AND (attribute_not_exists(processing_status) OR " +
+        "processing_status IN (:received, :enqueued, :failed))",
+      ExpressionAttributeValues: {
+        ":processing": "processing",
+        ":attempt": "att-1",
+        ":received": "received",
+        ":enqueued": "enqueued",
+        ":failed": "failed",
+      },
+    },
+  );
+  expect(put).toHaveBeenCalledWith(tableName, {
+    PK: "stripe#evt_1",
+    SK: "ATTEMPT#2026-10-10T10:00:02.000Z#att-1",
+    attempt_id: "att-1",
+    started_at: "2026-10-10T10:00:02.000Z",
+    handler_version: "20261017110316-339fc51a2130",
+    expires_at: eventExpiresAt,
+  });
+  expect(updateIf.mock.invocationCallOrder[0]).toBeLessThan(put.mock.invocationCallOrder[0]);
+});
+
+test("startAttempt stores nothing when the event's status allows no new attempt", async () => {
+  const { dynamo, repository } = setup();
+  vi.spyOn(dynamo, "updateIf").mockResolvedValue(false);
+  const put = vi.spyOn(dynamo, "put");
+
+  await expect(repository.startAttempt(event, attempt)).resolves.toBe(false);
+
+  expect(put).not.toHaveBeenCalled();
+});
+
+test("finishAttempt records the outcome on the attempt, then moves the event while the attempt still holds it", async () => {
+  const { dynamo, repository } = setup();
+  const updateIf = vi.spyOn(dynamo, "updateIf").mockResolvedValue(true);
+  const finishedAt = new Date("2026-10-10T10:00:02.300Z");
+
+  await repository.finishAttempt(event, { ...attempt, finishedAt, outcome: "succeeded" });
+  await repository.finishAttempt(event, {
+    ...attempt,
+    finishedAt,
+    outcome: "failed",
+    errorCode: "INTERNAL_SERVER_ERROR",
+  });
+
+  expect(updateIf.mock.calls).toEqual([
+    [
+      tableName,
+      { PK: "stripe#evt_1", SK: "ATTEMPT#2026-10-10T10:00:02.000Z#att-1" },
+      {
+        UpdateExpression: "SET finished_at = :finishedAt, outcome = :outcome",
+        ConditionExpression: "attribute_exists(PK)",
+        ExpressionAttributeValues: {
+          ":finishedAt": "2026-10-10T10:00:02.300Z",
+          ":outcome": "succeeded",
+        },
+      },
+    ],
+    [
+      tableName,
+      { PK: "stripe#evt_1", SK: "META" },
+      {
+        UpdateExpression: "SET processing_status = :status",
+        ConditionExpression: "processing_status = :processing AND current_attempt_id = :attempt",
+        ExpressionAttributeValues: {
+          ":status": "processed",
+          ":processing": "processing",
+          ":attempt": "att-1",
+        },
+      },
+    ],
+    [
+      tableName,
+      { PK: "stripe#evt_1", SK: "ATTEMPT#2026-10-10T10:00:02.000Z#att-1" },
+      {
+        UpdateExpression:
+          "SET finished_at = :finishedAt, outcome = :outcome, error_code = :errorCode",
+        ConditionExpression: "attribute_exists(PK)",
+        ExpressionAttributeValues: {
+          ":finishedAt": "2026-10-10T10:00:02.300Z",
+          ":outcome": "failed",
+          ":errorCode": "INTERNAL_SERVER_ERROR",
+        },
+      },
+    ],
+    [
+      tableName,
+      { PK: "stripe#evt_1", SK: "META" },
+      expect.objectContaining({
+        ExpressionAttributeValues: expect.objectContaining({ ":status": "failed" }),
+      }),
+    ],
+  ]);
+});
+
 test("recordDuplicateDelivery stores a delivery item that expires with the event", async () => {
   const { dynamo, repository } = setup();
   const put = vi.spyOn(dynamo, "put").mockResolvedValue();

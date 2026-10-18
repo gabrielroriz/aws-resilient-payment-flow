@@ -70,6 +70,80 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     );
   }
 
+  async startAttempt(
+    event: WebhookEventRepository.Event,
+    attempt: WebhookEventRepository.StartedAttempt,
+  ): Promise<boolean> {
+    // Status first, so a refused attempt leaves no item that never ran.
+    const started = await this.dynamo.updateIf(
+      this.table,
+      { PK: eventKey(event), SK: DynamoWebhookEventRepository.EVENT_SK },
+      {
+        UpdateExpression: "SET processing_status = :processing, current_attempt_id = :attempt",
+        // Events stored before processing statuses existed have none.
+        ConditionExpression:
+          "attribute_exists(PK) AND (attribute_not_exists(processing_status) OR " +
+          "processing_status IN (:received, :enqueued, :failed))",
+        ExpressionAttributeValues: {
+          ":processing": "processing",
+          ":attempt": attempt.attemptId,
+          ":received": "received",
+          ":enqueued": "enqueued",
+          ":failed": "failed",
+        },
+      },
+    );
+    if (!started) {
+      return false;
+    }
+
+    const item: DynamoWebhookEventRepository.AttemptItem = {
+      PK: eventKey(event),
+      SK: attemptKey(attempt),
+      attempt_id: attempt.attemptId,
+      started_at: attempt.startedAt.toISOString(),
+      handler_version: attempt.handlerVersion,
+      expires_at: this.expiresAt(event.receivedAt),
+    };
+    await this.dynamo.put(this.table, item);
+    return true;
+  }
+
+  async finishAttempt(
+    event: WebhookEventRepository.Event,
+    attempt: WebhookEventRepository.FinishedAttempt,
+  ): Promise<void> {
+    // The attempt keeps its outcome even when a newer attempt took the event over.
+    await this.dynamo.updateIf(
+      this.table,
+      { PK: eventKey(event), SK: attemptKey(attempt) },
+      {
+        UpdateExpression:
+          "SET finished_at = :finishedAt, outcome = :outcome" +
+          (attempt.errorCode === undefined ? "" : ", error_code = :errorCode"),
+        ConditionExpression: "attribute_exists(PK)",
+        ExpressionAttributeValues: {
+          ":finishedAt": attempt.finishedAt.toISOString(),
+          ":outcome": attempt.outcome,
+          ...(attempt.errorCode !== undefined && { ":errorCode": attempt.errorCode }),
+        },
+      },
+    );
+    await this.dynamo.updateIf(
+      this.table,
+      { PK: eventKey(event), SK: DynamoWebhookEventRepository.EVENT_SK },
+      {
+        UpdateExpression: "SET processing_status = :status",
+        ConditionExpression: "processing_status = :processing AND current_attempt_id = :attempt",
+        ExpressionAttributeValues: {
+          ":status": attempt.outcome === "succeeded" ? "processed" : "failed",
+          ":processing": "processing",
+          ":attempt": attempt.attemptId,
+        },
+      },
+    );
+  }
+
   async recordDuplicateDelivery(
     event: WebhookEventRepository.Event,
     delivery: WebhookEventRepository.Delivery,
@@ -253,8 +327,11 @@ export namespace DynamoWebhookEventRepository {
     subscription_id?: string;
     status?: WebhookEventRepository.SubjectStatus;
     payload: Uint8Array;
-    processing_status: WebhookEventRepository.ProcessingStatus;
-    outdated: boolean;
+    // Absent, like `outdated`, on events stored before either existed.
+    processing_status?: WebhookEventRepository.ProcessingStatus;
+    outdated?: boolean;
+    // The attempt that last moved the event to `processing`.
+    current_attempt_id?: string;
     GSI1PK: string;
     GSI2PK?: string;
     expires_at: number;
@@ -287,7 +364,7 @@ export namespace DynamoWebhookEventRepository {
     attempt_id: string;
     started_at: string;
     finished_at?: string;
-    outcome: "succeeded" | "failed";
+    outcome?: "succeeded" | "failed";
     error_code?: string;
     handler_version: string;
     trace_id?: string;
@@ -319,6 +396,11 @@ function eventKey({ provider, providerEventId }: WebhookEventRepository.EventId)
   return joinKey(provider, providerEventId);
 }
 
+// Sorts an event's attempts by start time, then by ID.
+function attemptKey({ startedAt, attemptId }: WebhookEventRepository.StartedAttempt): string {
+  return joinKey("ATTEMPT", startedAt.toISOString(), attemptId);
+}
+
 function fromReceivedItem(
   item: DynamoWebhookEventRepository.ReceivedItem,
 ): WebhookEventRepository.Summary {
@@ -342,8 +424,9 @@ function fromEventItem(item: DynamoWebhookEventRepository.EventItem): WebhookEve
     subscriptionId: item.subscription_id,
     status: item.status,
     payload: gunzipSync(item.payload).toString("utf8"),
-    processingStatus: item.processing_status,
-    outdated: item.outdated,
+    // Older events read as receipt left them: dispatched and not flagged.
+    processingStatus: item.processing_status ?? "enqueued",
+    outdated: item.outdated ?? false,
   };
 }
 

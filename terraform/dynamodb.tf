@@ -114,3 +114,17 @@ resource "aws_iam_role_policy" "webhook_events_read" {
     }]
   })
 }
+
+// The worker records each processing attempt and moves the event's status.
+resource "aws_iam_role_policy" "webhook_events_process" {
+  name = "webhook-events-process"
+  role = aws_iam_role.webhook_worker.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem"]
+      Resource = aws_dynamodb_table.webhook_events.arn
+    }]
+  })
+}

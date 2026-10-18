@@ -26,6 +26,20 @@ export abstract class WebhookEventRepository {
   // Flags the event as outdated after `recordStatus` reports it is outranked.
   abstract recordOutdated(id: WebhookEventRepository.EventId): Promise<void>;
 
+  // Starts an attempt: moves the event to `processing`, then stores the attempt.
+  // Writes nothing and returns false when the event's status allows no new attempt.
+  abstract startAttempt(
+    event: WebhookEventRepository.Event,
+    attempt: WebhookEventRepository.StartedAttempt,
+  ): Promise<boolean>;
+
+  // Records how an attempt ended, then moves the event to `processed` or `failed`.
+  // The status changes only while the event still belongs to this attempt.
+  abstract finishAttempt(
+    event: WebhookEventRepository.Event,
+    attempt: WebhookEventRepository.FinishedAttempt,
+  ): Promise<void>;
+
   // Records the status as its subject's latest unless another event outranks it.
   // Higher `precedence` wins, then later occurrence, then greater ID.
   // Arrival order therefore never matters.
@@ -71,7 +85,10 @@ export namespace WebhookEventRepository {
   // How far the platform has handled the event, unlike the reported `SubjectStatus`.
   // `received`: stored at receipt, but not yet dispatched to the processing queue.
   // `enqueued`: dispatched to the processing queue.
-  export type ProcessingStatus = "received" | "enqueued";
+  // `processing`: a worker attempt is running.
+  // `processed`: the last attempt succeeded.
+  // `failed`: the last attempt failed, and the queue retries the event.
+  export type ProcessingStatus = "received" | "enqueued" | "processing" | "processed" | "failed";
 
   export type Event = EventId & {
     // The provider's own event type, such as Stripe's `invoice.paid`.
@@ -119,14 +136,23 @@ export namespace WebhookEventRepository {
   export type Attempt = {
     attemptId: string;
     startedAt: Date;
+    // Absent, like `outcome`, while the attempt runs.
     finishedAt?: Date;
-    outcome: "succeeded" | "failed";
+    outcome?: "succeeded" | "failed";
     // Stable machine-readable error code, present when the attempt failed.
     errorCode?: string;
     // Code version that ran the attempt, to find events to reprocess after a defect.
     handlerVersion: string;
     traceId?: string;
   };
+
+  // An attempt as it starts.
+  export type StartedAttempt = Pick<Attempt, "attemptId" | "startedAt" | "handlerVersion">;
+
+  // An attempt as it ends, with the error code of a failure.
+  export type FinishedAttempt = StartedAttempt &
+    Required<Pick<Attempt, "finishedAt" | "outcome">> &
+    Pick<Attempt, "errorCode">;
 
   export type Effect = {
     effect: string;
