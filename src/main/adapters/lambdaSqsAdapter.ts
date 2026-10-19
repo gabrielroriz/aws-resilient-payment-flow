@@ -1,6 +1,7 @@
 import { MessageHandler } from "@application/contracts/MessageHandler";
 import { ErrorQueueInvalidMessage } from "@application/errors/queue/ErrorQueueInvalidMessage";
 import { ErrorQueueMalformedMessage } from "@application/errors/queue/ErrorQueueMalformedMessage";
+import { InvocationContext } from "@application/ports/InvocationContext";
 import { Logger } from "@application/ports/Logger";
 import { validatePayload } from "@kernel/decorators/schema";
 import { parseJson } from "@kernel/utils/json";
@@ -9,25 +10,31 @@ import type { Context, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda"
 
 // Processes FIFO batches in order and acknowledges only the messages that completed.
 // The handler receives only messages that pass its schema.
-export function lambdaSqsAdapter(handler: MessageHandler, logger: Logger) {
-  return (event: SQSEvent, context?: Context): Promise<SQSBatchResponse> =>
-    logger.withContext({ lambdaRequestId: context?.awsRequestId }, async () => {
-      for (const [index, record] of event.Records.entries()) {
-        // Every entry logged while handling the message names it.
-        const completed = await logger.withContext(messageFields(record), () =>
-          handle(handler, logger, record),
-        );
-        if (!completed) {
-          // Stop at the first failure: acknowledging later ones breaks FIFO order.
-          return {
-            batchItemFailures: event.Records.slice(index).map(({ messageId }) => ({
-              itemIdentifier: messageId,
-            })),
-          };
+export function lambdaSqsAdapter(
+  handler: MessageHandler,
+  logger: Logger,
+  invocationContext: InvocationContext,
+) {
+  return (event: SQSEvent, context: Context): Promise<SQSBatchResponse> =>
+    invocationContext.withContext(context.getRemainingTimeInMillis(), () =>
+      logger.withContext({ lambdaRequestId: context.awsRequestId }, async () => {
+        for (const [index, record] of event.Records.entries()) {
+          // Every entry logged while handling the message names it.
+          const completed = await logger.withContext(messageFields(record), () =>
+            handle(handler, logger, record),
+          );
+          if (!completed) {
+            // Stop at the first failure: acknowledging later ones breaks FIFO order.
+            return {
+              batchItemFailures: event.Records.slice(index).map(({ messageId }) => ({
+                itemIdentifier: messageId,
+              })),
+            };
+          }
         }
-      }
-      return { batchItemFailures: [] };
-    });
+        return { batchItemFailures: [] };
+      }),
+    );
 }
 
 // Handles one message, logging failures instead of throwing; true if it completed.

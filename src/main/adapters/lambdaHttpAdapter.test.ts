@@ -4,13 +4,15 @@ import { ErrorCategory } from "@application/errors/enums/ErrorCategory";
 import { ErrorCode } from "@application/errors/enums/ErrorCode";
 import { ErrorKind } from "@application/errors/enums/ErrorKind";
 import { SystemClock } from "@infra/clock/SystemClock";
+import { AsyncInvocationContext } from "@infra/invocation/AsyncInvocationContext";
 import { JsonLogger } from "@infra/logging/JsonLogger";
 import { captureLogs } from "@infra/logging/JsonLogger.fixtures";
 import { Schema } from "@kernel/decorators/schema";
 import * as z from "@kernel/utils/zod";
 import { lambdaHttpAdapter } from "@main/adapters/lambdaHttpAdapter";
 import { httpEvent, invokeHttp } from "@main/adapters/lambdaHttpAdapter.fixtures";
-import type { APIGatewayProxyEventV2, Context } from "aws-lambda";
+import { lambdaContext } from "@main/utils/lambdaContext.fixtures";
+import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import { expect, test, vi } from "vitest";
 
 class Conflict extends ApplicationError {
@@ -47,7 +49,33 @@ const controller: Controller = {
 };
 
 const logger = new JsonLogger(new SystemClock());
-const handler = lambdaHttpAdapter(controller, logger);
+const invocationContext = new AsyncInvocationContext(new SystemClock());
+const handler = lambdaHttpAdapter(controller, logger, invocationContext);
+
+test("HTTP handling can read its invocation timing across awaits", async () => {
+  const invocation = new AsyncInvocationContext({ now: () => new Date(1_000) });
+  const adapter = lambdaHttpAdapter(
+    {
+      async handle() {
+        await Promise.resolve();
+        return {
+          statusCode: 200,
+          body: { startedAt: invocation.startedAt(), deadline: invocation.deadline() },
+        };
+      },
+    },
+    logger,
+    invocation,
+  );
+
+  const response = await invokeHttp(adapter);
+
+  expect(response.body).toEqual({
+    startedAt: new Date(1_000).toISOString(),
+    deadline: new Date(31_000).toISOString(),
+  });
+  expect(() => invocation.startedAt()).toThrow("outside an invocation");
+});
 
 test("the HTTP adapter maps requests, application errors, and unknown errors to responses", async () => {
   captureLogs();
@@ -163,9 +191,10 @@ test("every entry logged while handling a request carries the request's identity
       },
     },
     logger,
+    invocationContext,
   );
 
-  await logging(httpEvent({ routeKey: "POST /test" }), { awsRequestId: "lambda-1" } as Context);
+  await logging(httpEvent({ routeKey: "POST /test" }), lambdaContext({ awsRequestId: "lambda-1" }));
   logger.info("webhook_routed");
 
   expect(logs()).toEqual([
@@ -199,7 +228,7 @@ test("the HTTP adapter validates the body against the controller's schema before
   class CreatePaymentController implements Controller {
     handle = handle;
   }
-  const createPayment = lambdaHttpAdapter(new CreatePaymentController(), logger);
+  const createPayment = lambdaHttpAdapter(new CreatePaymentController(), logger, invocationContext);
 
   // Undeclared fields are dropped, so the controller sees only its schema's fields.
   expect(await invokeHttp(createPayment, { body: '{"amount":100,"extra":true}' })).toMatchObject({

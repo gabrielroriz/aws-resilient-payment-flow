@@ -23,6 +23,24 @@ resource "aws_sqs_queue" "webhook_events_dlq" {
   message_retention_seconds = 1209600
 }
 
+// Alert when failed messages are waiting for inspection or redrive.
+resource "aws_cloudwatch_metric_alarm" "webhook_events_dlq_not_empty" {
+  alarm_name          = "webhook-events-dlq-not-empty"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 60
+  statistic           = "Maximum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.ALARM_NOTIFICATION_TOPIC_ARN == null ? [] : [var.ALARM_NOTIFICATION_TOPIC_ARN]
+
+  dimensions = {
+    QueueName = aws_sqs_queue.webhook_events_dlq.name
+  }
+}
+
 locals {
   webhook_max_receive_count = 5
   sqs_consumers = {

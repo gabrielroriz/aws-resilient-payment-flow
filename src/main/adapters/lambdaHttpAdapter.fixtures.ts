@@ -1,9 +1,13 @@
-import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda";
+import { lambdaContext } from "@main/utils/lambdaContext.fixtures";
+import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Context } from "aws-lambda";
 
 // Test helpers for handlers built with `lambdaHttpAdapter`.
 // Lambda entries never import them.
 
-type HttpHandler = (event: APIGatewayProxyEventV2) => Promise<APIGatewayProxyResultV2>;
+type HttpHandler = (
+  event: APIGatewayProxyEventV2,
+  context: Context,
+) => Promise<APIGatewayProxyResultV2>;
 
 // A minimal API Gateway payload 2.0 event with only the fields the adapter reads.
 export function httpEvent(overrides: Partial<APIGatewayProxyEventV2> = {}): APIGatewayProxyEventV2 {
@@ -21,7 +25,7 @@ export async function invokeHttp(
   handler: HttpHandler,
   overrides?: Partial<APIGatewayProxyEventV2>,
 ) {
-  const response = await handler(httpEvent(overrides));
+  const response = await handler(httpEvent(overrides), lambdaContext());
   // A bare string response is valid, but the adapter always builds an object.
   if (typeof response === "string") {
     throw new Error("Expected a structured HTTP response");

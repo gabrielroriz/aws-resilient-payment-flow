@@ -13,10 +13,7 @@ Deferred build and deployment tests:
 
 Processing status:
 
-- [ ] Let the worker take over a `processing` event whose attempt started longer ago than the worker timeout, and skip `dead_lettered` events.
-- [ ] Add a dead-letter queue consumer that marks events `dead_lettered`, from any status that is not final, since a message can reach the queue without ever being attempted.
-- [ ] Check the processing statuses end to end with the simulator, including a failure that ends in the dead-letter queue.
-- [ ] Consider moving the payload into its own item, so a status update costs one write unit whatever the payload size.
+- [ ] Keep processing a batch's other message groups after one message fails, failing only the rest of that message's group. A batch mixes providers, so one failing message now spends the receives of other providers' messages, which can reach the dead-letter queue without ever being attempted.
 
 Event history and admin dashboard:
 

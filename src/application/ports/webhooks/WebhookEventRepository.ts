@@ -27,6 +27,7 @@ export abstract class WebhookEventRepository {
   abstract recordOutdated(id: WebhookEventRepository.EventId): Promise<void>;
 
   // Starts an attempt: moves the event to `processing`, then stores the attempt.
+  // It takes over a `processing` event whose attempt passed its deadline.
   // Writes nothing and returns false when the event's status allows no new attempt.
   abstract startAttempt(
     event: WebhookEventRepository.Event,
@@ -147,7 +148,10 @@ export namespace WebhookEventRepository {
   };
 
   // An attempt as it starts.
-  export type StartedAttempt = Pick<Attempt, "attemptId" | "startedAt" | "handlerVersion">;
+  export type StartedAttempt = Pick<Attempt, "attemptId" | "startedAt" | "handlerVersion"> & {
+    // When its function is stopped, so a later attempt may take the event over.
+    deadline: Date;
+  };
 
   // An attempt as it ends, with the error code of a failure.
   export type FinishedAttempt = StartedAttempt &

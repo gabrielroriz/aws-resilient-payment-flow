@@ -6,6 +6,7 @@ import { ErrorCode } from "@application/errors/enums/ErrorCode";
 import { ErrorKind } from "@application/errors/enums/ErrorKind";
 import { Clock } from "@application/ports/Clock";
 import { Deployment } from "@application/ports/Deployment";
+import { InvocationContext } from "@application/ports/InvocationContext";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProviderRegistry } from "@application/ports/webhooks/WebhookProviderRegistry";
 import { Injectable } from "@kernel/decorators/injectable";
@@ -13,13 +14,14 @@ import { randomId } from "@kernel/utils/crypto";
 
 // Hands a queued event, exactly as receipt stored it, to its gateway adapter.
 // Each run is recorded as an attempt that moves the event's processing status.
-@Injectable(WebhookEventRepository, WebhookProviderRegistry, Clock, Deployment)
+@Injectable(WebhookEventRepository, WebhookProviderRegistry, Clock, Deployment, InvocationContext)
 export class ProcessWebhookEventUseCase {
   constructor(
     private readonly events: WebhookEventRepository,
     private readonly providerRegistry: WebhookProviderRegistry,
     private readonly clock: Clock,
     private readonly deployment: Deployment,
+    private readonly invocationContext: InvocationContext,
   ) {}
 
   async execute(id: ProcessWebhookEventUseCase.Input): Promise<void> {
@@ -41,10 +43,13 @@ export class ProcessWebhookEventUseCase {
       throw new ErrorWebhookProviderNotFound(event.provider, ErrorKind.UNEXPECTED);
     }
 
+    const startedAt = this.clock.now();
     const attempt: WebhookEventRepository.StartedAttempt = {
       attemptId: randomId(),
-      startedAt: this.clock.now(),
+      startedAt,
       handlerVersion: this.deployment.codeVersion(),
+      // No attempt outlives the invocation that runs it.
+      deadline: this.invocationContext.deadline(),
     };
     if (!(await this.events.startAttempt(event, attempt))) {
       throw new ErrorWebhookEventInProgress(event);

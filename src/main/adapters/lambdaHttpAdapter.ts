@@ -1,6 +1,7 @@
 import { Controller } from "@application/contracts/Controller";
 import { BaseError } from "@application/errors/BaseError";
 import { ErrorCode } from "@application/errors/enums/ErrorCode";
+import { InvocationContext } from "@application/ports/InvocationContext";
 import { Logger } from "@application/ports/Logger";
 import { errorLogFields } from "@main/utils/errors";
 import {
@@ -14,16 +15,22 @@ import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2, Context } from "a
 // Driving adapter for API Gateway HTTP API events (payload format 2.0).
 // Converts the event into a controller request, validating the body by its schema.
 // Maps the result, or any error, to a response.
-export function lambdaHttpAdapter(controller: Controller, logger: Logger) {
-  return (event: APIGatewayProxyEventV2, context?: Context): Promise<APIGatewayProxyResultV2> =>
-    // Every entry logged for the request names it, so its logs are found together.
-    logger.withContext(
-      {
-        lambdaRequestId: context?.awsRequestId,
-        requestId: event.requestContext?.requestId,
-        route: event.routeKey,
-      },
-      () => handle(controller, logger, event),
+export function lambdaHttpAdapter(
+  controller: Controller,
+  logger: Logger,
+  invocationContext: InvocationContext,
+) {
+  return (event: APIGatewayProxyEventV2, context: Context): Promise<APIGatewayProxyResultV2> =>
+    invocationContext.withContext(context.getRemainingTimeInMillis(), () =>
+      // Every entry logged for the request names it, so its logs are found together.
+      logger.withContext(
+        {
+          lambdaRequestId: context.awsRequestId,
+          requestId: event.requestContext?.requestId,
+          route: event.routeKey,
+        },
+        () => handle(controller, logger, event),
+      ),
     );
 }
 

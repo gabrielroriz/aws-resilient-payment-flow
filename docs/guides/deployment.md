@@ -25,6 +25,8 @@ Build every registered function and deploy it to AWS, with its HTTP routes, Dyna
    | Secrets file | Copy [`terraform/secrets.auto.tfvars.example`](../../terraform/secrets.auto.tfvars.example) to `terraform/secrets.auto.tfvars` and fill it in; Terraform loads it automatically, and git ignores it |
    | Environment | Export each variable as `TF_VAR_<NAME>`; a secrets file takes precedence |
 
+To receive dead-letter queue alarm notifications, set `TF_VAR_ALARM_NOTIFICATION_TOPIC_ARN` to an existing SNS topic ARN before deployment. Without one, the alarm state remains visible in CloudWatch.
+
 ## How it works
 
 `npm run deploy` builds in a temporary workspace and uses [`lambdas.json`](../../lambdas.json) to select the functions. The workspace holds only what the functions are built from (the Lambda source, the build tooling, and the package files), so local tooling and the simulator never affect a deployment:
@@ -73,6 +75,7 @@ To review the infrastructure changes first, run `terraform -chdir=terraform plan
 | HTTP API | API Gateway HTTP API with an automatically deployed `$default` stage, and one route, proxy integration, and invocation permission per HTTP function; queue workers have no HTTP endpoint |
 | DynamoDB tables | On-demand tables with their indexes and TTL; see the [data model](../architecture/data-model/) |
 | SQS queues | The webhook events FIFO queue and its dead-letter queue; see the [processing queue](../architecture/webhook-receipt.md#processing-queue) |
+| Dead-letter queue alarm | Enters `ALARM` when CloudWatch reports visible messages; see [Webhook processing](../architecture/webhook-processing.md#dead-letter-queue) |
 | SQS event source mappings | Invoke the webhook worker with partial batch responses; its role permits queue consumption, stored event reads, and execution logs |
 | State bucket | The S3 bucket holding the Terraform state, managed by the same configuration |
 

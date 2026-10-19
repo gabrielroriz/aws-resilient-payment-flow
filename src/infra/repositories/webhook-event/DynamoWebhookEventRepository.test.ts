@@ -173,6 +173,7 @@ const attempt: WebhookEventRepository.StartedAttempt = {
   attemptId: "att-1",
   startedAt: new Date("2026-10-10T10:00:02.000Z"),
   handlerVersion: "20261017110316-339fc51a2130",
+  deadline: new Date("2026-10-10T10:00:32.000Z"),
 };
 
 test("startAttempt moves the event to processing, then stores the attempt with its code version", async () => {
@@ -182,17 +183,25 @@ test("startAttempt moves the event to processing, then stores the attempt with i
 
   await expect(repository.startAttempt(event, attempt)).resolves.toBe(true);
 
+  // A `processing` event is taken over once its deadline is before this start.
   expect(updateIf).toHaveBeenCalledWith(
     tableName,
     { PK: "stripe#evt_1", SK: "META" },
     {
-      UpdateExpression: "SET processing_status = :processing, current_attempt_id = :attempt",
+      UpdateExpression:
+        "SET processing_status = :processing, current_attempt_id = :attempt, " +
+        "current_attempt_deadline = :deadline",
       ConditionExpression:
         "attribute_exists(PK) AND (attribute_not_exists(processing_status) OR " +
-        "processing_status IN (:received, :enqueued, :failed))",
+        "processing_status IN (:received, :enqueued, :failed) OR " +
+        "(processing_status = :processing AND " +
+        "(attribute_not_exists(current_attempt_deadline) OR " +
+        "current_attempt_deadline < :startedAt)))",
       ExpressionAttributeValues: {
         ":processing": "processing",
         ":attempt": "att-1",
+        ":deadline": "2026-10-10T10:00:32.000Z",
+        ":startedAt": "2026-10-10T10:00:02.000Z",
         ":received": "received",
         ":enqueued": "enqueued",
         ":failed": "failed",

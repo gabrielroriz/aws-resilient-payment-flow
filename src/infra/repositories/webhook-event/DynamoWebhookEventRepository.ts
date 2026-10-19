@@ -79,14 +79,23 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       this.table,
       { PK: eventKey(event), SK: DynamoWebhookEventRepository.EVENT_SK },
       {
-        UpdateExpression: "SET processing_status = :processing, current_attempt_id = :attempt",
+        UpdateExpression:
+          "SET processing_status = :processing, current_attempt_id = :attempt, " +
+          "current_attempt_deadline = :deadline",
         // Events stored before processing statuses existed have none.
+        // An attempt `processing` past its deadline was stopped with its function.
+        // Attempts started before deadlines existed have none and are taken over.
         ConditionExpression:
           "attribute_exists(PK) AND (attribute_not_exists(processing_status) OR " +
-          "processing_status IN (:received, :enqueued, :failed))",
+          "processing_status IN (:received, :enqueued, :failed) OR " +
+          "(processing_status = :processing AND " +
+          "(attribute_not_exists(current_attempt_deadline) OR " +
+          "current_attempt_deadline < :startedAt)))",
         ExpressionAttributeValues: {
           ":processing": "processing",
           ":attempt": attempt.attemptId,
+          ":deadline": attempt.deadline.toISOString(),
+          ":startedAt": attempt.startedAt.toISOString(),
           ":received": "received",
           ":enqueued": "enqueued",
           ":failed": "failed",
@@ -330,8 +339,9 @@ export namespace DynamoWebhookEventRepository {
     // Absent, like `outdated`, on events stored before either existed.
     processing_status?: WebhookEventRepository.ProcessingStatus;
     outdated?: boolean;
-    // The attempt that last moved the event to `processing`.
+    // The attempt that last moved the event to `processing`, and when it is stopped.
     current_attempt_id?: string;
+    current_attempt_deadline?: string;
     GSI1PK: string;
     GSI2PK?: string;
     expires_at: number;

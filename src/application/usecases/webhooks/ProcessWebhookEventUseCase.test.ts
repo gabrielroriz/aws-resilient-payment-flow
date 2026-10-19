@@ -3,6 +3,7 @@ import { ErrorWebhookMalformedEvent } from "@application/errors/application/webh
 import { ErrorWebhookProviderNotFound } from "@application/errors/application/webhooks/ErrorWebhookProviderNotFound";
 import { Clock } from "@application/ports/Clock";
 import { Deployment } from "@application/ports/Deployment";
+import { InvocationContext } from "@application/ports/InvocationContext";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { WebhookProviderRegistry } from "@application/ports/webhooks/WebhookProviderRegistry";
@@ -35,8 +36,17 @@ const id = { provider: stored.provider, providerEventId: stored.providerEventId 
 // The attempt starts at the first reading and ends at the second.
 const startedAt = new Date("2026-10-10T10:00:02.000Z");
 const finishedAt = new Date("2026-10-10T10:00:02.300Z");
+const invocationDeadline = new Date("2026-10-10T10:00:30.000Z");
 
-const deployment: Deployment = { codeVersion: () => "20261017110316-339fc51a2130" };
+const deployment: Deployment = {
+  codeVersion: () => "20261017110316-339fc51a2130",
+};
+
+const invocationContext: InvocationContext = {
+  startedAt: () => new Date("2026-10-10T10:00:00.000Z"),
+  deadline: () => invocationDeadline,
+  withContext: (_remainingTimeMs, work) => work(),
+};
 
 // `event` is what storage holds; `started` is whether storage lets an attempt begin.
 function setup(
@@ -71,7 +81,13 @@ function setup(
   const now = vi.fn().mockReturnValueOnce(startedAt).mockReturnValueOnce(finishedAt);
   const clock: Clock = { now };
   return {
-    useCase: new ProcessWebhookEventUseCase(events, providerRegistry, clock, deployment),
+    useCase: new ProcessWebhookEventUseCase(
+      events,
+      providerRegistry,
+      clock,
+      deployment,
+      invocationContext,
+    ),
     get,
     startAttempt,
     finishAttempt,
@@ -112,6 +128,8 @@ test("process records a successful attempt with the deployed code version around
     attemptId: expect.any(String),
     startedAt,
     handlerVersion: "20261017110316-339fc51a2130",
+    // The attempt inherits the invocation's deadline even though it starts later.
+    deadline: invocationDeadline,
   };
   expect(startAttempt).toHaveBeenCalledExactlyOnceWith(stored, started);
   expect(finishAttempt).toHaveBeenCalledExactlyOnceWith(stored, {
@@ -171,7 +189,7 @@ test("process acknowledges a repeated delivery of a processed event without anot
   expect(process).not.toHaveBeenCalled();
 });
 
-test("process rejects an event another attempt holds, so the queue retries it later", async () => {
+test("process rejects an event another attempt holds before its deadline, so the queue retries it later", async () => {
   const target = provider(stored.provider);
   const process = vi.spyOn(target, "process");
   const { useCase, finishAttempt } = setup([target], stored, { started: false });

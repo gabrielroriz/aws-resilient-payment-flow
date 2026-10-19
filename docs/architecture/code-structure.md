@@ -63,6 +63,7 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 | `infra/<service>/` | Shared clients and helpers for one external service, such as `infra/dynamodb/`; they implement no port and are reused by adapters |
 | `infra/config/` | `AppConfig` and its environment schema; see [Configuration](#configuration) |
 | `main/adapters/` | Converts Lambda events into controller calls, validating payloads against the handler's schema, and maps results and errors to HTTP responses or SQS batch failures |
+| `main/factories/` | Resolves a controller, logger, and invocation context from the entry's registry and supplies them to the driving adapter |
 | `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler`; entries of one area share a folder, such as `functions/webhooks/` |
 | `main/bindings/` | Groups of port bindings that several entries share, one module per group; see [Binding several ports](#binding-several-ports) |
@@ -160,7 +161,7 @@ A dependency is either a concrete class, which resolves directly, or a port, whi
 
 ### Composition root
 
-Each function's entry file binds its ports, then resolves its controller and the logger its driving adapter uses:
+Each function's entry file binds its ports, then calls a handler factory with its registry and controller token:
 
 ```ts
 const registry = Registry.getInstance();
@@ -168,11 +169,10 @@ bindRuntime(registry);
 bindWebhooks(registry);
 registry.bind(WebhookEventDispatcher, SqsWebhookEventDispatcher);
 
-export const handler = lambdaHttpAdapter(
-  registry.resolve(WebhookEntryPointController),
-  registry.resolve(Logger),
-);
+export const handler = createHttpHandler(registry, WebhookEntryPointController);
 ```
+
+`createHttpHandler` and `createSqsHandler` resolve the controller, `Logger`, and `InvocationContext` once during initialization and pass them to the matching driving adapter. The entry owns the bindings, and adapters receive explicit dependencies so tests can supply fakes directly.
 
 `resolve` builds the graph depth first and caches every instance:
 
@@ -197,7 +197,7 @@ flowchart TD
 
 ### Binding several ports
 
-An entry binds only the ports its graph reaches, so its bindings list every external dependency of the function. When the same group repeats across functions, move it into a function in its own module under `src/main/bindings/` and call it from each entry. [`bindWebhooks`](../../src/main/bindings/webhooks.ts) is the reference example: both webhook functions bind the provider registry and the event repository through it, and `bindRuntime` binds the clock and logger every function uses.
+An entry binds only the ports its graph reaches, so its bindings list every external dependency of the function. When the same group repeats across functions, move it into a function in its own module under `src/main/bindings/` and call it from each entry. [`bindWebhooks`](../../src/main/bindings/webhooks.ts) is the reference example: both webhook functions bind the provider registry and the event repository through it, and `bindRuntime` binds the clock, invocation context, and logger every function uses.
 
 | Rule | Reason |
 |---|---|
@@ -268,6 +268,12 @@ Adapters read environment variables through `AppConfig`, injected like any other
 | Behavior | Reason |
 |---|---|
 | A group is validated when it is read, not when the function starts | A function needs only the variables of the groups it uses, and a missing or invalid variable fails only the requests that need it, with an error naming the variable |
+
+## Invocation timing
+
+`InvocationContext` provides `startedAt()` and `deadline()` for the current invocation. Both driving adapters initialize it at handler entry, using `Clock.now()` and the runtime's `getRemainingTimeInMillis()` to capture a fixed deadline. Every message in an SQS batch shares these timestamps, while `Clock.now()` still gives the current time for individual attempts and logs. The function's timeout comes from Lambda's runtime context.
+
+The context adapter uses `AsyncLocalStorage`, so its shared instance keeps timing separate across overlapping invocations and refreshes it for every warm invocation. Returned dates cannot mutate the stored timing. Reading timing outside an invocation fails instead of reusing an old timestamp. Tests that invoke a Lambda handler supply a runtime context with the remaining execution time.
 
 ## Logging
 

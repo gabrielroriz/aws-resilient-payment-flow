@@ -11,6 +11,7 @@
 [![AWS SAM](https://img.shields.io/badge/AWS_SAM-FF9900?style=flat)](https://aws.amazon.com/serverless/sam/)
 [![Amazon DynamoDB](https://img.shields.io/badge/Amazon_DynamoDB-4053D6?style=flat)](https://aws.amazon.com/dynamodb/)
 [![Amazon SQS](https://img.shields.io/badge/Amazon_SQS-FF4F8B?style=flat)](https://aws.amazon.com/sqs/)
+[![Amazon CloudWatch](https://img.shields.io/badge/Amazon_CloudWatch-FF4F8B?style=flat)](https://aws.amazon.com/cloudwatch/)
 [![AWS SDK for JavaScript](https://img.shields.io/badge/AWS_SDK_for_JavaScript-FF9900?style=flat)](https://aws.amazon.com/sdk-for-javascript/)
 [![Zod](https://img.shields.io/badge/Zod-3E67B1?style=flat&logo=zod&logoColor=white)](https://zod.dev/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
