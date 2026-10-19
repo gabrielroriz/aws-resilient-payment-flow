@@ -63,7 +63,7 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 | `infra/<service>/` | Shared clients and helpers for one external service, such as `infra/dynamodb/`; they implement no port and are reused by adapters |
 | `infra/config/` | `AppConfig` and its environment schema; see [Configuration](#configuration) |
 | `main/adapters/` | Converts Lambda events into controller calls, validating payloads against the handler's schema, and maps results and errors to HTTP responses or SQS batch failures |
-| `main/factories/` | Resolves a controller, logger, and invocation context from the entry's registry and supplies them to the driving adapter |
+| `main/factories/` | Binds the shared runtime ports, then resolves a controller, logger, and invocation context and supplies them to the driving adapter |
 | `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler`; entries of one area share a folder, such as `functions/webhooks/` |
 | `main/bindings/` | Groups of port bindings that several entries share, one module per group; see [Binding several ports](#binding-several-ports) |
@@ -156,23 +156,22 @@ A dependency is either a concrete class, which resolves directly, or a port, whi
 |---|---|---|
 | Core to core | `GetHealthController` → `GetHealthUseCase` | Concrete class; no binding |
 | Infra to infra | A repository adapter → the shared DynamoDB client wrapper | Concrete class; no binding |
-| Core to outside | `GetHealthUseCase` → `Clock` | Port bound to an adapter in the entry file |
+| Core to outside | `GetHealthUseCase` → `Clock` | Port bound to an adapter during composition |
 | Core to infra adapter | A use case importing `SystemClock` | Not allowed; add a port |
 
 ### Composition root
 
-Each function's entry file binds its ports, then calls a handler factory with its registry and controller token:
+Each function's entry file binds its specific ports, then calls a handler factory with its registry and controller token:
 
 ```ts
 const registry = Registry.getInstance();
-bindRuntime(registry);
 bindWebhooks(registry);
 registry.bind(WebhookEventDispatcher, SqsWebhookEventDispatcher);
 
 export const handler = createHttpHandler(registry, WebhookEntryPointController);
 ```
 
-`createHttpHandler` and `createSqsHandler` resolve the controller, `Logger`, and `InvocationContext` once during initialization and pass them to the matching driving adapter. The entry owns the bindings, and adapters receive explicit dependencies so tests can supply fakes directly.
+`createHttpHandler` and `createSqsHandler` call `bindRuntime(registry)` before resolving the controller, `Logger`, and `InvocationContext` once during initialization. The factories select the shared clock, invocation context, and logger implementations, replacing any previous bindings for those ports. Entries supply their function-specific bindings before calling a factory and leave dependency resolution to it. Adapters receive explicit dependencies so tests can supply fakes directly.
 
 `resolve` builds the graph depth first and caches every instance:
 
@@ -191,13 +190,13 @@ flowchart TD
 |---|---|
 | When the graph is built | Once, when the module loads in a new execution environment |
 | Instance scope | One shared instance per class for the environment's lifetime, so clients and their connections are reused across invocations; keep per-request state out of injected classes |
-| Binding location | In each function's entry, so its bundle includes only the adapters it uses |
+| Binding location | Function-specific ports in each entry; shared runtime ports in the handler factories, so each bundle includes only the adapters it uses |
 | Missing binding | `resolve` throws `No provider for <Port>` during initialization |
 | Circular import | `@Injectable` throws `<Class> dependency #<n> is undefined` when the module loads |
 
 ### Binding several ports
 
-An entry binds only the ports its graph reaches, so its bindings list every external dependency of the function. When the same group repeats across functions, move it into a function in its own module under `src/main/bindings/` and call it from each entry. [`bindWebhooks`](../../src/main/bindings/webhooks.ts) is the reference example: both webhook functions bind the provider registry and the event repository through it, and `bindRuntime` binds the clock, invocation context, and logger every function uses.
+An entry binds only the function-specific ports its graph reaches. When the same group repeats across functions, move it into a function in its own module under `src/main/bindings/` and call it from each entry. [`bindWebhooks`](../../src/main/bindings/webhooks.ts) is the reference example: both webhook functions bind the provider registry and the event repository through it. The handler factories call `bindRuntime` internally to bind the clock, invocation context, and logger every function uses.
 
 | Rule | Reason |
 |---|---|
