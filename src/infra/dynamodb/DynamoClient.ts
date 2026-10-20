@@ -5,8 +5,10 @@ import {
   PutCommand,
   QueryCommand,
   UpdateCommand,
+  type GetCommandInput,
   type PutCommandInput,
   type QueryCommandInput,
+  type UpdateCommandInput,
 } from "@aws-sdk/lib-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
 import { Injectable } from "@kernel/decorators/injectable";
@@ -22,32 +24,25 @@ export class DynamoClient {
     marshallOptions: { removeUndefinedValues: true },
   });
 
-  async get<T extends DynamoClient.Item>(
-    table: string,
-    key: DynamoClient.Item,
-  ): Promise<T | undefined> {
-    const { Item } = await this.document.send(new GetCommand({ TableName: table, Key: key }));
+  async get<T extends DynamoClient.Item>(input: GetCommandInput): Promise<T | undefined> {
+    const { Item } = await this.document.send(new GetCommand(input));
     return Item as T | undefined;
   }
 
-  async put(table: string, item: DynamoClient.Item): Promise<void> {
-    await this.document.send(new PutCommand({ TableName: table, Item: item }));
+  async put(input: PutCommandInput): Promise<void> {
+    await this.document.send(new PutCommand(DynamoClient.sdkInput(input)));
   }
 
-  // Writes an item only when no item with its key exists.
+  // The caller's absent-key condition prevents replacing an existing item.
   // Otherwise it writes nothing and returns the stored item without a second read.
   async putIfAbsent<T extends DynamoClient.Item>(
-    table: string,
-    item: T,
-    partitionKey: string,
+    input: PutCommandInput,
   ): Promise<DynamoClient.PutIfAbsentResult<T>> {
+    DynamoClient.requireCondition(input.ConditionExpression);
     try {
       await this.document.send(
         new PutCommand({
-          TableName: table,
-          Item: item,
-          ConditionExpression: "attribute_not_exists(#key)",
-          ExpressionAttributeNames: { "#key": partitionKey },
+          ...DynamoClient.sdkInput(input),
           ReturnValuesOnConditionCheckFailure: "ALL_OLD",
         }),
       );
@@ -62,13 +57,10 @@ export class DynamoClient {
   }
 
   // Puts the item if the condition holds for what its key stores; true if written.
-  async putIf(
-    table: string,
-    item: DynamoClient.Item,
-    condition: DynamoClient.Condition,
-  ): Promise<boolean> {
+  async putIf(input: PutCommandInput): Promise<boolean> {
+    DynamoClient.requireCondition(input.ConditionExpression);
     try {
-      await this.document.send(new PutCommand({ TableName: table, Item: item, ...condition }));
+      await this.document.send(new PutCommand(DynamoClient.sdkInput(input)));
       return true;
     } catch (error) {
       if (error instanceof ConditionalCheckFailedException) {
@@ -79,13 +71,10 @@ export class DynamoClient {
   }
 
   // Updates the item under the key if the condition holds for it; true if updated.
-  async updateIf(
-    table: string,
-    key: DynamoClient.Item,
-    update: DynamoClient.ConditionalUpdate,
-  ): Promise<boolean> {
+  async updateIf(input: UpdateCommandInput): Promise<boolean> {
+    DynamoClient.requireCondition(input.ConditionExpression);
     try {
-      await this.document.send(new UpdateCommand({ TableName: table, Key: key, ...update }));
+      await this.document.send(new UpdateCommand(DynamoClient.sdkInput(input)));
       return true;
     } catch (error) {
       if (error instanceof ConditionalCheckFailedException) {
@@ -108,17 +97,23 @@ export class DynamoClient {
     } while (startKey);
     return items;
   }
+
+  // Toolbox includes its local item preview in parameters, not in the SDK request.
+  private static sdkInput<T extends object>(input: T): Omit<T, "ToolboxItem"> {
+    const { ToolboxItem: _preview, ...sdkInput } = input as T & { ToolboxItem?: unknown };
+    return sdkInput;
+  }
+
+  // A missing condition would turn a guarded write into an unconditional write.
+  private static requireCondition(condition: string | undefined): void {
+    if (!condition) {
+      throw new Error("A conditional DynamoDB write requires a condition expression.");
+    }
+  }
 }
 
 export namespace DynamoClient {
   export type Item = Record<string, unknown>;
 
   export type PutIfAbsentResult<T> = { created: true } | { created: false; existing: T };
-
-  // A condition expression with the attribute names and values it refers to.
-  export type Condition = Required<Pick<PutCommandInput, "ConditionExpression">> &
-    Pick<PutCommandInput, "ExpressionAttributeNames" | "ExpressionAttributeValues">;
-
-  // An update expression and its condition, sharing attribute names and values.
-  export type ConditionalUpdate = Condition & { UpdateExpression: string };
 }

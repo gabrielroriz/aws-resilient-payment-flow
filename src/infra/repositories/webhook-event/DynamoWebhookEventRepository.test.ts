@@ -39,7 +39,37 @@ async function storedEventItem() {
   const { dynamo, repository } = setup();
   const putIfAbsent = vi.spyOn(dynamo, "putIfAbsent").mockResolvedValue({ created: true });
   await repository.create(event);
-  return putIfAbsent.mock.calls[0][1];
+  return putIfAbsent.mock.calls[0][0].Item as DynamoWebhookEventRepository.EventItem;
+}
+
+// Restores names and values so assertions describe DynamoDB's actual condition.
+function expression(
+  input: {
+    ConditionExpression?: string;
+    UpdateExpression?: string;
+    KeyConditionExpression?: string;
+    FilterExpression?: string;
+    ExpressionAttributeNames?: Record<string, string>;
+    ExpressionAttributeValues?: Record<string, unknown>;
+  },
+  kind: "ConditionExpression" | "UpdateExpression" | "KeyConditionExpression" | "FilterExpression",
+): string {
+  let result = input[kind] ?? "";
+  const aliases = {
+    ...input.ExpressionAttributeNames,
+    ...Object.fromEntries(
+      Object.entries(input.ExpressionAttributeValues ?? {}).map(([name, value]) => [
+        name,
+        JSON.stringify(value),
+      ]),
+    ),
+  };
+  for (const [alias, value] of Object.entries(aliases).sort(
+    ([left], [right]) => right.length - left.length,
+  )) {
+    result = result.replaceAll(alias, value);
+  }
+  return result;
 }
 
 // Answers each query with the items listed under its partition key value.
@@ -59,8 +89,10 @@ test("create stores the event item as received and not outdated, with its index 
 
   await expect(repository.create(newEvent)).resolves.toEqual({ created: true, event });
 
-  const [table, item, partitionKey] = putIfAbsent.mock.calls[0];
-  expect([table, partitionKey]).toEqual([tableName, "PK"]);
+  const input = putIfAbsent.mock.calls[0][0];
+  const item = input.Item!;
+  expect(input.TableName).toBe(tableName);
+  expect(expression(input, "ConditionExpression")).toBe("attribute_not_exists(PK)");
   expect(item).toMatchObject({
     PK: "stripe#evt_1",
     SK: "META",
@@ -80,6 +112,9 @@ test("create stores the event item as received and not outdated, with its index 
     expires_at: eventExpiresAt,
   });
   expect(gunzipSync(item.payload as Uint8Array).toString("utf8")).toBe(event.payload);
+  expect(item).not.toHaveProperty("_et");
+  expect(item).not.toHaveProperty("_ct");
+  expect(item).not.toHaveProperty("_md");
 });
 
 test("create leaves an event without a subject out of GSI2", async () => {
@@ -88,7 +123,7 @@ test("create leaves an event without a subject out of GSI2", async () => {
 
   await repository.create({ ...event, subject: undefined });
 
-  expect(putIfAbsent.mock.calls[0][1].GSI2PK).toBeUndefined();
+  expect(putIfAbsent.mock.calls[0][0].Item?.GSI2PK).toBeUndefined();
 });
 
 test("create returns the stored event when the event already exists", async () => {
@@ -114,7 +149,10 @@ test("get reads the event item, or returns undefined when it does not exist", as
   await expect(
     repository.get({ provider: "stripe", providerEventId: "evt_missing" }),
   ).resolves.toBeUndefined();
-  expect(get).toHaveBeenCalledWith(tableName, { PK: "stripe#evt_1", SK: "META" });
+  expect(get).toHaveBeenCalledWith({
+    TableName: tableName,
+    Key: { PK: "stripe#evt_1", SK: "META" },
+  });
 });
 
 test("recordEnqueued moves the event from received to enqueued", async () => {
@@ -123,15 +161,10 @@ test("recordEnqueued moves the event from received to enqueued", async () => {
 
   await repository.recordEnqueued(event);
 
-  expect(updateIf).toHaveBeenCalledWith(
-    tableName,
-    { PK: "stripe#evt_1", SK: "META" },
-    {
-      UpdateExpression: "SET processing_status = :enqueued",
-      ConditionExpression: "processing_status = :received",
-      ExpressionAttributeValues: { ":enqueued": "enqueued", ":received": "received" },
-    },
-  );
+  const input = updateIf.mock.calls[0][0];
+  expect(input).toMatchObject({ TableName: tableName, Key: { PK: "stripe#evt_1", SK: "META" } });
+  expect(expression(input, "UpdateExpression")).toBe('SET processing_status = "enqueued"');
+  expect(expression(input, "ConditionExpression")).toBe('processing_status = "received"');
 });
 
 test("recordEnqueued leaves an event that already moved on unchanged, without failing", async () => {
@@ -147,15 +180,10 @@ test("recordOutdated flags the stored event as outdated, never creating a partia
 
   await repository.recordOutdated(event);
 
-  expect(updateIf).toHaveBeenCalledWith(
-    tableName,
-    { PK: "stripe#evt_1", SK: "META" },
-    {
-      UpdateExpression: "SET outdated = :outdated",
-      ConditionExpression: "attribute_exists(PK)",
-      ExpressionAttributeValues: { ":outdated": true },
-    },
-  );
+  const input = updateIf.mock.calls[0][0];
+  expect(input).toMatchObject({ TableName: tableName, Key: { PK: "stripe#evt_1", SK: "META" } });
+  expect(expression(input, "UpdateExpression")).toBe("SET outdated = true");
+  expect(expression(input, "ConditionExpression")).toBe("attribute_exists(PK)");
 });
 
 test("get reads an event stored before processing statuses existed as enqueued and not outdated", async () => {
@@ -184,37 +212,29 @@ test("startAttempt moves the event to processing, then stores the attempt with i
   await expect(repository.startAttempt(event, attempt)).resolves.toBe(true);
 
   // A `processing` event is taken over once its deadline is before this start.
-  expect(updateIf).toHaveBeenCalledWith(
-    tableName,
-    { PK: "stripe#evt_1", SK: "META" },
-    {
-      UpdateExpression:
-        "SET processing_status = :processing, current_attempt_id = :attempt, " +
-        "current_attempt_deadline = :deadline",
-      ConditionExpression:
-        "attribute_exists(PK) AND (attribute_not_exists(processing_status) OR " +
-        "processing_status IN (:received, :enqueued, :failed) OR " +
-        "(processing_status = :processing AND " +
-        "(attribute_not_exists(current_attempt_deadline) OR " +
-        "current_attempt_deadline < :startedAt)))",
-      ExpressionAttributeValues: {
-        ":processing": "processing",
-        ":attempt": "att-1",
-        ":deadline": "2026-10-10T10:00:32.000Z",
-        ":startedAt": "2026-10-10T10:00:02.000Z",
-        ":received": "received",
-        ":enqueued": "enqueued",
-        ":failed": "failed",
-      },
-    },
+  const input = updateIf.mock.calls[0][0];
+  expect(input).toMatchObject({ TableName: tableName, Key: { PK: "stripe#evt_1", SK: "META" } });
+  expect(expression(input, "UpdateExpression")).toBe(
+    'SET processing_status = "processing", current_attempt_id = "att-1", ' +
+      'current_attempt_deadline = "2026-10-10T10:00:32.000Z"',
   );
-  expect(put).toHaveBeenCalledWith(tableName, {
-    PK: "stripe#evt_1",
-    SK: "ATTEMPT#2026-10-10T10:00:02.000Z#att-1",
-    attempt_id: "att-1",
-    started_at: "2026-10-10T10:00:02.000Z",
-    handler_version: "20261017110316-339fc51a2130",
-    expires_at: eventExpiresAt,
+  expect(expression(input, "ConditionExpression")).toBe(
+    "(attribute_exists(PK)) AND ((attribute_not_exists(processing_status)) OR " +
+      '(processing_status IN ("received", "enqueued", "failed")) OR ' +
+      '((processing_status = "processing") AND ' +
+      "((attribute_not_exists(current_attempt_deadline)) OR " +
+      '(current_attempt_deadline < "2026-10-10T10:00:02.000Z"))))',
+  );
+  expect(put.mock.calls[0][0]).toMatchObject({
+    TableName: tableName,
+    Item: {
+      PK: "stripe#evt_1",
+      SK: "ATTEMPT#2026-10-10T10:00:02.000Z#att-1",
+      attempt_id: "att-1",
+      started_at: "2026-10-10T10:00:02.000Z",
+      handler_version: "20261017110316-339fc51a2130",
+      expires_at: eventExpiresAt,
+    },
   });
   expect(updateIf.mock.invocationCallOrder[0]).toBeLessThan(put.mock.invocationCallOrder[0]);
 });
@@ -242,54 +262,24 @@ test("finishAttempt records the outcome on the attempt, then moves the event whi
     errorCode: "INTERNAL_SERVER_ERROR",
   });
 
-  expect(updateIf.mock.calls).toEqual([
-    [
-      tableName,
-      { PK: "stripe#evt_1", SK: "ATTEMPT#2026-10-10T10:00:02.000Z#att-1" },
-      {
-        UpdateExpression: "SET finished_at = :finishedAt, outcome = :outcome",
-        ConditionExpression: "attribute_exists(PK)",
-        ExpressionAttributeValues: {
-          ":finishedAt": "2026-10-10T10:00:02.300Z",
-          ":outcome": "succeeded",
-        },
-      },
-    ],
-    [
-      tableName,
-      { PK: "stripe#evt_1", SK: "META" },
-      {
-        UpdateExpression: "SET processing_status = :status",
-        ConditionExpression: "processing_status = :processing AND current_attempt_id = :attempt",
-        ExpressionAttributeValues: {
-          ":status": "processed",
-          ":processing": "processing",
-          ":attempt": "att-1",
-        },
-      },
-    ],
-    [
-      tableName,
-      { PK: "stripe#evt_1", SK: "ATTEMPT#2026-10-10T10:00:02.000Z#att-1" },
-      {
-        UpdateExpression:
-          "SET finished_at = :finishedAt, outcome = :outcome, error_code = :errorCode",
-        ConditionExpression: "attribute_exists(PK)",
-        ExpressionAttributeValues: {
-          ":finishedAt": "2026-10-10T10:00:02.300Z",
-          ":outcome": "failed",
-          ":errorCode": "INTERNAL_SERVER_ERROR",
-        },
-      },
-    ],
-    [
-      tableName,
-      { PK: "stripe#evt_1", SK: "META" },
-      expect.objectContaining({
-        ExpressionAttributeValues: expect.objectContaining({ ":status": "failed" }),
-      }),
-    ],
+  const updates = updateIf.mock.calls.map(([input]) => input);
+  expect(updates.map(({ TableName, Key }) => [TableName, Key])).toEqual([
+    [tableName, { PK: "stripe#evt_1", SK: "ATTEMPT#2026-10-10T10:00:02.000Z#att-1" }],
+    [tableName, { PK: "stripe#evt_1", SK: "META" }],
+    [tableName, { PK: "stripe#evt_1", SK: "ATTEMPT#2026-10-10T10:00:02.000Z#att-1" }],
+    [tableName, { PK: "stripe#evt_1", SK: "META" }],
   ]);
+  expect(updates.map((input) => expression(input, "UpdateExpression"))).toEqual([
+    'SET finished_at = "2026-10-10T10:00:02.300Z", outcome = "succeeded"',
+    'SET processing_status = "processed"',
+    'SET finished_at = "2026-10-10T10:00:02.300Z", outcome = "failed", ' +
+      'error_code = "INTERNAL_SERVER_ERROR"',
+    'SET processing_status = "failed"',
+  ]);
+  expect(expression(updates[0], "ConditionExpression")).toBe("attribute_exists(PK)");
+  expect(expression(updates[1], "ConditionExpression")).toBe(
+    '(processing_status = "processing") AND (current_attempt_id = "att-1")',
+  );
 });
 
 test("recordDuplicateDelivery stores a delivery item that expires with the event", async () => {
@@ -301,12 +291,15 @@ test("recordDuplicateDelivery stores a delivery item that expires with the event
     requestId: "req-2",
   });
 
-  expect(put).toHaveBeenCalledWith(tableName, {
-    PK: "stripe#evt_1",
-    SK: "DELIVERY#2026-10-10T10:05:00.000Z#req-2",
-    received_at: "2026-10-10T10:05:00.000Z",
-    request_id: "req-2",
-    expires_at: eventExpiresAt,
+  expect(put.mock.calls[0][0]).toMatchObject({
+    TableName: tableName,
+    Item: {
+      PK: "stripe#evt_1",
+      SK: "DELIVERY#2026-10-10T10:05:00.000Z#req-2",
+      received_at: "2026-10-10T10:05:00.000Z",
+      request_id: "req-2",
+      expires_at: eventExpiresAt,
+    },
   });
 });
 
@@ -316,9 +309,10 @@ test("recordStatus records the status as its subject's latest unless a stored st
 
   await expect(repository.recordStatus(event, 2)).resolves.toEqual({ outdated: false });
 
-  expect(putIf).toHaveBeenCalledWith(
-    tableName,
-    {
+  const input = putIf.mock.calls[0][0];
+  expect(input).toMatchObject({
+    TableName: tableName,
+    Item: {
       PK: "SUBJECT#stripe#payment#pi_1",
       SK: "STATUS",
       provider_event_id: "evt_1",
@@ -327,11 +321,9 @@ test("recordStatus records the status as its subject's latest unless a stored st
       rank: "02#2026-10-10T10:00:00.000Z#evt_1",
       expires_at: eventExpiresAt,
     },
-    {
-      ConditionExpression: "attribute_not_exists(PK) OR #rank <= :rank",
-      ExpressionAttributeNames: { "#rank": "rank" },
-      ExpressionAttributeValues: { ":rank": "02#2026-10-10T10:00:00.000Z#evt_1" },
-    },
+  });
+  expect(expression(input, "ConditionExpression")).toBe(
+    '(attribute_not_exists(PK)) OR (rank <= "02#2026-10-10T10:00:00.000Z#evt_1")',
   );
 });
 
@@ -360,7 +352,7 @@ test("recordStatus ranks precedence first, then occurrence, then event ID", asyn
     await repository.recordStatus(rankedEvent, precedence);
   }
 
-  const ranks = putIf.mock.calls.map(([, item]) => item.rank as string);
+  const ranks = putIf.mock.calls.map(([input]) => input.Item?.rank as string);
   expect([...ranks].sort()).toEqual(ranks);
 });
 
@@ -418,11 +410,9 @@ test("getTrace returns the event with its attempts, effects, and deliveries", as
     ],
     deliveries: [{ receivedAt: new Date("2026-10-10T10:05:00.000Z"), requestId: "req-2" }],
   });
-  expect(queryAll.mock.calls[0][0]).toEqual({
-    TableName: tableName,
-    KeyConditionExpression: "PK = :key",
-    ExpressionAttributeValues: { ":key": "stripe#evt_1" },
-  });
+  const input = queryAll.mock.calls[0][0];
+  expect(input.TableName).toBe(tableName);
+  expect(expression(input, "KeyConditionExpression")).toBe('PK = "stripe#evt_1"');
   await expect(
     repository.getTrace({ provider: "stripe", providerEventId: "evt_missing" }),
   ).resolves.toBeUndefined();
@@ -476,29 +466,29 @@ test("listReceived queries every shard of every provider and merges them in rece
       subject: { type: "payment", id: "pi_1" },
     },
   ]);
-  expect(queryAll.mock.calls.map(([input]) => input.ExpressionAttributeValues?.[":shard"])).toEqual(
-    [
-      "stripe#0",
-      "stripe#1",
-      "stripe#2",
-      "stripe#3",
-      "simulated#0",
-      "simulated#1",
-      "simulated#2",
-      "simulated#3",
-    ],
-  );
+  expect(
+    queryAll.mock.calls.map(([input]) =>
+      Object.values(input.ExpressionAttributeValues ?? {}).find((value) =>
+        /^((stripe|simulated)#[0-3])$/.test(String(value)),
+      ),
+    ),
+  ).toEqual([
+    "stripe#0",
+    "stripe#1",
+    "stripe#2",
+    "stripe#3",
+    "simulated#0",
+    "simulated#1",
+    "simulated#2",
+    "simulated#3",
+  ]);
   // The interval excludes its end: the last millisecond queried is just before `to`.
-  expect(queryAll.mock.calls[0][0]).toEqual({
-    TableName: tableName,
-    IndexName: "GSI1",
-    KeyConditionExpression: "GSI1PK = :shard AND received_at BETWEEN :from AND :to",
-    ExpressionAttributeValues: {
-      ":shard": "stripe#0",
-      ":from": "2026-10-10T00:00:00.000Z",
-      ":to": "2026-10-10T23:59:59.999Z",
-    },
-  });
+  const input = queryAll.mock.calls[0][0];
+  expect(input).toMatchObject({ TableName: tableName, IndexName: "GSI1" });
+  expect(expression(input, "KeyConditionExpression")).toBe(
+    '(GSI1PK = "stripe#0") AND (received_at BETWEEN ' +
+      '"2026-10-10T00:00:00.000Z" AND "2026-10-10T23:59:59.999Z")',
+  );
 });
 
 test("listReceived filters by event type when one is given", async () => {
@@ -512,10 +502,9 @@ test("listReceived filters by event type when one is given", async () => {
     eventType: "charge.refunded",
   });
 
-  expect(queryAll.mock.calls[0][0]).toMatchObject({
-    FilterExpression: "event_type = :type",
-    ExpressionAttributeValues: { ":type": "charge.refunded" },
-  });
+  expect(expression(queryAll.mock.calls[0][0], "FilterExpression")).toBe(
+    'event_type = "charge.refunded"',
+  );
 });
 
 test("listReceived returns nothing for an empty interval without querying", async () => {
@@ -551,10 +540,7 @@ test("listBySubject queries GSI2 for the subject and returns its events", async 
   // GSI2 projects neither the payload, the subscription, nor the event's handling.
   const { payload, status, subscriptionId, processingStatus, outdated, ...summary } = event;
   expect(events).toEqual([summary]);
-  expect(queryAll.mock.calls[0][0]).toEqual({
-    TableName: tableName,
-    IndexName: "GSI2",
-    KeyConditionExpression: "GSI2PK = :subject",
-    ExpressionAttributeValues: { ":subject": "stripe#payment#pi_1" },
-  });
+  const input = queryAll.mock.calls[0][0];
+  expect(input).toMatchObject({ TableName: tableName, IndexName: "GSI2" });
+  expect(expression(input, "KeyConditionExpression")).toBe('GSI2PK = "stripe#payment#pi_1"');
 });

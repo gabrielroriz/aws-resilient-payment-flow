@@ -67,6 +67,24 @@ export abstract class WebhookEventRepository {
 }
 
 export namespace WebhookEventRepository {
+  export const SUBJECT_STATUSES = [
+    "pending",
+    "overdue",
+    "failed",
+    "succeeded",
+    "refunded",
+    "charged_back",
+  ] as const;
+  export const PROCESSING_STATUSES = [
+    "received",
+    "enqueued",
+    "processing",
+    "processed",
+    "failed",
+  ] as const;
+  export const ATTEMPT_OUTCOMES = ["succeeded", "failed"] as const;
+  export const EFFECT_STATUSES = ["completed", "failed"] as const;
+
   // Identifies an event; providers are namespaced so their event IDs never collide.
   export type EventId = {
     provider: string;
@@ -80,8 +98,7 @@ export namespace WebhookEventRepository {
   };
 
   // Provider-neutral payment status; only payment events report one so far.
-  export type SubjectStatus =
-    "pending" | "overdue" | "failed" | "succeeded" | "refunded" | "charged_back";
+  export type SubjectStatus = (typeof SUBJECT_STATUSES)[number];
 
   // How far the platform has handled the event, unlike the reported `SubjectStatus`.
   // `received`: stored at receipt, but not yet dispatched to the processing queue.
@@ -89,7 +106,10 @@ export namespace WebhookEventRepository {
   // `processing`: a worker attempt is running.
   // `processed`: the last attempt succeeded.
   // `failed`: the last attempt failed, and the queue retries the event.
-  export type ProcessingStatus = "received" | "enqueued" | "processing" | "processed" | "failed";
+  export type ProcessingStatus = (typeof PROCESSING_STATUSES)[number];
+
+  export type AttemptOutcome = (typeof ATTEMPT_OUTCOMES)[number];
+  export type EffectStatus = (typeof EFFECT_STATUSES)[number];
 
   export type Event = EventId & {
     // The provider's own event type, such as Stripe's `invoice.paid`.
@@ -139,7 +159,7 @@ export namespace WebhookEventRepository {
     startedAt: Date;
     // Absent, like `outcome`, while the attempt runs.
     finishedAt?: Date;
-    outcome?: "succeeded" | "failed";
+    outcome?: AttemptOutcome;
     // Stable machine-readable error code, present when the attempt failed.
     errorCode?: string;
     // Code version that ran the attempt, to find events to reprocess after a defect.
@@ -160,7 +180,7 @@ export namespace WebhookEventRepository {
 
   export type Effect = {
     effect: string;
-    status: "completed" | "failed";
+    status: EffectStatus;
     // Business write's idempotency key, linking the effect to the record it changed.
     businessKey: string;
     updatedAt: Date;

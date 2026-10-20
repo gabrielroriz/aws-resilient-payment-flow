@@ -2,20 +2,35 @@ import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEvent
 import { AppConfig } from "@infra/config/AppConfig";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
 import { joinKey, shardOf } from "@infra/dynamodb/keys";
+import {
+  ATTEMPT_ITEM_TYPE,
+  DELIVERY_ITEM_TYPE,
+  EFFECT_ITEM_TYPE,
+  EVENT_SK,
+  RECEIVED_INDEX,
+  STATUS_SK,
+  SUBJECT_INDEX,
+  webhookEventTable,
+} from "@infra/repositories/webhook-event/WebhookEventTable";
 import { Injectable } from "@kernel/decorators/injectable";
+import { GetItemCommand } from "dynamodb-toolbox/entity/actions/get";
+import { PutItemCommand } from "dynamodb-toolbox/entity/actions/put";
+import { UpdateItemCommand } from "dynamodb-toolbox/entity/actions/update";
+import type { FormattedItem } from "dynamodb-toolbox/entity";
+import { QueryCommand } from "dynamodb-toolbox/table/actions/query";
 import { gunzipSync, gzipSync } from "node:zlib";
 
 // Stores webhook events in the configured table, one item collection per event.
 // Each subject's latest status lives in its own item.
 @Injectable(DynamoClient, AppConfig)
 export class DynamoWebhookEventRepository implements WebhookEventRepository {
-  private static readonly EVENT_SK = "META";
-  private static readonly STATUS_SK = "STATUS";
   // GSI1 shards per provider, so each can burst to about 4,000 writes a second.
   // Every time-interval query reads all the shards.
   private static readonly GSI1_SHARDS = 4;
   // Outlasts provider retries and the provider event history used to reconcile.
   private static readonly RETENTION_SECONDS = 90 * 24 * 60 * 60;
+  private modelName?: string;
+  private modelSet?: ReturnType<typeof webhookEventTable>;
 
   constructor(
     private readonly dynamo: DynamoClient,
@@ -30,43 +45,49 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       processingStatus: "received",
       outdated: false,
     };
-    const result = await this.dynamo.putIfAbsent(this.table, this.toEventItem(received), "PK");
+    const input = this.models.event
+      .build(PutItemCommand)
+      .item(this.toEventItem(received))
+      .options({ condition: { attr: "PK", exists: false } })
+      .params();
+    const result = await this.dynamo.putIfAbsent<DynamoWebhookEventRepository.EventItem>(input);
     return result.created
       ? { created: true, event: received }
       : { created: false, event: fromEventItem(result.existing) };
   }
 
   async get(id: WebhookEventRepository.EventId): Promise<WebhookEventRepository.Event | undefined> {
-    const item = await this.dynamo.get<DynamoWebhookEventRepository.EventItem>(this.table, {
-      PK: eventKey(id),
-      SK: DynamoWebhookEventRepository.EVENT_SK,
-    });
+    const input = this.models.event
+      .build(GetItemCommand)
+      .key({ PK: eventKey(id), SK: EVENT_SK })
+      .params();
+    const item = await this.dynamo.get<DynamoWebhookEventRepository.EventItem>(input);
     return item && fromEventItem(item);
   }
 
   async recordEnqueued(id: WebhookEventRepository.EventId): Promise<void> {
     // A failed condition means the event has moved on, leaving nothing to record.
     await this.dynamo.updateIf(
-      this.table,
-      { PK: eventKey(id), SK: DynamoWebhookEventRepository.EVENT_SK },
-      {
-        UpdateExpression: "SET processing_status = :enqueued",
-        ConditionExpression: "processing_status = :received",
-        ExpressionAttributeValues: { ":enqueued": "enqueued", ":received": "received" },
-      },
+      this.models.event
+        .build(UpdateItemCommand)
+        .item({
+          PK: eventKey(id),
+          SK: EVENT_SK,
+          processing_status: "enqueued",
+        })
+        .options({ condition: { attr: "processing_status", eq: "received" } })
+        .params(),
     );
   }
 
   async recordOutdated(id: WebhookEventRepository.EventId): Promise<void> {
     // The condition keeps an update from creating a partial event if none is stored.
     await this.dynamo.updateIf(
-      this.table,
-      { PK: eventKey(id), SK: DynamoWebhookEventRepository.EVENT_SK },
-      {
-        UpdateExpression: "SET outdated = :outdated",
-        ConditionExpression: "attribute_exists(PK)",
-        ExpressionAttributeValues: { ":outdated": true },
-      },
+      this.models.event
+        .build(UpdateItemCommand)
+        .item({ PK: eventKey(id), SK: EVENT_SK, outdated: true })
+        .options({ condition: { attr: "PK", exists: true } })
+        .params(),
     );
   }
 
@@ -76,31 +97,49 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
   ): Promise<boolean> {
     // Status first, so a refused attempt leaves no item that never ran.
     const started = await this.dynamo.updateIf(
-      this.table,
-      { PK: eventKey(event), SK: DynamoWebhookEventRepository.EVENT_SK },
-      {
-        UpdateExpression:
-          "SET processing_status = :processing, current_attempt_id = :attempt, " +
-          "current_attempt_deadline = :deadline",
-        // Events stored before processing statuses existed have none.
-        // An attempt `processing` past its deadline was stopped with its function.
-        // Attempts started before deadlines existed have none and are taken over.
-        ConditionExpression:
-          "attribute_exists(PK) AND (attribute_not_exists(processing_status) OR " +
-          "processing_status IN (:received, :enqueued, :failed) OR " +
-          "(processing_status = :processing AND " +
-          "(attribute_not_exists(current_attempt_deadline) OR " +
-          "current_attempt_deadline < :startedAt)))",
-        ExpressionAttributeValues: {
-          ":processing": "processing",
-          ":attempt": attempt.attemptId,
-          ":deadline": attempt.deadline.toISOString(),
-          ":startedAt": attempt.startedAt.toISOString(),
-          ":received": "received",
-          ":enqueued": "enqueued",
-          ":failed": "failed",
-        },
-      },
+      this.models.event
+        .build(UpdateItemCommand)
+        .item({
+          PK: eventKey(event),
+          SK: EVENT_SK,
+          processing_status: "processing",
+          current_attempt_id: attempt.attemptId,
+          current_attempt_deadline: attempt.deadline.toISOString(),
+        })
+        .options({
+          condition: {
+            and: [
+              // The event must exist so this update cannot create a partial item.
+              { attr: "PK", exists: true },
+              {
+                or: [
+                  // Events stored before statuses existed can start an attempt.
+                  { attr: "processing_status", exists: false },
+                  // These statuses allow a new attempt or a retry.
+                  { attr: "processing_status", in: ["received", "enqueued", "failed"] },
+                  {
+                    and: [
+                      // A processing event can be reclaimed only after its deadline.
+                      { attr: "processing_status", eq: "processing" },
+                      {
+                        or: [
+                          // Older attempts have no deadline and can be reclaimed.
+                          { attr: "current_attempt_deadline", exists: false },
+                          // A later start time means the prior deadline has passed.
+                          {
+                            attr: "current_attempt_deadline",
+                            lt: attempt.startedAt.toISOString(),
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        })
+        .params(),
     );
     if (!started) {
       return false;
@@ -114,7 +153,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       handler_version: attempt.handlerVersion,
       expires_at: this.expiresAt(event.receivedAt),
     };
-    await this.dynamo.put(this.table, item);
+    await this.dynamo.put(this.models.attempt.build(PutItemCommand).item(item).params());
     return true;
   }
 
@@ -124,32 +163,38 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
   ): Promise<void> {
     // The attempt keeps its outcome even when a newer attempt took the event over.
     await this.dynamo.updateIf(
-      this.table,
-      { PK: eventKey(event), SK: attemptKey(attempt) },
-      {
-        UpdateExpression:
-          "SET finished_at = :finishedAt, outcome = :outcome" +
-          (attempt.errorCode === undefined ? "" : ", error_code = :errorCode"),
-        ConditionExpression: "attribute_exists(PK)",
-        ExpressionAttributeValues: {
-          ":finishedAt": attempt.finishedAt.toISOString(),
-          ":outcome": attempt.outcome,
-          ...(attempt.errorCode !== undefined && { ":errorCode": attempt.errorCode }),
-        },
-      },
+      this.models.attempt
+        .build(UpdateItemCommand)
+        .item({
+          PK: eventKey(event),
+          SK: attemptKey(attempt),
+          finished_at: attempt.finishedAt.toISOString(),
+          outcome: attempt.outcome,
+          ...(attempt.errorCode !== undefined && { error_code: attempt.errorCode }),
+        })
+        // A missing attempt must not create a partial history item.
+        .options({ condition: { attr: "PK", exists: true } })
+        .params(),
     );
     await this.dynamo.updateIf(
-      this.table,
-      { PK: eventKey(event), SK: DynamoWebhookEventRepository.EVENT_SK },
-      {
-        UpdateExpression: "SET processing_status = :status",
-        ConditionExpression: "processing_status = :processing AND current_attempt_id = :attempt",
-        ExpressionAttributeValues: {
-          ":status": attempt.outcome === "succeeded" ? "processed" : "failed",
-          ":processing": "processing",
-          ":attempt": attempt.attemptId,
-        },
-      },
+      this.models.event
+        .build(UpdateItemCommand)
+        .item({
+          PK: eventKey(event),
+          SK: EVENT_SK,
+          processing_status: attempt.outcome === "succeeded" ? "processed" : "failed",
+        })
+        .options({
+          condition: {
+            and: [
+              // Only an event still processing can move to a final status.
+              { attr: "processing_status", eq: "processing" },
+              // A newer attempt must keep control if it replaced this one.
+              { attr: "current_attempt_id", eq: attempt.attemptId },
+            ],
+          },
+        })
+        .params(),
     );
   }
 
@@ -159,12 +204,12 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
   ): Promise<void> {
     const item: DynamoWebhookEventRepository.DeliveryItem = {
       PK: eventKey(event),
-      SK: joinKey("DELIVERY", delivery.receivedAt.toISOString(), delivery.requestId),
+      SK: joinKey(DELIVERY_ITEM_TYPE, delivery.receivedAt.toISOString(), delivery.requestId),
       received_at: delivery.receivedAt.toISOString(),
       request_id: delivery.requestId,
       expires_at: this.expiresAt(event.receivedAt),
     };
-    await this.dynamo.put(this.table, item);
+    await this.dynamo.put(this.models.delivery.build(PutItemCommand).item(item).params());
   }
 
   // One item per subject holds its latest status.
@@ -177,7 +222,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     const item: DynamoWebhookEventRepository.StatusItem = {
       // Keyed by subject, not event, so a payment's events compete for one item.
       PK: joinKey("SUBJECT", event.provider, event.subject.type, event.subject.id),
-      SK: DynamoWebhookEventRepository.STATUS_SK,
+      SK: STATUS_SK,
       // The event behind the latest status, so operators can trace its origin.
       provider_event_id: event.providerEventId,
       status: event.status,
@@ -190,14 +235,23 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     };
 
     // Atomic, so concurrent deliveries cannot both win.
-    // An equal rank means the same event again.
-    const recorded = await this.dynamo.putIf(this.table, item, {
-      // Written if the subject has no status or this event ranks at least as high.
-      ConditionExpression: "attribute_not_exists(PK) OR #rank <= :rank",
-      // A placeholder keeps the attribute name clear of DynamoDB's reserved words.
-      ExpressionAttributeNames: { "#rank": "rank" },
-      ExpressionAttributeValues: { ":rank": item.rank },
-    });
+    const recorded = await this.dynamo.putIf(
+      this.models.status
+        .build(PutItemCommand)
+        .item(item)
+        // An equal rank is the same event delivered again.
+        .options({
+          condition: {
+            or: [
+              // The first status event establishes the subject's status.
+              { attr: "PK", exists: false },
+              // A lower or equal stored rank can be replaced by this event.
+              { attr: "rank", lte: item.rank },
+            ],
+          },
+        })
+        .params(),
+    );
     // A failed condition means a stored event outranks this one.
     return { outdated: !recorded };
   }
@@ -205,15 +259,15 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
   async getTrace(
     id: WebhookEventRepository.EventId,
   ): Promise<WebhookEventRepository.Trace | undefined> {
-    const items = await this.dynamo.queryAll<DynamoWebhookEventRepository.TraceItem>({
-      TableName: this.table,
-      KeyConditionExpression: "PK = :key",
-      ExpressionAttributeValues: { ":key": eventKey(id) },
-    });
+    const items = await this.dynamo.queryAll<DynamoWebhookEventRepository.TraceItem>(
+      this.models.table
+        .build(QueryCommand)
+        .query({ partition: eventKey(id) })
+        .params(),
+    );
 
     const event = items.find(
-      (item): item is DynamoWebhookEventRepository.EventItem =>
-        item.SK === DynamoWebhookEventRepository.EVENT_SK,
+      (item): item is DynamoWebhookEventRepository.EventItem => item.SK === EVENT_SK,
     );
     if (!event) {
       return undefined;
@@ -224,10 +278,12 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       items.filter((item) => item.SK.startsWith(`${type}#`)) as T[];
     return {
       event: fromEventItem(event),
-      attempts: ofType<DynamoWebhookEventRepository.AttemptItem>("ATTEMPT").map(fromAttemptItem),
-      effects: ofType<DynamoWebhookEventRepository.EffectItem>("EFFECT").map(fromEffectItem),
+      attempts:
+        ofType<DynamoWebhookEventRepository.AttemptItem>(ATTEMPT_ITEM_TYPE).map(fromAttemptItem),
+      effects:
+        ofType<DynamoWebhookEventRepository.EffectItem>(EFFECT_ITEM_TYPE).map(fromEffectItem),
       deliveries:
-        ofType<DynamoWebhookEventRepository.DeliveryItem>("DELIVERY").map(fromDeliveryItem),
+        ofType<DynamoWebhookEventRepository.DeliveryItem>(DELIVERY_ITEM_TYPE).map(fromDeliveryItem),
     };
   }
 
@@ -246,18 +302,19 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     // GSI1 shards each provider's events, so all shards are queried in parallel.
     const queries = providers.flatMap((provider) =>
       Array.from({ length: DynamoWebhookEventRepository.GSI1_SHARDS }, (_, shard) =>
-        this.dynamo.queryAll<DynamoWebhookEventRepository.ReceivedItem>({
-          TableName: this.table,
-          IndexName: "GSI1",
-          KeyConditionExpression: "GSI1PK = :shard AND received_at BETWEEN :from AND :to",
-          ...(eventType !== undefined && { FilterExpression: "event_type = :type" }),
-          ExpressionAttributeValues: {
-            ":shard": joinKey(provider, shard),
-            ":from": from.toISOString(),
-            ":to": last.toISOString(),
-            ...(eventType !== undefined && { ":type": eventType }),
-          },
-        }),
+        this.dynamo.queryAll<DynamoWebhookEventRepository.ReceivedItem>(
+          this.models.table
+            .build(QueryCommand)
+            .query({
+              index: RECEIVED_INDEX,
+              partition: joinKey(provider, shard),
+              range: { between: [from.toISOString(), last.toISOString()] },
+            })
+            .options(
+              eventType === undefined ? {} : { filter: { attr: "event_type", eq: eventType } },
+            )
+            .params(),
+        ),
       ),
     );
 
@@ -272,12 +329,12 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     provider,
     subject,
   }: WebhookEventRepository.SubjectQuery): Promise<WebhookEventRepository.Summary[]> {
-    const items = await this.dynamo.queryAll<DynamoWebhookEventRepository.SubjectItem>({
-      TableName: this.table,
-      IndexName: "GSI2",
-      KeyConditionExpression: "GSI2PK = :subject",
-      ExpressionAttributeValues: { ":subject": joinKey(provider, subject.type, subject.id) },
-    });
+    const items = await this.dynamo.queryAll<DynamoWebhookEventRepository.SubjectItem>(
+      this.models.table
+        .build(QueryCommand)
+        .query({ index: SUBJECT_INDEX, partition: joinKey(provider, subject.type, subject.id) })
+        .params(),
+    );
 
     // GSI2 does not project the subject, since every item shares the one queried.
     return items.map((item) => ({ ...fromReceivedItem(item), subject }));
@@ -286,6 +343,17 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
   // Read on each use, so only functions that touch the table need its variable.
   private get table(): string {
     return this.config.tables.webhookEvents.name;
+  }
+
+  // Each repository instance builds its Toolbox models on first use.
+  // The cached table name triggers a rebuild if configuration changes.
+  private get models() {
+    const name = this.table;
+    if (this.modelName !== name || this.modelSet === undefined) {
+      this.modelSet = webhookEventTable(name);
+      this.modelName = name;
+    }
+    return this.modelSet;
   }
 
   // An event's items all expire with it, so TTL never leaves a partial trace.
@@ -299,7 +367,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     const key = eventKey(event);
     return {
       PK: key,
-      SK: DynamoWebhookEventRepository.EVENT_SK,
+      SK: EVENT_SK,
       provider: event.provider,
       provider_event_id: event.providerEventId,
       event_type: event.eventType,
@@ -323,40 +391,10 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
 
 export namespace DynamoWebhookEventRepository {
   // The event itself; the other items of its collection share its `PK`.
-  export type EventItem = {
-    PK: string;
-    SK: "META";
-    provider: string;
-    provider_event_id: string;
-    event_type: string;
-    occurred_at: string;
-    received_at: string;
-    subject_type?: string;
-    subject_id?: string;
-    subscription_id?: string;
-    status?: WebhookEventRepository.SubjectStatus;
-    payload: Uint8Array;
-    // Absent, like `outdated`, on events stored before either existed.
-    processing_status?: WebhookEventRepository.ProcessingStatus;
-    outdated?: boolean;
-    // The attempt that last moved the event to `processing`, and when it is stopped.
-    current_attempt_id?: string;
-    current_attempt_deadline?: string;
-    GSI1PK: string;
-    GSI2PK?: string;
-    expires_at: number;
-  };
+  export type EventItem = FormattedItem<ReturnType<typeof webhookEventTable>["event"]>;
 
   // A subject's latest status and its event, kept outside any event's collection.
-  export type StatusItem = {
-    PK: string;
-    SK: "STATUS";
-    provider_event_id: string;
-    status: WebhookEventRepository.SubjectStatus;
-    occurred_at: string;
-    rank: string;
-    expires_at: number;
-  };
+  export type StatusItem = FormattedItem<ReturnType<typeof webhookEventTable>["status"]>;
 
   // Index queries return the keys and projected attributes only, never the payload.
   export type ReceivedItem = Pick<
@@ -368,36 +406,11 @@ export namespace DynamoWebhookEventRepository {
     "PK" | "provider" | "event_type" | "occurred_at" | "received_at"
   >;
 
-  export type AttemptItem = {
-    PK: string;
-    SK: string;
-    attempt_id: string;
-    started_at: string;
-    finished_at?: string;
-    outcome?: "succeeded" | "failed";
-    error_code?: string;
-    handler_version: string;
-    trace_id?: string;
-    expires_at: number;
-  };
+  export type AttemptItem = FormattedItem<ReturnType<typeof webhookEventTable>["attempt"]>;
 
-  export type EffectItem = {
-    PK: string;
-    SK: string;
-    effect: string;
-    status: "completed" | "failed";
-    business_key: string;
-    updated_at: string;
-    expires_at: number;
-  };
+  export type EffectItem = FormattedItem<ReturnType<typeof webhookEventTable>["effect"]>;
 
-  export type DeliveryItem = {
-    PK: string;
-    SK: string;
-    received_at: string;
-    request_id: string;
-    expires_at: number;
-  };
+  export type DeliveryItem = FormattedItem<ReturnType<typeof webhookEventTable>["delivery"]>;
 
   export type TraceItem = EventItem | AttemptItem | EffectItem | DeliveryItem;
 }
@@ -408,7 +421,7 @@ function eventKey({ provider, providerEventId }: WebhookEventRepository.EventId)
 
 // Sorts an event's attempts by start time, then by ID.
 function attemptKey({ startedAt, attemptId }: WebhookEventRepository.StartedAttempt): string {
-  return joinKey("ATTEMPT", startedAt.toISOString(), attemptId);
+  return joinKey(ATTEMPT_ITEM_TYPE, startedAt.toISOString(), attemptId);
 }
 
 function fromReceivedItem(

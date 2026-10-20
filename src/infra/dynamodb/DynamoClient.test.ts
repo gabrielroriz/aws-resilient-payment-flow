@@ -17,7 +17,12 @@ test("putIfAbsent writes the item only when its key is free", async () => {
   const send = stubSend(client).mockResolvedValue({});
 
   await expect(
-    client.putIfAbsent("events", { PK: "stripe#evt_1", SK: "META" }, "PK"),
+    client.putIfAbsent({
+      TableName: "events",
+      Item: { PK: "stripe#evt_1", SK: "META" },
+      ConditionExpression: "attribute_not_exists(#key)",
+      ExpressionAttributeNames: { "#key": "PK" },
+    }),
   ).resolves.toEqual({
     created: true,
   });
@@ -45,7 +50,11 @@ test("putIfAbsent returns the stored item, converted to a plain object, when the
   );
 
   await expect(
-    client.putIfAbsent("events", { PK: "stripe#evt_1", SK: "META" }, "PK"),
+    client.putIfAbsent({
+      TableName: "events",
+      Item: { PK: "stripe#evt_1", SK: "META" },
+      ConditionExpression: "attribute_not_exists(PK)",
+    }),
   ).resolves.toEqual({
     created: false,
     existing: stored,
@@ -57,7 +66,25 @@ test("putIfAbsent rethrows other failures", async () => {
   const failure = new Error("throttled");
   stubSend(client).mockRejectedValue(failure);
 
-  await expect(client.putIfAbsent("events", { PK: "stripe#evt_1" }, "PK")).rejects.toBe(failure);
+  await expect(
+    client.putIfAbsent({
+      TableName: "events",
+      Item: { PK: "stripe#evt_1" },
+      ConditionExpression: "attribute_not_exists(PK)",
+    }),
+  ).rejects.toBe(failure);
+});
+
+test("conditional writes reject missing conditions before reaching DynamoDB", async () => {
+  const client = new DynamoClient();
+  const send = stubSend(client);
+  const put = { TableName: "events", Item: { PK: "a", SK: "META" } };
+  const update = { TableName: "events", Key: { PK: "a", SK: "META" } };
+
+  await expect(client.putIfAbsent(put)).rejects.toThrow("requires a condition");
+  await expect(client.putIf(put)).rejects.toThrow("requires a condition");
+  await expect(client.updateIf(update)).rejects.toThrow("requires a condition");
+  expect(send).not.toHaveBeenCalled();
 });
 
 const condition = {
@@ -70,7 +97,9 @@ test("putIf writes the item with its condition and reports that it was written",
   const client = new DynamoClient();
   const send = stubSend(client).mockResolvedValue({});
 
-  await expect(client.putIf("events", { PK: "a", SK: "STATUS" }, condition)).resolves.toBe(true);
+  await expect(
+    client.putIf({ TableName: "events", Item: { PK: "a", SK: "STATUS" }, ...condition }),
+  ).resolves.toBe(true);
 
   const [command] = send.mock.calls[0];
   expect(command).toBeInstanceOf(PutCommand);
@@ -81,13 +110,34 @@ test("putIf writes the item with its condition and reports that it was written",
   });
 });
 
+test("putIf removes Toolbox's local item preview from the SDK request", async () => {
+  const client = new DynamoClient();
+  const send = stubSend(client).mockResolvedValue({});
+  const input = {
+    TableName: "events",
+    Item: { PK: "a", SK: "STATUS" },
+    ToolboxItem: { PK: "a", SK: "STATUS" },
+    ...condition,
+  };
+
+  await client.putIf(input);
+
+  expect(send.mock.calls[0][0].input).toEqual({
+    TableName: "events",
+    Item: input.Item,
+    ...condition,
+  });
+});
+
 test("putIf reports that nothing was written when the condition does not hold", async () => {
   const client = new DynamoClient();
   stubSend(client).mockRejectedValue(
     new ConditionalCheckFailedException({ message: "outranked", $metadata: {} }),
   );
 
-  await expect(client.putIf("events", { PK: "a", SK: "STATUS" }, condition)).resolves.toBe(false);
+  await expect(
+    client.putIf({ TableName: "events", Item: { PK: "a", SK: "STATUS" }, ...condition }),
+  ).resolves.toBe(false);
 });
 
 test("putIf rethrows other failures", async () => {
@@ -95,7 +145,9 @@ test("putIf rethrows other failures", async () => {
   const failure = new Error("throttled");
   stubSend(client).mockRejectedValue(failure);
 
-  await expect(client.putIf("events", { PK: "a", SK: "STATUS" }, condition)).rejects.toBe(failure);
+  await expect(
+    client.putIf({ TableName: "events", Item: { PK: "a", SK: "STATUS" }, ...condition }),
+  ).rejects.toBe(failure);
 });
 
 const update = {
@@ -108,7 +160,9 @@ test("updateIf updates the item with its condition and reports that it was updat
   const client = new DynamoClient();
   const send = stubSend(client).mockResolvedValue({});
 
-  await expect(client.updateIf("events", { PK: "a", SK: "META" }, update)).resolves.toBe(true);
+  await expect(
+    client.updateIf({ TableName: "events", Key: { PK: "a", SK: "META" }, ...update }),
+  ).resolves.toBe(true);
 
   const [command] = send.mock.calls[0];
   expect(command).toBeInstanceOf(UpdateCommand);
@@ -125,7 +179,9 @@ test("updateIf reports that nothing was updated when the condition does not hold
     new ConditionalCheckFailedException({ message: "moved on", $metadata: {} }),
   );
 
-  await expect(client.updateIf("events", { PK: "a", SK: "META" }, update)).resolves.toBe(false);
+  await expect(
+    client.updateIf({ TableName: "events", Key: { PK: "a", SK: "META" }, ...update }),
+  ).resolves.toBe(false);
 });
 
 test("updateIf rethrows other failures", async () => {
@@ -133,7 +189,9 @@ test("updateIf rethrows other failures", async () => {
   const failure = new Error("throttled");
   stubSend(client).mockRejectedValue(failure);
 
-  await expect(client.updateIf("events", { PK: "a", SK: "META" }, update)).rejects.toBe(failure);
+  await expect(
+    client.updateIf({ TableName: "events", Key: { PK: "a", SK: "META" }, ...update }),
+  ).rejects.toBe(failure);
 });
 
 test("queryAll follows every page", async () => {

@@ -60,7 +60,10 @@ test.each([
     ).resolves.toEqual({
       batchItemFailures: [],
     });
-    expect(get).toHaveBeenCalledWith(tableName, { PK: `${provider}#evt_1`, SK: "META" });
+    expect(get).toHaveBeenCalledWith({
+      TableName: tableName,
+      Key: { PK: `${provider}#evt_1`, SK: "META" },
+    });
     expect(process).toHaveBeenCalledWith(
       expect.objectContaining({ provider, providerEventId: "evt_1", payload }),
     );
@@ -70,23 +73,28 @@ test.each([
     expect(credentials).not.toHaveBeenCalled();
     // The event moves to processing, then both it and the attempt record success.
     const eventKey = { PK: `${provider}#evt_1`, SK: "META" };
-    expect(updateIf.mock.calls[0].slice(0, 2)).toEqual([tableName, eventKey]);
-    const started = updateIf.mock.calls[0][2].ExpressionAttributeValues!;
-    expect(started).toMatchObject({ ":processing": "processing" });
+    expect(updateIf.mock.calls[0][0]).toMatchObject({ TableName: tableName, Key: eventKey });
+    const started = updateIf.mock.calls[0][0];
+    expect(started).toMatchObject({ ToolboxItem: { processing_status: "processing" } });
     // Loading the event spent time, but the invocation deadline stays fixed.
-    expect(started[":startedAt"]).toBe("2026-10-10T10:00:04.000Z");
-    expect(started[":deadline"]).toBe("2026-10-10T10:00:25.000Z");
-    expect(put).toHaveBeenCalledWith(
-      tableName,
-      expect.objectContaining({
+    expect(Object.values(started.ExpressionAttributeValues ?? {})).toContain(
+      "2026-10-10T10:00:04.000Z",
+    );
+    expect(started).toMatchObject({
+      ToolboxItem: { current_attempt_deadline: "2026-10-10T10:00:25.000Z" },
+    });
+    expect(put.mock.calls[0][0]).toMatchObject({
+      TableName: tableName,
+      Item: {
         PK: `${provider}#evt_1`,
         SK: expect.stringMatching(/^ATTEMPT#/),
         handler_version: "20261017110316-339fc51a2130",
-      }),
-    );
-    expect(updateIf.mock.calls[2].slice(0, 2)).toEqual([tableName, eventKey]);
-    expect(updateIf.mock.calls[2][2].ExpressionAttributeValues).toMatchObject({
-      ":status": "processed",
+      },
+    });
+    expect(updateIf.mock.calls[2][0]).toMatchObject({
+      TableName: tableName,
+      Key: eventKey,
+      ToolboxItem: { processing_status: "processed" },
     });
     // The gateway's entry carries its source queue message, and never the payload.
     expect(logs()).toEqual([
@@ -151,7 +159,10 @@ test("processing rejects an unknown stored provider with the shared error and th
   ).resolves.toEqual({
     batchItemFailures: [{ itemIdentifier: "message-0" }],
   });
-  expect(get).toHaveBeenCalledWith(tableName, { PK: "unknown#evt", SK: "META" });
+  expect(get).toHaveBeenCalledWith({
+    TableName: tableName,
+    Key: { PK: "unknown#evt", SK: "META" },
+  });
   expect(logs()[0]).toMatchObject({
     category: "webhooks",
     errorKind: "unexpected",
