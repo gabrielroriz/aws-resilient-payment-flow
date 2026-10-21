@@ -107,25 +107,26 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
           current_attempt_deadline: attempt.deadline.toISOString(),
         })
         .options({
+          // The event must: 1. exist and be idle; 2. be held by an expired attempt.
           condition: {
             and: [
-              // The event must exist so this update cannot create a partial item.
+              // The event exists, so the update cannot create a partial item.
               { attr: "PK", exists: true },
               {
                 or: [
-                  // Events stored before statuses existed can start an attempt.
+                  // The event has no status because it predates statuses.
                   { attr: "processing_status", exists: false },
-                  // These statuses allow a new attempt or a retry.
+                  // The event is waiting for a first attempt or a retry.
                   { attr: "processing_status", in: ["received", "enqueued", "failed"] },
                   {
                     and: [
-                      // A processing event can be reclaimed only after its deadline.
+                      // The event is processing, but its attempt has expired.
                       { attr: "processing_status", eq: "processing" },
                       {
                         or: [
-                          // Older attempts have no deadline and can be reclaimed.
+                          // The attempt has no deadline because it predates them.
                           { attr: "current_attempt_deadline", exists: false },
-                          // A later start time means the prior deadline has passed.
+                          // The deadline passed before this attempt started.
                           {
                             attr: "current_attempt_deadline",
                             lt: attempt.startedAt.toISOString(),
