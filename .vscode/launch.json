@@ -1,0 +1,44 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // Functions behind HTTP routes, each run in a new container per request.
+      "name": "Attach to HTTP functions",
+      "type": "node",
+      "request": "attach",
+      // Must match the debug port of the SAM HTTP server in debug runs.
+      "port": 9229,
+      // Wait for the first invocation, then attach to each new container.
+      "timeout": 0,
+      "restart": true,
+      // Resume each invocation, which waits at its first line for a debugger.
+      "continueOnAttach": true,
+      // Debug bundles name their local path, so breakpoints bind before code runs.
+      "outFiles": ["${workspaceFolder}/dist/bundles/**/*.js"],
+      // Step through project code only, not the Lambda runtime.
+      "skipFiles": ["<node_internals>/**", "/var/runtime/**"]
+    },
+    {
+      // Queue workers, each run in a new container per batch from the local poller.
+      "name": "Attach to queue workers",
+      "type": "node",
+      "request": "attach",
+      // Must match the debug port of the SAM Lambda server in debug runs.
+      "port": 9230,
+      "timeout": 0,
+      "restart": true,
+      "continueOnAttach": true,
+      "outFiles": ["${workspaceFolder}/dist/bundles/**/*.js"],
+      "skipFiles": ["<node_internals>/**", "/var/runtime/**"]
+    }
+  ],
+  "compounds": [
+    {
+      // Starts the local environment in debug mode, or reuses a running one.
+      "name": "Debug local dev",
+      "configurations": ["Attach to HTTP functions", "Attach to queue workers"],
+      "preLaunchTask": "Local dev with debugging",
+      "stopAll": true
+    }
+  ]
+}

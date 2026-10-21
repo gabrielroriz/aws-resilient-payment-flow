@@ -24,8 +24,14 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
+# Debug runs build readable bundles whose source maps name the local sources.
+# Each invocation then waits for a debugger on its SAM server's debug port.
+# Must match the ports of the VS Code attach configurations.
+DEBUG_PORT_HTTP=9229
+DEBUG_PORT_QUEUE=9230
+
 cd "$PROJECT_ROOT"
-npm run build
+npm run build -- ${DEV_DEBUG:+--debug}
 
 # Terraform plans need each function's archive to exist.
 # The "local" version leaves deployment archives untouched.
@@ -44,18 +50,27 @@ docker compose -f "$PROJECT_ROOT/compose.dev.yaml" up --detach --wait
 WORK_DIR="$(mktemp --directory "${TMPDIR:-/tmp}/lambda-dev.XXXXXXXX")"
 DEV_PIDS=()
 cleanup() {
-  trap - EXIT INT TERM
+  trap - EXIT INT TERM HUP
   if ((${#DEV_PIDS[@]})); then
-    kill "${DEV_PIDS[@]}" 2>/dev/null || true
+    # Once SAM debugs an invocation, SIGTERM no longer stops it, but SIGHUP does.
+    kill ${DEV_DEBUG:+-HUP} "${DEV_PIDS[@]}" 2>/dev/null || true
     wait "${DEV_PIDS[@]}" 2>/dev/null || true
   fi
   rm -rf -- "$WORK_DIR"
+  if [[ -n "${DEV_DEBUG:-}" ]]; then
+    # A function waiting for a debugger outlives SAM and would hold its debug port.
+    stale="$(docker ps --quiet --filter label=sam.cli.container.type=lambda \
+      --filter "publish=$DEBUG_PORT_HTTP" --filter "publish=$DEBUG_PORT_QUEUE")"
+    [[ -z "$stale" ]] || docker rm --force $stale >/dev/null || true
+  fi
 }
 trap cleanup EXIT # Cleanup on exit, including Ctrl+C and kill.
 # Exit codes follow https://tldp.org/LDP/abs/html/exitcodes.html.
-# Turn Ctrl+C and kill into exit codes 130 and 143, so the cleanup trap runs.
-trap 'exit 130' INT 
+# Turn Ctrl+C, kill, and closing the terminal into exit codes 130, 143, and 129.
+# The cleanup trap then runs, also when VS Code stops the task.
+trap 'exit 130' INT
 trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 # Plan, never apply: the plan describes what to run, so no prior deploy is needed.
 # -var-file overrides the auto-loaded deployment secrets with the local ones.
@@ -68,17 +83,23 @@ terraform -chdir="$PROJECT_ROOT/terraform" show -json "$WORK_DIR/local.tfplan" >
 # Create the planned tables and queues locally and build the Lambdas' SAM template.
 node "$PROJECT_ROOT/scripts/dev/prepare.mts" "$WORK_DIR/local.json" "$WORK_DIR/template.json"
 
+if [[ -n "${DEV_DEBUG:-}" ]]; then
+  # The VS Code debug task waits for this line before attaching.
+  printf 'Each invocation waits for a debugger on port %s (HTTP) or %s (queues).\n' \
+    "$DEBUG_PORT_HTTP" "$DEBUG_PORT_QUEUE"
+fi
+
 # SAM only exposes invocation; a local consumer feeds it SQS batches from ElasticMQ.
 DEV_LAMBDA_PORT="${DEV_LAMBDA_PORT:-3002}"
 sam local start-lambda --template "$WORK_DIR/template.json" --docker-network "$DOCKER_NETWORK" \
-  --region us-east-1 --port "$DEV_LAMBDA_PORT" &
+  --region us-east-1 --port "$DEV_LAMBDA_PORT" ${DEV_DEBUG:+--debug-port "$DEBUG_PORT_QUEUE"} &
 DEV_PIDS+=("$!")
 node "$PROJECT_ROOT/scripts/dev/poll-sqs.mts" "$WORK_DIR/local.json" "http://127.0.0.1:$DEV_LAMBDA_PORT" &
 DEV_PIDS+=("$!")
 
 # Extra arguments, such as --port, pass through to the HTTP server only.
 sam local start-api --template "$WORK_DIR/template.json" --docker-network "$DOCKER_NETWORK" \
-  --region us-east-1 "$@" &
+  --region us-east-1 ${DEV_DEBUG:+--debug-port "$DEBUG_PORT_HTTP"} "$@" &
 DEV_PIDS+=("$!")
 # If any component exits, stop the others before removing the template and plan.
 wait -n "${DEV_PIDS[@]}"

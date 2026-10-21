@@ -37,7 +37,8 @@ const invoke: Invoke = async (functionName, event) => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(event),
       // Covers container startup; SAM enforces the function's own timeout.
-      signal: AbortSignal.timeout(120_000),
+      // A debugger can pause an invocation indefinitely, so debug runs wait for it.
+      signal: process.env.DEV_DEBUG ? undefined : AbortSignal.timeout(120_000),
     },
   );
   if (!response.ok || response.headers.has('x-amz-function-error')) {

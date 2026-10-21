@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // Starts the local environment in debug mode for the debug compound.
+      "label": "Local dev with debugging",
+      "type": "shell",
+      "command": "npm run dev:debug",
+      "isBackground": true,
+      // No output line is a problem; the patterns only tell VS Code when to attach.
+      "problemMatcher": {
+        "owner": "local-dev",
+        "pattern": { "regexp": "^(?!)" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^Planning Terraform",
+          // Must match the line the dev script prints before starting SAM.
+          "endsPattern": "waits for a debugger"
+        }
+      }
+    }
+  ]
+}
