@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { expect, onTestFinished, test } from 'vitest';
 import type { LambdaRegistry } from './lambdas.mts';
 
@@ -102,6 +102,28 @@ test('AWS SDK imports stay out of the bundle and load from the runtime', async (
       },
     ),
   ).toBe('RUNTIME_SDK');
+});
+
+test('only a debug build maps its bundle, by its local path, to the sources', async () => {
+  // Debuggers find the code by its local path, then follow its map to the source.
+  const root = await fixture(
+    { 'src/handler.ts': 'export const handler = () => "DEBUG_BUILD";' },
+    { debug: { entry: 'src/handler.ts' } },
+  );
+  const bundle = path.join(root, 'dist/bundles/debug/index.js');
+
+  execFileSync(process.execPath, [path.join(root, 'build/index.mts')]);
+  expect(await readFile(bundle, 'utf8')).not.toContain('sourceMappingURL');
+
+  execFileSync(process.execPath, [path.join(root, 'build/index.mts'), '--debug']);
+  expect(await readdir(path.dirname(bundle))).toEqual(['index.js']);
+  const source = await readFile(bundle, 'utf8');
+  expect(source).toContain(`//# sourceURL=${pathToFileURL(bundle).href}`);
+  const [, encodedMap] = source.match(/sourceMappingURL=data:application\/json;base64,(.+)/)!;
+  const map = JSON.parse(Buffer.from(encodedMap, 'base64').toString());
+  expect(map.sources.map((file: string) => path.resolve(path.dirname(bundle), file))).toEqual([
+    path.join(root, 'src/handler.ts'),
+  ]);
 });
 
 test('a missing dependency stops bundling instead of leaving a broken runtime import', async () => {

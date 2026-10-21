@@ -2,7 +2,7 @@ import { build } from 'esbuild';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { isBuiltin } from 'node:module';
 import path from 'node:path';
-import options from './esbuild.config.mts';
+import options, { debugOptions } from './esbuild.config.mts';
 import type { LambdaRegistry } from './lambdas.mts';
 
 // The esbuild externals end in `*` and match by prefix, such as `@aws-sdk/*`.
@@ -18,6 +18,7 @@ export async function bundleLambdas(
   root: string,
   registry: LambdaRegistry,
   outputRoot: string,
+  debug = false,
 ): Promise<void> {
   // Separate dependency graphs keep unrelated handlers out of each Lambda's package.
   for (const [name, config] of Object.entries(registry)) {
@@ -25,6 +26,7 @@ export async function bundleLambdas(
     const outfile = path.join(outputRoot, name, 'index.js');
     const result = await build({
       ...options,
+      ...(debug && debugOptions(outfile)),
       absWorkingDir: root,
       entryPoints: [config.entry],
       outfile,

@@ -1,4 +1,5 @@
 import type { BuildOptions } from 'esbuild';
+import { pathToFileURL } from 'node:url';
 
 export default {
   // Keep each deployment to one small file, with no separate source map.
@@ -24,3 +25,14 @@ export default {
     'unsupported-dynamic-import': 'error',
   },
 } as const satisfies BuildOptions;
+
+// Local debugging trades the small file for readable code and an inline source map.
+// The container runs the code from another path, so the bundle names its local one.
+// Debuggers then bind breakpoints from local source maps before the code runs.
+export function debugOptions(outfile: string) {
+  return {
+    minify: false,
+    sourcemap: 'inline',
+    footer: { js: `//# sourceURL=${pathToFileURL(outfile).href}` },
+  } as const satisfies BuildOptions;
+}
