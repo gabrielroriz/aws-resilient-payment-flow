@@ -93,6 +93,7 @@ Use Node.js 24 and npm, then install the dependencies with `npm ci`. Local runs 
 | Type-check, build, and test | `npm run typecheck && npm run build && npm test` | [Testing](docs/guides/testing.md) |
 | Format the code | `npm run format` | [Formatting](docs/guides/formatting.md) |
 | Run the API locally | `npm run dev` | [Development](docs/guides/development.md) |
+| Debug the local functions in VS Code | `npm run dev:debug` | [Debugging](docs/guides/debugging.md) |
 | Replay the delivery scenarios | `npm run simulate` | [Simulated gateways](docs/guides/simulated-gateways.md) |
 | Deploy to AWS | `npm run deploy` | [Deployment](docs/guides/deployment.md) |
 
@@ -106,6 +107,7 @@ Use Node.js 24 and npm, then install the dependencies with `npm ci`. Local runs 
   - [Data model](docs/architecture/data-model/): access patterns, keys, and items of each DynamoDB table.
 - **Guides**: how to work on the project.
   - [Development](docs/guides/development.md): running the API, worker, database, and queues locally.
+  - [Debugging](docs/guides/debugging.md): stopping at breakpoints in the local functions with VS Code.
   - [Testing](docs/guides/testing.md): running and writing automated tests.
   - [Formatting](docs/guides/formatting.md): formatting code on save and checking it in CI.
   - [Deployment](docs/guides/deployment.md): deploying to AWS and calling the API.

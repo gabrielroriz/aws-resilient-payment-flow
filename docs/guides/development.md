@@ -12,7 +12,6 @@ Run the API, worker, database, and queues on your machine, from the same Terrafo
 | Terraform matching the `required_version` in `terraform/`, Bash 4.3 or newer, and `zip` | Planning and packaging |
 | AWS credentials and network access | Reading the Terraform state, and AWS services that are not emulated locally |
 | Free local ports 3000, 3002, 8000, 8001, 9324, and 9325 | The API, Lambda invocation server, DynamoDB Local, dynamodb-admin, ElasticMQ, and its UI |
-| [VS Code](https://code.visualstudio.com/) and free local ports 9229 and 9230 | [Debugging](#debugging) the functions; optional |
 
 Building and testing need only Node.js and npm.
 
@@ -83,7 +82,7 @@ npm run dev
 | Pick up code, registry, table, or queue changes | Stop and rerun `npm run dev` |
 | Serve the API on another port | `npm run dev -- --port 3001` |
 | Use another Lambda invocation port | `DEV_LAMBDA_PORT=3003 npm run dev`; separate from the HTTP `--port` |
-| Debug the functions with breakpoints | Run **Debug local dev** in VS Code, or `npm run dev:debug` and attach; see [Debugging](#debugging) |
+| Debug the functions with breakpoints | Run **Debug local dev** in VS Code, or `npm run dev:debug` and attach; see [Debugging](debugging.md) |
 | Observe worker routing | Watch `webhook_routed` logs in the terminal after sending a webhook |
 | Browse and edit items | Open <http://localhost:8001> |
 | Replay the delivery scenarios | `npm run simulate` in another terminal; see [Simulated gateways](simulated-gateways.md#usage) |
@@ -97,27 +96,6 @@ npm run dev
 | Type-check the local tooling and simulator too | `npm run typecheck` |
 
 Run one local environment per machine; checkouts share the local services and queue messages. The first run downloads the function runtime and service images.
-
-### Debugging
-
-VS Code stops at breakpoints in `src/` while the functions run in their SAM containers.
-
-| Task | Command or action |
-|---|---|
-| Start the environment and attach | In **Run and Debug**, pick **Debug local dev** and press F5; it runs `npm run dev:debug` in a task terminal and attaches to both SAM servers |
-| Stop at a line | Set a breakpoint in a TypeScript file under `src/`, then send a request or run the simulator |
-| Detach | Shift+F5; the environment keeps running, and F5 attaches to it again without rebuilding |
-| Pick up code changes | Run **Tasks: Restart Running Task** and pick **Local dev with debugging** |
-| Stop the environment | Run **Tasks: Terminate Task**, or press Ctrl+C in the task terminal |
-| Debug an environment started in a terminal | Run `npm run dev:debug`, then start **Attach to HTTP functions** or **Attach to queue workers** |
-
-`npm run dev:debug` runs the `npm run dev` script with `DEV_DEBUG=1`. The build then keeps each bundle unminified with an inline source map, and names the bundle by its local path, so VS Code binds breakpoints before the code runs. SAM starts each invocation in a new container whose Node.js waits for a debugger: HTTP functions on port 9229 and queue workers on port 9230. The attach configurations wait for the first invocation, then attach to each new container and resume it.
-
-A debug run differs from a normal one:
-
-- Every invocation waits until a debugger attaches, so requests hang while VS Code is detached.
-- Each SAM server runs one invocation at a time, so concurrent deliveries queue up.
-- SAM does not stop a function at its timeout, and the poller waits for each invocation, but clients keep their own timeouts, such as the simulator's acknowledgment timeouts.
 
 ### Local tables
 
@@ -178,7 +156,7 @@ TypeScript checks types, and esbuild bundles each function and its dependencies,
 
 | Artifact | Purpose |
 |---|---|
-| `dist/bundles/<name>/index.js` | Built function; replaced on each build, and unminified with a source map in [debug runs](#debugging) |
+| `dist/bundles/<name>/index.js` | Built function; replaced on each build, and unminified with a source map in [debug runs](debugging.md) |
 | `dist/<name>_local.zip` | Archive the local Terraform plan requires; rebuilt by `npm run dev` |
 | `dist/<name>_<version>.zip` | Deployment archive; preserved by local builds |
 
