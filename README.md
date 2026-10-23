@@ -104,6 +104,7 @@ Use Node.js 24 and npm, then install the dependencies with `npm ci`. Local runs 
   - [Code structure](docs/architecture/code-structure.md): hexagonal layers, dependency injection, configuration, and errors.
   - [Webhook receipt](docs/architecture/webhook-receipt.md): how webhooks are authenticated, recorded, queued for processing, and answered.
   - [Webhook processing](docs/architecture/webhook-processing.md): queue consumption, gateway routing, and retries.
+  - [Event ordering and retries](docs/architecture/ordering-and-retries.md): the planned strategy for keeping business outcomes in order without letting one failure block other events.
   - [Data model](docs/architecture/data-model/): access patterns, keys, and items of each DynamoDB table.
 - **Guides**: how to work on the project.
   - [Development](docs/guides/development.md): running the API, worker, database, and queues locally.

@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 390" width="960" height="390" role="img" aria-labelledby="title desc">
+  <title id="title">One message group per provider</title>
+  <desc id="desc">Two FIFO message groups feed the webhook worker. In the gatewayBrazil group, message m3 for payment p3 has failed, and messages m4 to m6, for the unrelated payments p4 to p6, wait behind it. In the gatewayGlobal group, messages g1 to g4 are delivered normally.</desc>
+  <defs>
+    <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path class="arrowhead" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+  <style>
+    .bg { fill: #ffffff; }
+    text { font-family: Inter, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #1f2328; }
+    .title { font-size: 20px; font-weight: 700; }
+    .subtitle { font-size: 14px; fill: #59636e; }
+    .label { font-size: 14px; font-weight: 600; }
+    .small { font-size: 12px; fill: #59636e; }
+    .center { text-anchor: middle; }
+    .end { text-anchor: end; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; font-weight: 600; }
+    .queue { fill: #f6f8fa; stroke: #1f2328; stroke-width: 1.5; }
+    .box { fill: #ffffff; stroke: #1f2328; stroke-width: 1.5; }
+    .ok { fill: #dafbe1; stroke: #1a7f37; stroke-width: 1.5; }
+    .fail { fill: #ffebe9; stroke: #cf222e; stroke-width: 1.5; }
+    .wait { fill: #fff8c5; stroke: #9a6700; stroke-width: 1.5; }
+    .arrow { fill: none; stroke: #1f2328; stroke-width: 1.75; }
+    .arrowhead { fill: #1f2328; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; }
+      text { fill: #e6edf3; }
+      .subtitle, .small { fill: #9198a1; }
+      .queue { fill: #161b22; stroke: #c9d1d9; }
+      .box { fill: #0d1117; stroke: #c9d1d9; }
+      .ok { fill: #12261e; stroke: #3fb950; }
+      .fail { fill: #301214; stroke: #f85149; }
+      .wait { fill: #2b2111; stroke: #d29922; }
+      .arrow { stroke: #c9d1d9; }
+      .arrowhead { fill: #c9d1d9; }
+    }
+  </style>
+
+  <rect class="bg" x="0" y="0" width="960" height="390" rx="16"/>
+  <text class="title" x="32" y="46">Today: one message group per provider</text>
+  <text class="subtitle" x="32" y="70">A failed message holds back every later event from its gateway, whichever payment it belongs to.</text>
+
+  <!-- Worker shared by both groups. -->
+  <rect class="box" x="770" y="100" width="158" height="194" rx="12"/>
+  <text class="label center" x="849" y="194">webhook_worker</text>
+  <text class="small center" x="849" y="214">Lambda</text>
+
+  <!-- gatewayBrazil group: m3 failed and the others wait. -->
+  <text class="small" x="32" y="124">message group</text>
+  <text class="mono" x="32" y="144">gatewayBrazil</text>
+  <text class="small" x="206" y="92">newer</text>
+  <text class="small end" x="674" y="92">next to deliver</text>
+  <rect class="queue" x="190" y="100" width="500" height="64" rx="32"/>
+  <rect class="wait" x="232" y="109" width="100" height="46" rx="8"/>
+  <text class="label center" x="282" y="129">m6</text>
+  <text class="small center" x="282" y="147">payment p6</text>
+  <rect class="wait" x="346" y="109" width="100" height="46" rx="8"/>
+  <text class="label center" x="396" y="129">m5</text>
+  <text class="small center" x="396" y="147">payment p5</text>
+  <rect class="wait" x="460" y="109" width="100" height="46" rx="8"/>
+  <text class="label center" x="510" y="129">m4</text>
+  <text class="small center" x="510" y="147">payment p4</text>
+  <rect class="fail" x="574" y="109" width="100" height="46" rx="8"/>
+  <text class="label center" x="624" y="129">m3</text>
+  <text class="small center" x="624" y="147">payment p3</text>
+  <path class="arrow" d="M692,132 H766" marker-end="url(#head)"/>
+  <text class="small" x="190" y="188">m3 failed: m4 to m6 are other payments, yet wait up to 5 visibility timeouts.</text>
+
+  <!-- gatewayGlobal group: delivered normally. -->
+  <text class="small" x="32" y="254">message group</text>
+  <text class="mono" x="32" y="274">gatewayGlobal</text>
+  <rect class="queue" x="190" y="230" width="500" height="64" rx="32"/>
+  <rect class="ok" x="232" y="239" width="100" height="46" rx="8"/>
+  <text class="label center" x="282" y="259">g4</text>
+  <text class="small center" x="282" y="277">payment q4</text>
+  <rect class="ok" x="346" y="239" width="100" height="46" rx="8"/>
+  <text class="label center" x="396" y="259">g3</text>
+  <text class="small center" x="396" y="277">payment q3</text>
+  <rect class="ok" x="460" y="239" width="100" height="46" rx="8"/>
+  <text class="label center" x="510" y="259">g2</text>
+  <text class="small center" x="510" y="277">payment q2</text>
+  <rect class="ok" x="574" y="239" width="100" height="46" rx="8"/>
+  <text class="label center" x="624" y="259">g1</text>
+  <text class="small center" x="624" y="277">payment q1</text>
+  <path class="arrow" d="M692,262 H766" marker-end="url(#head)"/>
+  <text class="small" x="190" y="318">Other gateways keep flowing, because each group is delivered separately.</text>
+
+  <!-- Legend. -->
+  <rect class="fail" x="32" y="348" width="16" height="16" rx="4"/>
+  <text class="small" x="56" y="361">Failed</text>
+  <rect class="wait" x="132" y="348" width="16" height="16" rx="4"/>
+  <text class="small" x="156" y="361">Waiting behind a failure</text>
+  <rect class="ok" x="336" y="348" width="16" height="16" rx="4"/>
+  <text class="small" x="360" y="361">Delivered normally</text>
+</svg>

@@ -116,3 +116,5 @@ After 5 receives, SQS moves a failing message to `webhook_events_dlq.fifo`, whic
 The gateway classes currently emit `webhook_routed` logs containing the provider, event ID, and event type. Successful routing acknowledges the queue message; it does not mean a payment, subscription, or financial effect has been applied. The original event remains in DynamoDB for its configured retention period.
 
 Business effects and business idempotency are not implemented. A later delivery of the same event can be processed again, so future effects must be safe to repeat. FIFO preserves receipt order, not the provider's occurrence order; receipt records which event reports each payment's [latest status](webhook-receipt.md#out-of-order-events) and the subscription each payment bills, but processing reads neither yet, and nothing derives a subscription's status from its payments. See [Adding a provider](../guides/adding-a-provider.md) for extending both receipt and processing.
+
+[Event ordering and retries](ordering-and-retries.md) describes the planned strategy that replaces per-provider message groups and blocked retries.
