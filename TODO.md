@@ -11,10 +11,6 @@ Deferred build and deployment tests:
 - [ ] Verify removing a Lambda from the registry removes its stale bundle on the next build.
 - [ ] Verify a handler importing a Node.js built-in such as `node:crypto` bundles and runs successfully.
 
-Processing status:
-
-- [ ] Keep processing a batch's other message groups after one message fails, failing only the rest of that message's group. A batch mixes providers, so one failing message now spends the receives of other providers' messages, which can reach the dead-letter queue without ever being attempted.
-
 Event history and admin dashboard:
 
 - [ ] Project events, attempts, effects, and deliveries from DynamoDB Streams into a PostgreSQL read model kept for years, partitioned by month on `occurred_at`, skipping TTL deletions.

@@ -60,7 +60,7 @@ Sharing provider classes also shares their constructor dependencies, including t
 |---|---|
 | Event source | Terraform maps the FIFO queue to `webhook_worker`, with batches of up to 10 records |
 | Partial responses | `ReportBatchItemFailures` allows Lambda to delete completed records and retry the rest |
-| FIFO order | On the first failure, the worker stops and reports that record and all subsequent records in the batch; unrelated providers can still run in separate batches |
+| FIFO order | A failed record and later records in its message group retry; other groups in the same batch continue, and completed records are acknowledged |
 | Visibility timeout | 180 seconds, derived from six times the worker's 30-second timeout |
 | Redrive | After 5 receives, SQS moves a failing message to the FIFO dead-letter queue |
 | Permissions | Consume only the webhook queue, read events and record attempts and statuses in the webhook events table, and write execution logs |

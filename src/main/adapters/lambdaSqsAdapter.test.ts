@@ -92,6 +92,56 @@ test("a failed FIFO record retries itself and every unprocessed record, preservi
   expect(failure).not.toHaveProperty("category");
 });
 
+test("a failed group does not spend the receives of other groups in the batch", async () => {
+  const logs = captureLogs();
+  const handle = vi.fn(async (body: { id: number }) => {
+    if (body.id === 2 || body.id === 5) throw new Error("storage unavailable");
+  });
+  const event = sqsEvent(
+    { id: 1 },
+    { id: 2 },
+    { id: 3 },
+    { id: 4 },
+    { id: 5 },
+    { id: 6 },
+    { id: 7 },
+    { id: 8 },
+  );
+  const groups = [
+    "gatewayGlobal",
+    "gatewayGlobal",
+    "gatewayBrazil",
+    "gatewayGlobal",
+    "gatewayBrazil",
+    "gatewayBrazil",
+    "gatewayOther",
+    "gatewayOther",
+  ];
+  event.Records.forEach((record, index) => {
+    record.attributes.MessageGroupId = groups[index];
+  });
+
+  await expect(
+    lambdaSqsAdapter({ handle }, logger, invocationContext)(event, lambdaContext()),
+  ).resolves.toEqual({
+    batchItemFailures: [
+      { itemIdentifier: "message-1" },
+      { itemIdentifier: "message-3" },
+      { itemIdentifier: "message-4" },
+      { itemIdentifier: "message-5" },
+    ],
+  });
+  expect(handle.mock.calls).toEqual([
+    [{ id: 1 }],
+    [{ id: 2 }],
+    [{ id: 3 }],
+    [{ id: 5 }],
+    [{ id: 7 }],
+    [{ id: 8 }],
+  ]);
+  expect(logs().map(({ messageId }) => messageId)).toEqual(["message-1", "message-4"]);
+});
+
 test("malformed JSON fails before the handler and keeps the remainder of the batch", async () => {
   const logs = captureLogs();
   const handle = vi.fn();
