@@ -11,6 +11,10 @@ Deferred build and deployment tests:
 - [ ] Verify removing a Lambda from the registry removes its stale bundle on the next build.
 - [ ] Verify a handler importing a Node.js built-in such as `node:crypto` bundles and runs successfully.
 
+Processing after rank checks:
+
+- [ ] Once every business effect writes with its rank condition and is idempotent, investigate processing the later records of a failed message's group in the same batch instead of skipping them. Skipped records spend receives, so they can reach the dead-letter queue without being attempted; processing them gives each its own attempts, at the cost of running them out of queue order, which the rank checks make safe.
+
 Event history and admin dashboard:
 
 - [ ] Project events, attempts, effects, and deliveries from DynamoDB Streams into a PostgreSQL read model kept for years, partitioned by month on `occurred_at`, skipping TTL deletions.
