@@ -19,6 +19,14 @@ run "worker_event_source" {
     error_message = "The queue must invoke the worker with partial batch responses enabled."
   }
   assert {
+    condition     = aws_sqs_queue.webhook_events.deduplication_scope == "messageGroup" && aws_sqs_queue.webhook_events.fifo_throughput_limit == "perMessageGroupId"
+    error_message = "The webhook events queue must use high throughput, spreading subjects over partitions."
+  }
+  assert {
+    condition     = aws_lambda_event_source_mapping.sqs["webhook_worker"].scaling_config[0].maximum_concurrency == 50
+    error_message = "The mapping must cap the worker's concurrency."
+  }
+  assert {
     condition     = aws_lambda_function.all_lambdas["webhook_worker"].environment[0].variables.WEBHOOK_EVENTS_DLQ_NAME == aws_sqs_queue.webhook_events_dlq.name
     error_message = "The worker must park messages in the dead-letter queue Terraform provisions."
   }

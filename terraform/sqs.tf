@@ -4,6 +4,10 @@
 resource "aws_sqs_queue" "webhook_events" {
   name       = "webhook_events.fifo"
   fifo_queue = true
+  // High throughput spreads subjects over partitions, lifting the 300 sends/s cap.
+  // An event always lands in one group, so per-group deduplication catches repeats.
+  deduplication_scope   = "messageGroup"
+  fifo_throughput_limit = "perMessageGroupId"
   // Allow Lambda's retries time to finish before a batch becomes visible again.
   visibility_timeout_seconds = 6 * local.lambdas.webhook_worker.timeout
 
@@ -44,8 +48,9 @@ resource "aws_cloudwatch_metric_alarm" "webhook_events_dlq_not_empty" {
 
 locals {
   webhook_max_receive_count = 5
+  # Concurrency grows with active message groups, so each mapping caps it.
   sqs_consumers = {
-    webhook_worker = { queue = aws_sqs_queue.webhook_events, batch_size = 10 }
+    webhook_worker = { queue = aws_sqs_queue.webhook_events, batch_size = 10, max_concurrency = 50 }
   }
 }
 
@@ -67,6 +72,10 @@ resource "aws_lambda_event_source_mapping" "sqs" {
   batch_size              = each.value.batch_size
   function_response_types = ["ReportBatchItemFailures"]
   enabled                 = true
+
+  scaling_config {
+    maximum_concurrency = each.value.max_concurrency
+  }
 
   depends_on = [
     aws_iam_role_policy.webhook_events_consume,
