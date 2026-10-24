@@ -19,6 +19,10 @@ run "worker_event_source" {
     error_message = "The queue must invoke the worker with partial batch responses enabled."
   }
   assert {
+    condition     = aws_lambda_function.all_lambdas["webhook_worker"].environment[0].variables.WEBHOOK_EVENTS_DLQ_NAME == aws_sqs_queue.webhook_events_dlq.name
+    error_message = "The worker must park messages in the dead-letter queue Terraform provisions."
+  }
+  assert {
     condition     = aws_sqs_queue.webhook_events.visibility_timeout_seconds >= 6 * aws_lambda_function.all_lambdas["webhook_worker"].timeout
     error_message = "Queue visibility must leave enough time for Lambda retries."
   }

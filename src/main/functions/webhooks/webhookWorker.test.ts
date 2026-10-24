@@ -2,6 +2,7 @@ import { SystemClock } from "@infra/clock/SystemClock";
 import { AppConfig } from "@infra/config/AppConfig";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
 import { captureLogs } from "@infra/logging/JsonLogger.fixtures";
+import { SqsDeadLetterQueue } from "@infra/queues/SqsDeadLetterQueue";
 import { GatewayBrazilWebhookProvider } from "@infra/webhooks/gatewayBrazil/GatewayBrazilWebhookProvider";
 import { GatewayGlobalWebhookProvider } from "@infra/webhooks/gatewayGlobal/GatewayGlobalWebhookProvider";
 import { sqsEvent } from "@main/adapters/lambdaSqsAdapter.fixtures";
@@ -17,6 +18,11 @@ beforeEach(() => {
   vi.stubEnv("WEBHOOK_EVENTS_TABLE_NAME", tableName);
   vi.stubEnv("CODE_VERSION", "20261017110316-339fc51a2130");
 });
+
+// Records parked messages instead of sending them to SQS.
+function stubPark() {
+  return vi.spyOn(SqsDeadLetterQueue.prototype, "park").mockResolvedValue();
+}
 
 test.each([
   ["gatewayGlobal", GatewayGlobalWebhookProvider, GatewayBrazilWebhookProvider],
@@ -63,6 +69,7 @@ test.each([
     expect(get).toHaveBeenCalledWith({
       TableName: tableName,
       Key: { PK: `${provider}#evt_1`, SK: "META" },
+      ConsistentRead: true,
     });
     expect(process).toHaveBeenCalledWith(
       expect.objectContaining({ provider, providerEventId: "evt_1", payload }),
@@ -124,14 +131,18 @@ test.each([
   { provider: "gatewayGlobal", providerEventId: 1 },
   { provider: "gatewayGlobal", providerEventId: " " },
 ])(
-  "invalid queued references are classified and retried without reading storage: %j",
+  "invalid queued references are classified and parked without reading storage: %j",
   async (body) => {
     const logs = captureLogs();
+    const park = stubPark();
     const get = vi.spyOn(DynamoClient.prototype, "get");
     await expect(handler(sqsEvent(body), lambdaContext())).resolves.toEqual({
-      batchItemFailures: [{ itemIdentifier: "message-0" }],
+      batchItemFailures: [],
     });
     expect(get).not.toHaveBeenCalled();
+    expect(park).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ body: JSON.stringify(body), errorCode: "QUEUE_INVALID_MESSAGE" }),
+    );
     expect(logs()[0]).toMatchObject({
       category: "queue",
       errorKind: "unexpected",
@@ -142,8 +153,9 @@ test.each([
   },
 );
 
-test("processing rejects an unknown stored provider with the shared error and the worker retries", async () => {
+test("processing rejects an unknown stored provider with the shared error and the worker parks it", async () => {
   const logs = captureLogs();
+  const park = stubPark();
   const get = vi.spyOn(DynamoClient.prototype, "get").mockResolvedValue({
     PK: "unknown#evt",
     SK: "META",
@@ -157,12 +169,14 @@ test("processing rejects an unknown stored provider with the shared error and th
   await expect(
     handler(sqsEvent({ provider: "unknown", providerEventId: "evt" }), lambdaContext()),
   ).resolves.toEqual({
-    batchItemFailures: [{ itemIdentifier: "message-0" }],
+    batchItemFailures: [],
   });
   expect(get).toHaveBeenCalledWith({
     TableName: tableName,
     Key: { PK: "unknown#evt", SK: "META" },
+    ConsistentRead: true,
   });
+  expect(park).toHaveBeenCalledOnce();
   expect(logs()[0]).toMatchObject({
     category: "webhooks",
     errorKind: "unexpected",
@@ -173,17 +187,19 @@ test("processing rejects an unknown stored provider with the shared error and th
   });
 });
 
-test("a missing stored event logs its own code and leaves the batch for retry", async () => {
+test("a missing stored event logs its own code and is parked, and the batch continues", async () => {
   const logs = captureLogs();
+  const park = stubPark();
   const get = vi.spyOn(DynamoClient.prototype, "get").mockResolvedValue(undefined);
   const process = vi.spyOn(GatewayGlobalWebhookProvider.prototype, "process");
   const event = { provider: "gatewayGlobal", providerEventId: "missing" };
   await expect(
     handler(sqsEvent(event, { ...event, providerEventId: "later" }), lambdaContext()),
   ).resolves.toEqual({
-    batchItemFailures: [{ itemIdentifier: "message-0" }, { itemIdentifier: "message-1" }],
+    batchItemFailures: [],
   });
-  expect(get).toHaveBeenCalledTimes(1);
+  expect(get).toHaveBeenCalledTimes(2);
+  expect(park).toHaveBeenCalledTimes(2);
   expect(process).not.toHaveBeenCalled();
   expect(logs()[0]).toMatchObject({
     category: "webhooks",
@@ -193,4 +209,16 @@ test("a missing stored event logs its own code and leaves the batch for retry", 
     errorMessage: "Stored webhook event not found: gatewayGlobal/missing",
     errorStack: expect.any(String),
   });
+});
+
+test("a storage failure is never parked, so SQS delivers it again", async () => {
+  captureLogs();
+  const park = stubPark();
+  vi.spyOn(DynamoClient.prototype, "get").mockRejectedValue(new Error("throttled"));
+
+  await expect(
+    handler(sqsEvent({ provider: "gatewayGlobal", providerEventId: "evt_1" }), lambdaContext()),
+  ).resolves.toEqual({ batchItemFailures: [{ itemIdentifier: "message-0" }] });
+
+  expect(park).not.toHaveBeenCalled();
 });

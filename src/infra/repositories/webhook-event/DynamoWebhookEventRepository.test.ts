@@ -138,7 +138,7 @@ test("create returns the stored event when the event already exists", async () =
   await expect(repository.create(retry)).resolves.toEqual({ created: false, event });
 });
 
-test("get reads the event item, or returns undefined when it does not exist", async () => {
+test("get reads the event item consistently, or returns undefined when it does not exist", async () => {
   const { dynamo, repository } = setup();
   const get = vi
     .spyOn(dynamo, "get")
@@ -152,6 +152,7 @@ test("get reads the event item, or returns undefined when it does not exist", as
   expect(get).toHaveBeenCalledWith({
     TableName: tableName,
     Key: { PK: "stripe#evt_1", SK: "META" },
+    ConsistentRead: true,
   });
 });
 

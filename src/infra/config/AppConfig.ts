@@ -20,6 +20,11 @@ export class AppConfig {
     return { webhookEvents: { name: env.WEBHOOK_EVENTS_QUEUE_NAME } };
   }
 
+  get deadLetterQueues(): AppConfig.DeadLetterQueues {
+    const env = this.parseGroup("deadLetterQueues", envSchema.deadLetterQueues);
+    return { webhookEvents: { name: env.WEBHOOK_EVENTS_DLQ_NAME } };
+  }
+
   get tables(): AppConfig.Tables {
     const env = this.parseGroup("tables", envSchema.tables);
     return { webhookEvents: { name: env.WEBHOOK_EVENTS_TABLE_NAME } };
@@ -61,6 +66,12 @@ export namespace AppConfig {
   // The SQS queues the function sends messages to, by name.
   export type Queues = {
     // Queue of stored webhook events waiting to be processed.
+    webhookEvents: { name: string };
+  };
+
+  // The SQS dead-letter queues a consumer parks failed messages in, by name.
+  export type DeadLetterQueues = {
+    // Where webhook events that can never succeed wait for operators.
     webhookEvents: { name: string };
   };
 

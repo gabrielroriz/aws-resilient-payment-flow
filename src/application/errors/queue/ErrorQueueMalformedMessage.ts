@@ -11,6 +11,7 @@ export class ErrorQueueMalformedMessage extends BaseError {
       code: ErrorCode.QUEUE_MALFORMED_MESSAGE,
       category: ErrorCategory.QUEUE,
       kind: ErrorKind.UNEXPECTED,
+      retryable: false,
     });
   }
 }

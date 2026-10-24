@@ -57,9 +57,11 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
   }
 
   async get(id: WebhookEventRepository.EventId): Promise<WebhookEventRepository.Event | undefined> {
+    // Consistent, so an event read just after receipt stored it is never missing.
     const input = this.models.event
       .build(GetItemCommand)
       .key({ PK: eventKey(id), SK: EVENT_SK })
+      .options({ consistent: true })
       .params();
     const item = await this.dynamo.get<DynamoWebhookEventRepository.EventItem>(input);
     return item && fromEventItem(item);

@@ -17,6 +17,14 @@ test("AppConfig reads the queue names", () => {
   expect(new AppConfig().queues).toEqual({ webhookEvents: { name: "webhook_events.fifo" } });
 });
 
+test("AppConfig reads the dead-letter queue names", () => {
+  vi.stubEnv("WEBHOOK_EVENTS_DLQ_NAME", "webhook_events_dlq.fifo");
+
+  expect(new AppConfig().deadLetterQueues).toEqual({
+    webhookEvents: { name: "webhook_events_dlq.fifo" },
+  });
+});
+
 test("AppConfig reads the table names", () => {
   vi.stubEnv("WEBHOOK_EVENTS_TABLE_NAME", "webhook_events");
 

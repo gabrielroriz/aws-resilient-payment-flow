@@ -15,6 +15,7 @@ resource "aws_sqs_queue" "webhook_events" {
 }
 
 // Events whose processing kept failing, kept for investigation and redrive.
+// The worker also parks events that can never succeed here at once.
 // A FIFO queue needs a FIFO dead-letter queue.
 resource "aws_sqs_queue" "webhook_events_dlq" {
   name       = "webhook_events_dlq.fifo"
@@ -69,6 +70,7 @@ resource "aws_lambda_event_source_mapping" "sqs" {
 
   depends_on = [
     aws_iam_role_policy.webhook_events_consume,
+    aws_iam_role_policy.webhook_events_park,
     aws_iam_role_policy.webhook_events_read,
     aws_iam_role_policy.webhook_events_process,
     aws_iam_role_policy_attachment.lambda_logs
@@ -84,6 +86,20 @@ resource "aws_iam_role_policy" "webhook_events_consume" {
       Effect   = "Allow"
       Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
       Resource = aws_sqs_queue.webhook_events.arn
+    }]
+  })
+}
+
+// The worker parks messages that can never succeed in the queue it finds by name.
+resource "aws_iam_role_policy" "webhook_events_park" {
+  name = "webhook-events-park"
+  role = aws_iam_role.webhook_worker.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sqs:GetQueueUrl", "sqs:SendMessage"]
+      Resource = aws_sqs_queue.webhook_events_dlq.arn
     }]
   })
 }

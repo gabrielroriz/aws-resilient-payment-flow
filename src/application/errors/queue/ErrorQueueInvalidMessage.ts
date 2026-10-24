@@ -12,6 +12,7 @@ export class ErrorQueueInvalidMessage extends BaseError {
       category: ErrorCategory.QUEUE,
       // The system sends every queued message, so a mismatch points to a defect.
       kind: ErrorKind.UNEXPECTED,
+      retryable: false,
     });
   }
 }

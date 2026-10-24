@@ -12,6 +12,8 @@ export class ErrorWebhookEventNotFound extends ApplicationError {
       code: ErrorCode.WEBHOOK_EVENT_NOT_FOUND,
       category: ErrorCategory.WEBHOOKS,
       kind: ErrorKind.UNEXPECTED,
+      // Receipt stores events before dispatching them, and reads are consistent.
+      retryable: false,
     });
   }
 }

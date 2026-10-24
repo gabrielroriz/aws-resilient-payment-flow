@@ -10,6 +10,9 @@ export const envSchema = {
   queues: z.object({
     WEBHOOK_EVENTS_QUEUE_NAME: z.string().check(z.minLength(1)),
   }),
+  deadLetterQueues: z.object({
+    WEBHOOK_EVENTS_DLQ_NAME: z.string().check(z.minLength(1)),
+  }),
   tables: z.object({
     WEBHOOK_EVENTS_TABLE_NAME: z.string().check(z.minLength(1)),
   }),

@@ -12,6 +12,8 @@ export class ErrorWebhookProviderNotFound extends ApplicationError {
       category: ErrorCategory.WEBHOOKS,
       // Unknown paths are normal; a stored event with no provider needs attention.
       kind,
+      // Only a deployment can add the provider, so retries wait for an operator.
+      retryable: false,
     });
   }
 }

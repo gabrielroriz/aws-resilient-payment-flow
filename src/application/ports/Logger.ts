@@ -17,8 +17,12 @@ export namespace Logger {
   export type Message =
     // An HTTP request failed with an error.
     | "application_error"
-    // A queue message failed, so SQS delivers it again.
+    // A queue message failed, so SQS delivers it again unless it is parked.
     | "queue_message_error"
+    // The failed message can never succeed, so it waits in the dead-letter queue.
+    | "queue_message_parked"
+    // The message could not be parked, so SQS delivers it again.
+    | "queue_message_park_failed"
     // The worker handed a stored event to its gateway adapter.
     | "webhook_routed";
 

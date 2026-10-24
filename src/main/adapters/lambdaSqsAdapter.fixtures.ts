@@ -1,4 +1,13 @@
+import { DeadLetterQueue } from "@application/ports/DeadLetterQueue";
 import type { SQSEvent, SQSRecord } from "aws-lambda";
+import { vi } from "vitest";
+
+// Records the messages parked instead of sending them to SQS.
+export function deadLetterQueue() {
+  return {
+    park: vi.fn<DeadLetterQueue["park"]>(async () => {}),
+  } satisfies DeadLetterQueue;
+}
 
 export function sqsEvent(...bodies: unknown[]): SQSEvent {
   return {
