@@ -1,5 +1,5 @@
 // Stored webhook events waiting to be processed.
-// Each provider's events form one message group, so they keep their arrival order.
+// Each subject's events form one message group, so they keep their arrival order.
 // Each group is delivered one batch at a time.
 resource "aws_sqs_queue" "webhook_events" {
   name       = "webhook_events.fifo"
@@ -7,7 +7,7 @@ resource "aws_sqs_queue" "webhook_events" {
   // Allow Lambda's retries time to finish before a batch becomes visible again.
   visibility_timeout_seconds = 6 * local.lambdas.webhook_worker.timeout
 
-  // A message that keeps failing is dead-lettered instead of blocking its provider.
+  // A message that keeps failing is dead-lettered instead of blocking its subject.
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.webhook_events_dlq.arn
     maxReceiveCount     = local.webhook_max_receive_count

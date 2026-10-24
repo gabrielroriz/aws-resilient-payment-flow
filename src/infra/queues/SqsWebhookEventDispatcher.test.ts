@@ -32,11 +32,15 @@ function sentMessages(send: ReturnType<typeof stubSend>) {
     .filter((command) => command instanceof SendMessageCommand);
 }
 
-test("dispatch sends the event's identity to the provider's message group of the configured FIFO queue", async () => {
+test("dispatch sends the event's identity to its subject's message group of the configured FIFO queue", async () => {
   const dispatcher = newDispatcher();
   const send = stubSend(dispatcher);
 
-  await dispatcher.dispatch({ provider: "gatewayGlobal", providerEventId: "evt_1" });
+  await dispatcher.dispatch({
+    provider: "gatewayGlobal",
+    providerEventId: "evt_1",
+    subject: { type: "payment", id: "pay_1" },
+  });
 
   const [lookup, message] = send.mock.calls.map(([command]) => command);
   expect(lookup).toBeInstanceOf(GetQueueUrlCommand);
@@ -44,10 +48,48 @@ test("dispatch sends the event's identity to the provider's message group of the
   expect(message).toBeInstanceOf(SendMessageCommand);
   expect(message.input).toEqual({
     QueueUrl: queueUrl,
+    // The subject stays out of the body; the worker reads it from storage.
     MessageBody: '{"provider":"gatewayGlobal","providerEventId":"evt_1"}',
-    MessageGroupId: "gatewayGlobal",
+    MessageGroupId: expect.stringMatching(/^[0-9a-f]{64}$/),
     MessageDeduplicationId: expect.stringMatching(/^[0-9a-f]{64}$/),
   });
+});
+
+test("dispatch groups events by subject, so only events about one subject wait for each other", async () => {
+  const dispatcher = newDispatcher();
+  const send = stubSend(dispatcher);
+  const payment = { type: "payment", id: "pay_1" };
+
+  await dispatcher.dispatch({
+    provider: "gatewayGlobal",
+    providerEventId: "evt_1",
+    subject: payment,
+  });
+  // A refund names its payment as its subject.
+  await dispatcher.dispatch({
+    provider: "gatewayGlobal",
+    providerEventId: "evt_2",
+    subject: payment,
+  });
+  await dispatcher.dispatch({
+    provider: "gatewayGlobal",
+    providerEventId: "evt_3",
+    subject: { type: "payment", id: "pay_2" },
+  });
+  // Providers can share subject IDs, which must not join their groups.
+  await dispatcher.dispatch({
+    provider: "gatewayBrazil",
+    providerEventId: "evt_4",
+    subject: payment,
+  });
+  await dispatcher.dispatch({ provider: "gatewayGlobal", providerEventId: "evt_5" });
+  await dispatcher.dispatch({ provider: "gatewayGlobal", providerEventId: "evt_6" });
+
+  const [first, refund, otherPayment, otherProvider, noSubject, otherNoSubject] = sentMessages(
+    send,
+  ).map((command) => command.input.MessageGroupId);
+  expect(refund).toBe(first);
+  expect(new Set([first, otherPayment, otherProvider, noSubject, otherNoSubject]).size).toBe(5);
 });
 
 test("dispatch fails, naming the variable, when the queue name is not configured", async () => {

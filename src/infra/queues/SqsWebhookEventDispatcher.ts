@@ -6,7 +6,7 @@ import { Injectable } from "@kernel/decorators/injectable";
 import { createHash } from "node:crypto";
 
 // Dispatches webhook events for processing through an SQS FIFO queue.
-// Each provider's events form one message group, so SQS keeps their arrival order.
+// Each subject's events form one message group, so SQS keeps their arrival order.
 @Injectable(AppConfig)
 export class SqsWebhookEventDispatcher implements WebhookEventDispatcher {
   // The region comes from the Lambda environment, and locally so does the endpoint.
@@ -17,21 +17,21 @@ export class SqsWebhookEventDispatcher implements WebhookEventDispatcher {
 
   constructor(private readonly config: AppConfig) {}
 
-  async dispatch({ provider, providerEventId }: WebhookEventRepository.EventId): Promise<void> {
+  async dispatch({ provider, providerEventId, subject }: WebhookEventDispatcher.Event) {
     // Only the identity travels, so the stored event stays the source of truth.
     // Messages also stay far below the SQS size limit, whatever the payload size.
     const message: SqsWebhookEventDispatcher.Message = { provider, providerEventId };
+    // Provider IDs may contain characters SQS rejects, so both IDs are digests.
     await this.sqs.send(
       new SendMessageCommand({
         QueueUrl: await this.getQueueUrl(),
         MessageBody: JSON.stringify(message),
-        MessageGroupId: provider,
+        // An event without a subject waits for nothing, so it gets its own group.
+        MessageGroupId: digest(
+          subject ? [provider, subject.type, subject.id] : [provider, providerEventId],
+        ),
         // SQS drops a message whose ID repeats within five minutes.
-        // Provider event IDs may contain characters SQS rejects here.
-        // The ID is therefore a digest of the event's identity.
-        MessageDeduplicationId: createHash("sha256")
-          .update(JSON.stringify([provider, providerEventId]))
-          .digest("hex"),
+        MessageDeduplicationId: digest([provider, providerEventId]),
       }),
     );
   }
@@ -50,4 +50,9 @@ export class SqsWebhookEventDispatcher implements WebhookEventDispatcher {
 export namespace SqsWebhookEventDispatcher {
   // Body of each queued message, as JSON.
   export type Message = WebhookEventRepository.EventId;
+}
+
+// A JSON array keeps parts distinct, so `a#b` + `c` never matches `a` + `b#c`.
+function digest(parts: readonly string[]): string {
+  return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
 }
