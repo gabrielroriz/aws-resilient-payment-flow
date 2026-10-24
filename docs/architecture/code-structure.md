@@ -6,7 +6,7 @@ How the Lambda code is organized: a hexagonal (ports and adapters) structure wit
 
 Driving adapters turn platform events into calls on the core. Whenever the core needs something from outside, it calls a port, and a driven adapter implements that port. Each function's entry file is its composition root: it decides which adapter backs each port.
 
-![Hexagonal architecture: use cases in the center, ports in the middle ring, adapters in the outer ring, and external systems outside](images/hexagonal-architecture.svg)
+![Hexagonal architecture: use cases in the center, ports in the middle ring, adapters in the outer ring, and external systems outside](images/hexagonal-architecture.drawio.svg)
 
 The two inner rings live in `src/application`; the outer ring is split between `src/main/adapters` on the driving side and `src/infra` on the driven side. `lambdaHttpAdapter` uses the `Controller` contract and `lambdaSqsAdapter` uses `MessageHandler`; these contracts are the driving ports. The abstract classes in `application/ports/` are the driven ports. Gray italic segments are examples of port categories rather than existing classes.
 
