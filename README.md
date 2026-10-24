@@ -57,7 +57,7 @@ Success is measurable: a webhook acknowledgment p99 below one second under the d
 
 The design separates receiving an event from acting on it, and makes every step safe to repeat. What is built so far receives each webhook, records it once, and routes its queued event to the gateway adapter's processing method:
 
-![Payment providers POST webhooks to the aws-resilient-payment-flow API Gateway HTTP API. In the receipt lane, the webhook_entry_point Lambda stores each event once in the webhook_events DynamoDB table and dispatches it to the webhook_events.fifo SQS FIFO queue, grouped by provider. In the processing lane, the webhook_worker Lambda receives batches of up to 10, loads each stored event, and routes it to the gatewayGlobal or gatewayBrazil adapter, while a message that fails 5 receives moves to the webhook_events_dlq.fifo dead-letter queue](docs/architecture/images/architecture.drawio.svg)
+![Payment providers POST webhooks to the aws-resilient-payment-flow API Gateway HTTP API. In the receipt lane, the webhook_entry_point Lambda stores each event once in the webhook_events DynamoDB table and dispatches it to the webhook_events.fifo SQS FIFO queue, grouped by the payment or subscription it affects. In the processing lane, the webhook_worker Lambda receives batches of up to 10, loads each stored event, and routes it to the gatewayGlobal or gatewayBrazil adapter. A message that can never succeed is parked in the webhook_events_dlq.fifo dead-letter queue at once; a temporary failure is retried in its group and moves there after 5 receives](docs/architecture/images/architecture.drawio.svg)
 
 | Principle | How it addresses the problem | Status |
 |---|---|---|
@@ -77,7 +77,7 @@ The design separates receiving an event from acting on it, and makes every step 
 | Local environment | Done | Running the API, its database, and the simulator from the same infrastructure definitions, without deploying |
 | Webhook receipt | Done | At receipt: duplicate delivery, provider retry, overlapping gateway identifiers, out-of-order payment events, forged requests, and malformed events |
 | Simulated gateways and delivery simulator | Done | Replaying those scenarios against a local or deployed API |
-| Worker routing | Done | SQS consumption locally and on AWS, shared gateway adapters, and retries with FIFO ordering |
+| Worker routing | Done | SQS consumption locally and on AWS, shared gateway adapters, one message group per subject, retries with FIFO ordering, and parking of messages that can never succeed |
 | Event processing and business effects | In progress | Business effects, out-of-order delivery, partial failure, and downstream outage |
 | Recovery, reprocessing, and reconciliation | Planned | Defect recovery and missing events |
 | Real gateways in test environments | Planned | Equivalent events from real gateways following the same business rules |
@@ -104,7 +104,7 @@ Use Node.js 24 and npm, then install the dependencies with `npm ci`. Local runs 
   - [Code structure](docs/architecture/code-structure.md): hexagonal layers, dependency injection, configuration, and errors.
   - [Webhook receipt](docs/architecture/webhook-receipt.md): how webhooks are authenticated, recorded, queued for processing, and answered.
   - [Webhook processing](docs/architecture/webhook-processing.md): queue consumption, gateway routing, and retries.
-  - [Event ordering and retries](docs/architecture/ordering-and-retries.md): the planned strategy for keeping business outcomes in order without letting one failure block other events.
+  - [Event ordering and retries](docs/architecture/ordering-and-retries.md): message groups, retries, and the order of business effects, with the reason for each rule.
   - [Data model](docs/architecture/data-model/): access patterns, keys, and items of each DynamoDB table.
 - **Guides**: how to work on the project.
   - [Development](docs/guides/development.md): running the API, worker, database, and queues locally.

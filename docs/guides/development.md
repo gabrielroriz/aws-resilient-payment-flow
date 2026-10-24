@@ -116,7 +116,7 @@ Tables removed from Terraform stay in DynamoDB Local until its data is erased.
 | Behavior | Detail |
 |---|---|
 | Source | Every `aws_sqs_queue` in the Terraform plan |
-| Copied settings | Name, FIFO and content-based deduplication, visibility timeout, delivery delay, receive wait time, and the redrive policy; retention, encryption, and access policies are left out |
+| Copied settings | Name, FIFO and content-based deduplication, visibility timeout, delivery delay, receive wait time, and the redrive policy; retention, encryption, access policies, and the high-throughput settings are left out |
 | Dead-letter queue | Terraform exports target names and receive limits, so redrive points to the local dead-letter queue even before deployment |
 | Missing queue | Created |
 | Queue that matches its definition | Left untouched, with its messages |
@@ -141,10 +141,10 @@ Queues removed from Terraform stay in ElasticMQ until the local services stop.
 
 ### Local limitations
 
-- The local poller processes one batch at a time per mapping; it reproduces acknowledgement and retry behavior, not AWS poller scaling or concurrency between provider groups.
+- The local poller processes one batch at a time per mapping; it reproduces acknowledgement and retry behavior, not AWS poller scaling or concurrency between message groups.
 - DynamoDB Local differs from the service in some behaviors, such as throughput limits; see the [DynamoDB Local usage notes](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.UsageNotes.html).
 - ElasticMQ implements the SQS API but differs in some behaviors; for example, a deleted queue's name can be reused at once, while SQS requires a 60-second wait.
-- ElasticMQ cannot redrive its dead-letter queue: listing message move tasks stops the local SQS server. To retry a dead-lettered message locally, send its body again to `webhook_events.fifo` with the same message group, which is what a redrive delivers.
+- ElasticMQ cannot redrive its dead-letter queue: listing message move tasks stops the local SQS server. To retry a dead-lettered message locally, send its body again to `webhook_events.fifo` with the same message group and a new deduplication ID, which is what a redrive delivers.
 - Calls to other AWS services reach AWS. Other services and IAM permissions are not emulated.
 - Only the method and path of API Gateway routes apply locally; integration settings, such as the 30-second integration timeout, do not. A route without a method and path, such as `$default`, stops `npm run dev`.
 - SAM answers an unmatched route with 403 (`Missing Authentication Token`); the deployed HTTP API answers 404.

@@ -100,9 +100,10 @@ flowchart LR
 | Setting | Value | Effect |
 |---|---|---|
 | Message body | `{ "provider", "providerEventId" }` | Processing reads the stored event, so the table stays the single source of truth and payload size never matters |
-| Message group | The provider name | Each provider's events are delivered in receipt order; separate groups allow concurrent batches |
+| Message group | A digest of the provider and the event's subject, such as a payment; an event without a subject gets a group of its own | Each subject's events are delivered in receipt order, and other subjects never wait for them; a refund names its payment as its subject, so it joins the payment's group. Provider IDs may contain characters SQS rejects in a group ID, hence the digest |
+| Throughput | High-throughput mode: deduplication and throughput limits per message group | Subjects spread over partitions that SQS adds as traffic grows; the default mode would accept 300 sends per second; see [Throughput and concurrency](ordering-and-retries.md#throughput-and-concurrency) |
 | Deduplication ID | A digest of the provider and event ID | SQS drops a repeated dispatch within five minutes; later dispatches can route again, so future business effects must be idempotent |
-| Redrive | To the dead-letter queue after 5 receives | A message that keeps failing stops holding back its provider's later events |
+| Redrive | To the dead-letter queue after 5 receives | A message that keeps failing stops holding back its subject's later events; the worker parks one that can never succeed at once |
 | Retention | Four days, the SQS default; 14 days in the dead-letter queue | FIFO messages get a new enqueue time when moved to the dead-letter queue |
 
 ## Limitations
@@ -110,7 +111,7 @@ flowchart LR
 - Bodies must be JSON; other formats are rejected with 400 before reaching the provider adapter.
 - Every provider's credentials are validated together, so one missing credential answers every provider's webhooks with 500 until it is configured.
 - The [worker](webhook-processing.md) consumes and routes events to gateway-specific classes; those classes currently log routing without applying business effects.
-- One message group per provider means each provider's events are processed one batch at a time, and a failing message holds back its provider's later events until it moves to the dead-letter queue.
+- One message group per subject means each subject's events are processed one batch at a time, and a failing message holds back its subject's later events until it succeeds or moves to the dead-letter queue.
 - The queue orders events by receipt, not by when the provider says they occurred; ranking flags the late ones, but processing does not read the flag yet.
 - Subscription events are not ranked, and nothing derives a subscription's status from its payments yet.
 - The latest status reflects the events received so far: a refund whose payment never arrives stays the latest, and nothing detects the missing payment yet.

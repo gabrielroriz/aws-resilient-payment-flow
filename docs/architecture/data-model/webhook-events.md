@@ -7,7 +7,7 @@ The `webhook_events` DynamoDB table records the webhook events received from pay
 | Access pattern | Operation | Table or index | Key condition |
 |---|---|---|---|
 | Create an event once, or get the stored one if it exists | `PutItem` if `attribute_not_exists(PK)` | Table | `PK = event_key`, `SK = META` |
-| Get an event | `GetItem` | Table | `PK = event_key`, `SK = META` |
+| Get an event | `GetItem`, strongly consistent | Table | `PK = event_key`, `SK = META` |
 | Record that a received event is enqueued | `UpdateItem` if `processing_status = received` | Table | `PK = event_key`, `SK = META` |
 | Flag an event as outdated | `UpdateItem` if `attribute_exists(PK)` | Table | `PK = event_key`, `SK = META` |
 | Start a processing attempt | `UpdateItem` to `processing` if the status is missing, `received`, `enqueued`, or `failed`, or is `processing` past `current_attempt_deadline`, then `PutItem` of the attempt | Table | `PK = event_key`, `SK = META`, then `SK = ATTEMPT#{started_at}#{attempt_id}` |
@@ -21,6 +21,7 @@ The `webhook_events` DynamoDB table records the webhook events received from pay
 
 - When the conditional `PutItem` fails, `ReturnValuesOnConditionCheckFailure=ALL_OLD` returns the stored event, so detecting a duplicate needs no extra read. The duplicate delivery is recorded next.
 - Time-interval queries merge the results of every shard by `received_at`; see [GSI1 sharding](#gsi1-sharding).
+- Getting an event reads consistently, so the worker never misses an event that receipt stored just before dispatching it, and a missing event is safe to park at once.
 
 ## Keys
 

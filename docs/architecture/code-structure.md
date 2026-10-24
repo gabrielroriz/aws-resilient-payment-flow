@@ -63,7 +63,7 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 | `infra/<service>/` | Shared clients and helpers for one external service, such as `infra/dynamodb/`; they implement no port and are reused by adapters |
 | `infra/config/` | `AppConfig` and its environment schema; see [Configuration](#configuration) |
 | `main/adapters/` | Converts Lambda events into controller calls, validating payloads against the handler's schema, and maps results and errors to HTTP responses or SQS batch failures |
-| `main/factories/` | Binds the shared runtime ports, then resolves a controller, logger, and invocation context and supplies them to the driving adapter |
+| `main/factories/` | Binds the shared runtime ports, then resolves a controller, logger, and invocation context, plus a dead-letter queue for SQS, and supplies them to the driving adapter |
 | `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler`; entries of one area share a folder, such as `functions/webhooks/` |
 | `main/bindings/` | Groups of port bindings that several entries share, one module per group; see [Binding several ports](#binding-several-ports) |
@@ -240,7 +240,7 @@ export namespace WebhookWorkerController {
 | Transport | Validated payload | When it does not match |
 |---|---|---|
 | HTTP | The parsed JSON body | `ErrorHttpInvalidBody`: `400` with `HTTP_INVALID_BODY`, expected, listing each issue in the message |
-| SQS | The parsed message body | `ErrorQueueInvalidMessage`: `QUEUE_INVALID_MESSAGE`, unexpected, retried like any failure |
+| SQS | The parsed message body | `ErrorQueueInvalidMessage`: `QUEUE_INVALID_MESSAGE`, unexpected, parked at once since it can never succeed |
 
 A handler without `@Schema` receives the payload unchanged. Issue messages name the field and what was expected rather than the received value, so payment data stays out of responses and logs.
 
@@ -308,7 +308,7 @@ Tests read entries with `captureLogs` from the logger's fixtures, which silences
 
 ## Errors
 
-HTTP errors follow the mapping below. Both driving adapters log the same error metadata. The FIFO SQS adapter adds message ID, group, receive count, and queue ARN, then returns failed and unprocessed records for retry regardless of the error's status or kind; see [Webhook processing](webhook-processing.md#delivery-and-failures).
+HTTP errors follow the mapping below. Both driving adapters log the same error metadata. The FIFO SQS adapter adds message ID, group, receive count, and queue ARN, then returns failed and unprocessed records of the failed group for retry regardless of the error's status or kind, unless the error is not `retryable`: such a record is parked in the dead-letter queue at once; see [Webhook processing](webhook-processing.md#delivery-and-failures).
 
 `lambdaHttpAdapter` parses JSON request bodies, validates them against the controller's schema, and returns JSON responses. Errors become `{ "success": false, "error": { "code", "message" } }`:
 
@@ -326,6 +326,7 @@ All defined errors extend `BaseError`, which sets `name` from the class name. HT
 | `code` | Stable machine-readable code, from the `ErrorCode` enum |
 | `category` | Area the error belongs to, from the `ErrorCategory` enum, such as `webhooks`, `http`, or `queue` |
 | `kind` | `expected` when the error is part of normal operation, such as a forged webhook; `unexpected` when it needs attention, such as an event a supported provider sent that cannot be read |
+| `retryable` | `true` unless the same message can never succeed, such as one that is not valid JSON; the SQS adapter parks a non-retryable failure at once instead of retrying it; ignored by HTTP |
 
 Errors are named after their domain first, so codes and classes of one area sort together:
 

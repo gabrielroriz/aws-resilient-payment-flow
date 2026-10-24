@@ -42,7 +42,7 @@ Each test sits next to the module it covers and shares its name, such as `<modul
 
 ## Infrastructure checks
 
-The tests under `terraform/tests/` use a mocked AWS provider to check worker triggers, HTTP isolation, visibility timeout, local mapping and redrive settings, the dead-letter queue alarm, the table each webhook function reads, and that every function can write JSON logs, without creating AWS resources. They require Terraform with its provider initialized and the local archives that `npm run dev` packages. After that setup, run:
+The tests under `terraform/tests/` use a mocked AWS provider to check worker triggers, their concurrency cap, the queue's high-throughput mode, HTTP isolation, visibility timeout, local mapping and redrive settings, the dead-letter queue alarm, the dead-letter queue the worker parks messages in, the table each webhook function reads, and that every function can write JSON logs, without creating AWS resources. They require Terraform with its provider initialized and the local archives that `npm run dev` packages. After that setup, run:
 
 ```bash
 terraform -chdir=terraform validate
