@@ -20,10 +20,13 @@ export default {
   metafile: true,
   write: false,
   // Fail on imports esbuild cannot resolve into the single-file package.
+  // Computed imports are warnings, so the bundler can allow ones that never run.
   logOverride: {
     'unsupported-require-call': 'error',
-    'unsupported-dynamic-import': 'error',
+    'unsupported-dynamic-import': 'warning',
   },
+  // The bundler reports warnings itself, after rejecting computed imports.
+  logLevel: 'silent',
 } as const satisfies BuildOptions;
 
 // Local debugging trades the small file for readable code and an inline source map.

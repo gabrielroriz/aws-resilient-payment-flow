@@ -141,3 +141,19 @@ test('a missing dependency stops bundling instead of leaving a broken runtime im
   expect(result.status).not.toBe(0);
   expect(result.stderr).toMatch(/Could not resolve "missing-dependency"/);
 });
+
+test('a computed import stops bundling, since index.js cannot include its module', async () => {
+  const root = await fixture(
+    {
+      'src/handler.ts':
+        'const name = process.env.MODULE ?? "x"; export const handler = () => import(name);',
+    },
+    { computed: { entry: 'src/handler.ts' } },
+  );
+  const result = spawnSync(process.execPath, [path.join(root, 'build/index.mts')], {
+    encoding: 'utf8',
+  });
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toMatch(/computed has imports esbuild cannot bundle/);
+  expect(result.stderr).toMatch(/not a string literal/);
+});

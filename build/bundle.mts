@@ -1,4 +1,4 @@
-import { build } from 'esbuild';
+import { build, formatMessages, type Message } from 'esbuild';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { isBuiltin } from 'node:module';
 import path from 'node:path';
@@ -11,6 +11,17 @@ const runtimePackagePrefixes = options.external.map((pattern) => pattern.replace
 function isRuntimeProvided(specifier: string): boolean {
   return (
     isBuiltin(specifier) || runtimePackagePrefixes.some((prefix) => specifier.startsWith(prefix))
+  );
+}
+
+// The durable execution SDK imports the plugins DURABLE_EXECUTION_PLUGINS lists.
+// No function sets that variable, so the SDK's computed import never runs.
+const unusedComputedImports = ['node_modules/@aws/durable-execution-sdk-js/'];
+
+function isUnusedComputedImport(warning: Message): boolean {
+  return (
+    warning.id === 'unsupported-dynamic-import' &&
+    unusedComputedImports.some((prefix) => warning.location?.file.startsWith(prefix) ?? false)
   );
 }
 
@@ -31,6 +42,18 @@ export async function bundleLambdas(
       entryPoints: [config.entry],
       outfile,
     });
+
+    // A computed import stays outside index.js and fails when it runs.
+    const warnings = result.warnings.filter((warning) => !isUnusedComputedImport(warning));
+    const unbundled = warnings.filter((warning) => warning.id === 'unsupported-dynamic-import');
+    if (unbundled.length) {
+      const details = await formatMessages(unbundled, { kind: 'error' });
+      throw new Error(`${name} has imports esbuild cannot bundle:\n${details.join('')}`);
+    }
+    if (warnings.length) {
+      const details = await formatMessages(warnings, { kind: 'warning' });
+      process.stderr.write(details.join(''));
+    }
 
     // Deployment ships only index.js.
     // Only Node built-ins and runtime-provided packages may remain external.
