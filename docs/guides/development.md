@@ -89,6 +89,7 @@ npm run dev
 | Debug the functions with breakpoints | Run **Debug local dev** in VS Code, or `npm run dev:debug` and attach; see [Debugging](debugging.md) |
 | Observe worker routing | Watch `webhook_routed` logs in the terminal after sending a webhook |
 | Observe access grants | Watch `subscription_access_granted` logs after sending a succeeded payment that names its subscription |
+| Follow durable executions | `npm run dev:workflows` in another terminal shows each execution's start, checkpoints, and result from SAM's durable execution emulator; `sam local execution history <arn>` lists an execution's steps |
 | Browse and edit items | Open <http://localhost:8001> |
 | Replay the delivery scenarios | `npm run simulate` in another terminal; see [Simulated gateways](simulated-gateways.md#usage) |
 | Query DynamoDB Local from the host | Add `--endpoint-url http://localhost:8000` to AWS CLI commands, such as `aws dynamodb scan --table-name <table> --endpoint-url http://localhost:8000` |
