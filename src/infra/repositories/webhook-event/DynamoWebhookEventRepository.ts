@@ -10,6 +10,9 @@ import {
   RECEIVED_INDEX,
   STATUS_SK,
   SUBJECT_INDEX,
+  eventKey,
+  expiresAt,
+  subjectKey,
   webhookEventTable,
 } from "@infra/repositories/webhook-event/WebhookEventTable";
 import { Injectable } from "@kernel/decorators/injectable";
@@ -27,8 +30,6 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
   // GSI1 shards per provider, so each can burst to about 4,000 writes a second.
   // Every time-interval query reads all the shards.
   private static readonly GSI1_SHARDS = 4;
-  // Outlasts provider retries and the provider event history used to reconcile.
-  private static readonly RETENTION_SECONDS = 90 * 24 * 60 * 60;
   private modelName?: string;
   private modelSet?: ReturnType<typeof webhookEventTable>;
 
@@ -154,7 +155,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       attempt_id: attempt.attemptId,
       started_at: attempt.startedAt.toISOString(),
       handler_version: attempt.handlerVersion,
-      expires_at: this.expiresAt(event.receivedAt),
+      expires_at: expiresAt(event.receivedAt),
     };
     await this.dynamo.put(this.models.attempt.build(PutItemCommand).item(item).params());
     return true;
@@ -210,7 +211,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       SK: joinKey(DELIVERY_ITEM_TYPE, delivery.receivedAt.toISOString(), delivery.requestId),
       received_at: delivery.receivedAt.toISOString(),
       request_id: delivery.requestId,
-      expires_at: this.expiresAt(event.receivedAt),
+      expires_at: expiresAt(event.receivedAt),
     };
     await this.dynamo.put(this.models.delivery.build(PutItemCommand).item(item).params());
   }
@@ -224,7 +225,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     const occurredAt = event.occurredAt.toISOString();
     const item: DynamoWebhookEventRepository.StatusItem = {
       // Keyed by subject, not event, so a payment's events compete for one item.
-      PK: joinKey("SUBJECT", event.provider, event.subject.type, event.subject.id),
+      PK: subjectKey(event.provider, event.subject),
       SK: STATUS_SK,
       // The event behind the latest status, so operators can trace its origin.
       provider_event_id: event.providerEventId,
@@ -234,7 +235,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       // They order by precedence, then occurrence, then ID.
       rank: joinKey(String(precedence).padStart(2, "0"), occurredAt, event.providerEventId),
       // The status expires with the event that reported it.
-      expires_at: this.expiresAt(event.receivedAt),
+      expires_at: expiresAt(event.receivedAt),
     };
 
     // Atomic, so concurrent deliveries cannot both win.
@@ -359,13 +360,6 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
     return this.modelSet;
   }
 
-  // An event's items all expire with it, so TTL never leaves a partial trace.
-  private expiresAt(eventReceivedAt: Date): number {
-    return (
-      Math.floor(eventReceivedAt.getTime() / 1000) + DynamoWebhookEventRepository.RETENTION_SECONDS
-    );
-  }
-
   private toEventItem(event: WebhookEventRepository.Event): DynamoWebhookEventRepository.EventItem {
     const key = eventKey(event);
     return {
@@ -387,7 +381,7 @@ export class DynamoWebhookEventRepository implements WebhookEventRepository {
       GSI1PK: joinKey(event.provider, shardOf(key, DynamoWebhookEventRepository.GSI1_SHARDS)),
       // Events without a subject have no GSI2PK, so they stay out of GSI2.
       GSI2PK: event.subject && joinKey(event.provider, event.subject.type, event.subject.id),
-      expires_at: this.expiresAt(event.receivedAt),
+      expires_at: expiresAt(event.receivedAt),
     };
   }
 }
@@ -416,10 +410,6 @@ export namespace DynamoWebhookEventRepository {
   export type DeliveryItem = FormattedItem<ReturnType<typeof webhookEventTable>["delivery"]>;
 
   export type TraceItem = EventItem | AttemptItem | EffectItem | DeliveryItem;
-}
-
-function eventKey({ provider, providerEventId }: WebhookEventRepository.EventId): string {
-  return joinKey(provider, providerEventId);
 }
 
 // Sorts an event's attempts by start time, then by ID.

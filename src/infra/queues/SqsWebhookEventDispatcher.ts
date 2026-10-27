@@ -3,7 +3,7 @@ import { WebhookEventDispatcher } from "@application/ports/webhooks/WebhookEvent
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { AppConfig } from "@infra/config/AppConfig";
 import { Injectable } from "@kernel/decorators/injectable";
-import { createHash } from "node:crypto";
+import { digest } from "@kernel/utils/crypto";
 
 // Dispatches webhook events for processing through an SQS FIFO queue.
 // Each subject's events form one message group, so SQS keeps their arrival order.
@@ -50,9 +50,4 @@ export class SqsWebhookEventDispatcher implements WebhookEventDispatcher {
 export namespace SqsWebhookEventDispatcher {
   // Body of each queued message, as JSON.
   export type Message = WebhookEventRepository.EventId;
-}
-
-// A JSON array keeps parts distinct, so `a#b` + `c` never matches `a` + `b#c`.
-function digest(parts: readonly string[]): string {
-  return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
 }

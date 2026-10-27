@@ -1,6 +1,7 @@
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { AppConfig } from "@infra/config/AppConfig";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
+import { expression } from "@infra/dynamodb/DynamoClient.fixtures";
 import { DynamoWebhookEventRepository } from "@infra/repositories/webhook-event/DynamoWebhookEventRepository";
 import { gunzipSync } from "node:zlib";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -40,36 +41,6 @@ async function storedEventItem() {
   const putIfAbsent = vi.spyOn(dynamo, "putIfAbsent").mockResolvedValue({ created: true });
   await repository.create(event);
   return putIfAbsent.mock.calls[0][0].Item as DynamoWebhookEventRepository.EventItem;
-}
-
-// Restores names and values so assertions describe DynamoDB's actual condition.
-function expression(
-  input: {
-    ConditionExpression?: string;
-    UpdateExpression?: string;
-    KeyConditionExpression?: string;
-    FilterExpression?: string;
-    ExpressionAttributeNames?: Record<string, string>;
-    ExpressionAttributeValues?: Record<string, unknown>;
-  },
-  kind: "ConditionExpression" | "UpdateExpression" | "KeyConditionExpression" | "FilterExpression",
-): string {
-  let result = input[kind] ?? "";
-  const aliases = {
-    ...input.ExpressionAttributeNames,
-    ...Object.fromEntries(
-      Object.entries(input.ExpressionAttributeValues ?? {}).map(([name, value]) => [
-        name,
-        JSON.stringify(value),
-      ]),
-    ),
-  };
-  for (const [alias, value] of Object.entries(aliases).sort(
-    ([left], [right]) => right.length - left.length,
-  )) {
-    result = result.replaceAll(alias, value);
-  }
-  return result;
 }
 
 // Answers each query with the items listed under its partition key value.

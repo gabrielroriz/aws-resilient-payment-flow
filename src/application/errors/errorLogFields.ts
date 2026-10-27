@@ -1,8 +1,9 @@
-import { BaseError } from "@application/errors/BaseError";
-import { ErrorCode } from "@application/errors/enums/ErrorCode";
-import { ErrorKind } from "@application/errors/enums/ErrorKind";
+import { BaseError } from "./BaseError";
+import { ErrorCode } from "./enums/ErrorCode";
+import { ErrorKind } from "./enums/ErrorKind";
 
-// HTTP and queue failures share error metadata; each adapter adds delivery context.
+// HTTP, queue, and workflow failures share error metadata.
+// Each adapter adds its own delivery context.
 export function errorLogFields(error: unknown) {
   const known = error instanceof BaseError;
   const kind = known ? error.kind : ErrorKind.UNEXPECTED;

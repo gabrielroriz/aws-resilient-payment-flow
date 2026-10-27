@@ -7,7 +7,7 @@ import { InvocationContext } from "@application/ports/InvocationContext";
 import { Logger } from "@application/ports/Logger";
 import { validatePayload } from "@kernel/decorators/schema";
 import { parseJson } from "@kernel/utils/json";
-import { errorLogFields } from "@main/utils/errors";
+import { errorLogFields } from "@application/errors/errorLogFields";
 import type { Context, SQSBatchResponse, SQSEvent, SQSRecord } from "aws-lambda";
 
 // Processes FIFO groups in order and acknowledges only completed or parked messages.

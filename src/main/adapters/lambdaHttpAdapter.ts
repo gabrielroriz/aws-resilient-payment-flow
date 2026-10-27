@@ -3,7 +3,7 @@ import { BaseError } from "@application/errors/BaseError";
 import { ErrorCode } from "@application/errors/enums/ErrorCode";
 import { InvocationContext } from "@application/ports/InvocationContext";
 import { Logger } from "@application/ports/Logger";
-import { errorLogFields } from "@main/utils/errors";
+import { errorLogFields } from "@application/errors/errorLogFields";
 import {
   buildHttpResponse,
   decodeHttpBody,

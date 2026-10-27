@@ -1,4 +1,5 @@
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
+import { joinKey } from "@infra/dynamodb/keys";
 import { Table } from "dynamodb-toolbox/table";
 import { Entity } from "dynamodb-toolbox/entity";
 import { item } from "dynamodb-toolbox/schema/item";
@@ -14,6 +15,25 @@ export const DELIVERY_ITEM_TYPE = "DELIVERY";
 export const EFFECT_ITEM_TYPE = "EFFECT";
 export const RECEIVED_INDEX = "GSI1";
 export const SUBJECT_INDEX = "GSI2";
+// Outlasts provider retries and the provider event history used to reconcile.
+const RETENTION_SECONDS = 90 * 24 * 60 * 60;
+
+// The partition key of an event's item collection.
+// Providers are namespaced, so their event IDs never collide.
+export function eventKey({ provider, providerEventId }: WebhookEventRepository.EventId): string {
+  return joinKey(provider, providerEventId);
+}
+
+// The partition key of a subject's own items, such as its status.
+// Its prefix keeps it apart from every event's key.
+export function subjectKey(provider: string, { type, id }: WebhookEventRepository.Subject): string {
+  return joinKey("SUBJECT", provider, type, id);
+}
+
+// An event's items all expire with it, so TTL never leaves a partial trace.
+export function expiresAt(eventReceivedAt: Date): number {
+  return Math.floor(eventReceivedAt.getTime() / 1000) + RETENTION_SECONDS;
+}
 
 // These schemas match stored attributes without adding Toolbox metadata.
 // The table has legacy items that must remain readable and writable.
