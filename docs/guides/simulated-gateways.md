@@ -101,5 +101,5 @@ Scenarios that check how a payment ended deliver each of its events again: a rep
 ## Limitations
 
 - Checks read HTTP responses only; locally, the stored items can be inspected in dynamodb-admin and the queued messages in the ElasticMQ UI. See [Development](development.md#usage).
-- Event processing is not implemented, so the scenarios cover receipt: a payment that arrives after its refund is flagged as outdated, but no business effect is applied yet.
+- The scenarios check receipt, not business effects: a payment that arrives after its refund is flagged as outdated, but whether it granted access is not checked.
 - Secrets live in function environment variables and in Terraform state. Rotating one means redeploying, and the receiver holds one secret per gateway at a time.

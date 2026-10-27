@@ -110,7 +110,7 @@ flowchart LR
 
 - Bodies must be JSON; other formats are rejected with 400 before reaching the provider adapter.
 - Every provider's credentials are validated together, so one missing credential answers every provider's webhooks with 500 until it is configured.
-- The [worker](webhook-processing.md) consumes and routes events to gateway-specific classes; those classes currently log routing without applying business effects.
+- The [worker](webhook-processing.md) consumes and routes events to gateway-specific classes, which log routing, and starts the workflows of their business effects, such as [access grants](access-grants.md).
 - One message group per subject means each subject's events are processed one batch at a time, and a failing message holds back its subject's later events until it succeeds or moves to the dead-letter queue.
 - The queue orders events by receipt, not by when the provider says they occurred; ranking flags the late ones, but processing does not read the flag yet.
 - Subscription events are not ranked, and nothing derives a subscription's status from its payments yet.

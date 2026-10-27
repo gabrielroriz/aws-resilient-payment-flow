@@ -6,9 +6,15 @@ locals {
   }
   # Roles a function selects with "role" in lambdas.json, falling back to "default".
   lambda_roles = {
-    default             = aws_iam_role.lambda_default
-    webhook_entry_point = aws_iam_role.webhook_entry_point
-    webhook_worker      = aws_iam_role.webhook_worker
+    default                   = aws_iam_role.lambda_default
+    webhook_entry_point       = aws_iam_role.webhook_entry_point
+    webhook_worker            = aws_iam_role.webhook_worker
+    subscription_grant_access = aws_iam_role.subscription_grant_access
+  }
+  # Functions that run durable workflows, which Lambda checkpoints and resumes.
+  durable_lambdas = {
+    for name, config in local.lambdas : name => config
+    if lookup(config, "trigger", "http") == "durable"
   }
   # Lets the Lambda service run functions with a role; shared by every Lambda role.
   lambda_assume_role_policy = jsonencode({
@@ -42,6 +48,11 @@ resource "aws_iam_role" "webhook_worker" {
   assume_role_policy = local.lambda_assume_role_policy
 }
 
+resource "aws_iam_role" "subscription_grant_access" {
+  name               = "subscription-grant-access-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
 // Every role can write its function's logs, so no function fails silently in AWS.
 resource "aws_iam_role_policy_attachment" "lambda_logs" {
   for_each = local.lambda_roles
@@ -68,6 +79,19 @@ resource "aws_lambda_function" "all_lambdas" {
   runtime     = "nodejs24.x"
   memory_size = lookup(each.value, "memory_size", 1024)
   timeout     = lookup(each.value, "timeout", 300)
+  // Each durable execution stays on the version that started it.
+  publish = contains(keys(local.durable_lambdas), each.key)
+
+  // Durable execution can only be enabled when a function is created.
+  // Adding or removing this block replaces the function.
+  dynamic "durable_config" {
+    for_each = contains(keys(local.durable_lambdas), each.key) ? [each.key] : []
+    content {
+      execution_timeout = lookup(each.value, "execution_timeout", 24 * 60 * 60)
+      // A repeated start returns the same execution while it is retained.
+      retention_period = lookup(each.value, "retention_period", 14)
+    }
+  }
 
   // Lambda filters the JSON log lines by level and writes its own records as JSON.
   logging_config {

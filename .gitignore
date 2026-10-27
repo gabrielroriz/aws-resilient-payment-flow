@@ -33,3 +33,6 @@ node_modules/
 # SAM's generated Terraform metadata and extracted local artifacts.
 **/.aws-sam/
 **/.aws-sam-iacs/
+
+# State of the durable execution emulator SAM runs for local durable functions.
+/.durable-executions-local/

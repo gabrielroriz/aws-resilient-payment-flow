@@ -6,8 +6,8 @@ Each Lambda is an entry file that wires a controller into its driving adapter, r
 
 1. If the use case needs something external, define a port as an abstract class in `src/application/ports/` and implement it in `src/infra/<concern>/` with `@Injectable()`. See [Ports and contracts](../architecture/code-structure.md#ports-and-contracts) for the rules.
 2. Add the use case in `src/application/usecases/<area>/`, decorated with `@Injectable(...)` listing its constructor dependencies.
-3. Add a controller in `src/application/controller/<area>/` that calls the use case. HTTP controllers implement `Controller`; queue controllers implement the transport-neutral `MessageHandler` contract. Declare the shape of the request body or queue message with `@Schema` instead of checking fields in `handle`; see [Payload validation](../architecture/code-structure.md#payload-validation).
-4. Add the entry in `src/main/functions/`: bind the function-specific ports to their adapters, then export `handler = createHttpHandler(registry, YourController)` for HTTP, or use `createSqsHandler` for FIFO queues. These factories bind the clock, invocation context, and logger internally before resolving the controller and shared runtime dependencies for the driving adapter; see [Composition root](../architecture/code-structure.md#composition-root). Use the [health function](../../src/main/functions/health.ts) as the HTTP template, and see [Binding several ports](../architecture/code-structure.md#binding-several-ports) when several functions bind the same group of ports.
+3. Add a controller in `src/application/controller/<area>/` that calls the use case. HTTP controllers implement `Controller`; queue and workflow controllers implement the transport-neutral `MessageHandler` contract. A use case that runs as a durable workflow is a [durable use case](../architecture/code-structure.md#durable-use-cases), and its controller only checks the input. Declare the shape of the request body or queue message with `@Schema` instead of checking fields in `handle`; see [Payload validation](../architecture/code-structure.md#payload-validation).
+4. Add the entry in `src/main/functions/`: bind the function-specific ports to their adapters, then export `handler = createHttpHandler(registry, YourController)` for HTTP, or use `createSqsHandler` for FIFO queues and `createDurableHandler` for durable functions. These factories bind the clock, invocation context, and logger internally before resolving the controller and shared runtime dependencies for the driving adapter; see [Composition root](../architecture/code-structure.md#composition-root). Use the [health function](../../src/main/functions/health.ts) as the HTTP template, and see [Binding several ports](../architecture/code-structure.md#binding-several-ports) when several functions bind the same group of ports.
 5. Register the entry in `lambdas.json`; see [Registry fields](#registry-fields).
 6. Add tests next to the new files, such as a `.test.ts` file beside the use case that passes fake ports to its constructor. See [Test layout](testing.md#test-layout).
 
@@ -26,16 +26,20 @@ Each Lambda is an entry file that wires a controller into its driving adapter, r
 
 | Field | Meaning | Default |
 |---|---|---|
-| Object key | AWS function name | Required |
+| Object key | AWS function name; `wf_<workflow>` for a durable function, and only for one | Required |
 | `entry` | TypeScript file under `src/` exporting `handler` | Required |
 | `role` | IAM role the function runs with, by its name in the Terraform `lambda_roles` local; see [Permissions](#permissions) | `default`, which only lets the function write its logs |
 | `memory_size` | Memory in MB | `1024` |
 | `timeout` | Function timeout in seconds | `300` |
-| `trigger` | `http` creates API resources; `sqs` uses a Terraform event source mapping without an HTTP route | `http` |
+| `trigger` | `http` creates API resources; `sqs` uses a Terraform event source mapping without an HTTP route; `durable` creates a durable function that another function starts | `http` |
+| `execution_timeout` | Durable only: how long one execution may run in seconds, including its steps' retries | `86400` (1 day) |
+| `retention_period` | Durable only: days a finished execution is kept, during which a repeated start returns it | `14` |
 | `http_method` | Client method: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, or `ANY` | `ANY` |
 | `path` | Route beginning with `/`; parameters such as `/<resource>/{id}` are supported | `/<function_name>` |
 
 For `sqs`, omit `http_method` and `path`, add a consumer with its batch size and concurrency cap to the Terraform `sqs_consumers` local, grant receive, delete, and queue-attribute permissions for its queue, and add that policy to the event source mapping's `depends_on`. The shared mapping already enables `ReportBatchItemFailures`. The SQS driving adapter parks messages that can never succeed, so the function's entry binds `DeadLetterQueue` to an adapter for its dead-letter queue, as the webhook worker does; see [Webhook processing](../architecture/webhook-processing.md#dead-letter-queue). Give the queue a visibility timeout of at least six times the function timeout, and add its dead-letter queue to the `local_sqs_redrive` output so local delivery redrives it too. The local poller uses exported mapping settings automatically; see [Development](development.md#local-functions).
+
+For `durable`, name the function `wf_` followed by the workflow's name, such as `wf_subscription_grant_access`, omit `http_method` and `path`, and give the function its own role. Terraform enables durable execution, publishes a version on each deploy behind the `live` alias, and lets the role checkpoint the function's executions. The caller starts it through the `WorkflowStarter` port, which derives the qualified name `wf_<workflow>:live` from the workflow's name, so no configuration names the function. Add the workflow's input to the workflow contracts under the workflow's name without the prefix. The worker may invoke every durable function's alias; give any other caller's role permission to invoke the alias too. See [Access grants](../architecture/access-grants.md#deployment). Durable execution can only be enabled when a function is created, so changing an existing function's trigger to or from `durable` replaces it.
 
 HTTP method and path pairs must be unique. API Gateway always invokes the function with `POST`, whatever the route's method.
 

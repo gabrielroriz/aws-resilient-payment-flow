@@ -5,4 +5,6 @@ export enum ErrorCategory {
   // Problems with the queue message itself, before a business handler can read it.
   QUEUE = "queue",
   WEBHOOKS = "webhooks",
+  // Problems with a workflow's input itself, before a business handler can read it.
+  WORKFLOW = "workflow",
 }

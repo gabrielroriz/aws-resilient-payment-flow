@@ -20,7 +20,7 @@
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/gabrielroriz/aws-resilient-payment-flow/actions/workflows/ci.yml)
 
 > [!IMPORTANT]
-> **Under development.** Webhooks are already received, authenticated, recorded exactly once, queued, and routed by a worker to the same gateway adapters for processing; business effects are not built yet. See [Progress](#progress).
+> **Under development.** Webhooks are already received, authenticated, recorded exactly once, queued, and routed by a worker to the same gateway adapters for processing. The first business effect, granting a subscription's access when its payment succeeds, runs in a durable workflow whose subscription storage is still a placeholder; the others are not built yet. See [Progress](#progress).
 
 Subscription payments reach this platform as webhooks from external payment providers. This project builds the AWS backend that turns those webhooks into correct, auditable business outcomes (payment records, customer access, financial records, and notifications) across several gateways, currencies, and countries, and demonstrates them with simulated providers, failure scenarios, and load tests.
 
@@ -55,9 +55,9 @@ Success is measurable: a webhook acknowledgment p99 below one second under the d
 
 ## The approach
 
-The design separates receiving an event from acting on it, and makes every step safe to repeat. What is built so far receives each webhook, records it once, and routes its queued event to the gateway adapter's processing method:
+The design separates receiving an event from acting on it, and makes every step safe to repeat. What is built so far receives each webhook, records it once, routes its queued event to the gateway adapter's processing method, and starts the durable workflow that grants access for a succeeded payment:
 
-![Payment providers POST webhooks to the aws-resilient-payment-flow API Gateway HTTP API. In the receipt lane, the webhook_entry_point Lambda stores each event once in the webhook_events DynamoDB table and dispatches it to the webhook_events.fifo SQS FIFO queue, grouped by the payment or subscription it affects. In the processing lane, the webhook_worker Lambda receives batches of up to 10, loads each stored event, and routes it to the gatewayGlobal or gatewayBrazil adapter. A message that can never succeed is parked in the webhook_events_dlq.fifo dead-letter queue at once; a temporary failure is retried in its group and moves there after 5 receives](docs/architecture/images/architecture.drawio.svg)
+![Payment providers POST webhooks to the aws-resilient-payment-flow API Gateway HTTP API. In the receipt lane, the webhook_entry_point Lambda stores each event once in the webhook_events DynamoDB table and dispatches it to the webhook_events.fifo SQS FIFO queue, grouped by the payment or subscription it affects. In the processing lane, the webhook_worker Lambda receives batches of up to 10, loads each stored event, and routes it to the gatewayGlobal or gatewayBrazil adapter. A message that can never succeed is parked in the webhook_events_dlq.fifo dead-letter queue at once; a temporary failure is retried in its group and moves there after 5 receives. In the workflows lane, the worker starts the wf_subscription_grant_access durable Lambda function through its live alias for a succeeded payment, and its checkpointed grant_access step grants access through the subscription repository, a placeholder for now](docs/architecture/images/architecture.drawio.svg)
 
 | Principle | How it addresses the problem | Status |
 |---|---|---|
@@ -105,6 +105,7 @@ Use Node.js 24 and npm, then install the dependencies with `npm ci`. Local runs 
   - [Webhook receipt](docs/architecture/webhook-receipt.md): how webhooks are authenticated, recorded, queued for processing, and answered.
   - [Webhook processing](docs/architecture/webhook-processing.md): queue consumption, gateway routing, and retries.
   - [Event ordering and retries](docs/architecture/ordering-and-retries.md): message groups, retries, and the order of business effects, with the reason for each rule.
+  - [Access grants](docs/architecture/access-grants.md): the durable workflow that grants a subscription's access when its payment succeeds.
   - [Data model](docs/architecture/data-model/): access patterns, keys, and items of each DynamoDB table.
 - **Guides**: how to work on the project.
   - [Development](docs/guides/development.md): running the API, worker, database, and queues locally.

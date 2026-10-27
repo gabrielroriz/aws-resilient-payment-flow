@@ -1,6 +1,6 @@
 # Event ordering and retries
 
-Processing keeps each business subject's events in order, confines a failure to the subject it belongs to, and leaves the final business state to rank checks rather than to queue order. This page states those rules and the reason for each; [Webhook processing](webhook-processing.md) describes the worker that applies them.
+Processing keeps each business subject's events in order, confines a failure to the subject it belongs to, and leaves the final business state to the events' ranks rather than to queue order. This page states those rules and the reason for each; [Webhook processing](webhook-processing.md) describes the worker that applies them.
 
 ![Receipt sends each event to its subject's group in webhook_events.fifo. The worker starts a named durable workflow, whose steps change the subject state only when the event ranks higher. A message that can never succeed is parked in webhook_events_dlq.fifo at once; a temporary failure retries in its group and moves there after 5 receives](images/ordering-flow.drawio.svg)
 
@@ -9,12 +9,12 @@ Processing keeps each business subject's events in order, confines a failure to 
 | Rule | Reason |
 |---|---|
 | Each business subject, such as a payment, has its own SQS FIFO message group | Only events about the same subject depend on each other, so a failure holds back one subject and processing scales with the number of subjects |
-| The order of business effects is enforced where they are written, by rank | The queue knows the order webhooks arrived in, not the order events occurred in, and workflows finish in any order |
+| A business effect applies only while its event is its subject's latest, as receipt ranks them | The queue knows the order webhooks arrived in, not the order events occurred in, and workflows finish in any order |
 | A temporary failure is retried in place and holds back only its own subject | Its subject's later events usually depend on the same failing dependency, and waiting keeps them in order |
 | A message that can never succeed is parked in the dead-letter queue at once | It stops holding back its subject and alerts operators |
 | Business work runs in durable workflows that retry their own steps | Long downstream outages are absorbed where the work happens, so the queue only absorbs short failures |
 
-Message groups, retries, and parking apply today. Rank checks and durable workflows apply to business effects, which processing does not write yet.
+Message groups, retries, and parking apply to every event. Granting a subscription's access is the first business effect, and it runs in a durable workflow, but subscriptions are not stored yet, so it grants without checking the payment's latest status; see [Access grants](access-grants.md#subscription-storage).
 
 ## Queue guarantees
 
@@ -41,39 +41,31 @@ A FIFO queue delivers each group one batch at a time, so the group is the unit o
 
 ## Order of business effects
 
-Receipt ranks each event that reports a payment's status, by status precedence, then occurrence time, then event ID, and records the latest one per subject in a conditional write; see [Out-of-order events](webhook-receipt.md#out-of-order-events) and [Event order](data-model/webhook-events.md#event-order). Business effects follow the same rule:
+Receipt ranks each event that reports a payment's status, by status precedence, then occurrence time, then event ID, and records the latest one per subject in a conditional write; see [Out-of-order events](webhook-receipt.md#out-of-order-events) and [Event order](data-model/webhook-events.md#event-order). Business effects follow that ranking:
 
-- A step that changes a subject's state, such as a payment's recorded status, also stores the rank of the event that changed it.
-- The step writes only if its event ranks higher than the stored rank, in one conditional write, so a concurrent or late step cannot overwrite a newer outcome.
-- State that depends on several subjects, such as a customer's access to a subscription, is recomputed from those subjects' applied states rather than changed by each event.
-- An event that ranks lower is not an error. Its effect is recorded as stale, so the event's history shows why nothing changed, and facts that do not depend on order, such as the amount a payment charged, are still recorded.
-- Each effect carries an idempotency key, its `business_key`, so a step that runs twice writes once; see [Effect](data-model/webhook-events.md#effect).
+- A step that changes state checks, in the same transaction, that its event still reports its subject's latest status, so a concurrent or late step cannot overwrite a newer outcome.
+- The latest event's own effect always runs, so the subject's final state follows it.
+- An event that is outranked is not an error. Its effect is recorded as stale, so the event's history shows why nothing changed.
+- Each effect carries a `business_key` linking it to the record it changed, and writing it again for the same event rewrites the same items, so a step that runs twice changes nothing; see [Effect](data-model/webhook-events.md#effect).
 
-The rank, not the queue, decides the final state, so the order in which messages are processed or redriven, or in which workflows finish, cannot make it wrong.
+The latest status, not the queue, decides the final state, so the order in which messages are processed or redriven, or in which workflows finish, cannot make it wrong.
 
-In the following example, m3 reports `payment.succeeded` and m4 `refund.created` for the same payment. They share a message group and arrive in order, and each starts its own workflow:
+In the following example, m3 reports `payment.succeeded` and m4 `refund.created` for the same payment. They share a message group and arrive in order, but m3's workflow is still retrying when m4 is received:
 
 ```mermaid
 sequenceDiagram
-    participant Queue as Payment p1's group
-    participant Grant as GrantSubscription
-    participant Revoke as RevokeAccess
-    participant State as Payment p1 state
-    Queue->>Grant: m3, payment.succeeded, rank 02
-    activate Grant
-    Note over Grant: Waits on a slow access service
-    Queue->>Revoke: m4, refund.created, rank 03
-    activate Revoke
-    Revoke->>State: Apply refunded if rank 03 is higher
-    State-->>Revoke: Applied, rank 03
-    deactivate Revoke
-    Grant->>State: Grant access if rank 02 is higher
-    State-->>Grant: Refused, 02 ranks below 03
-    deactivate Grant
-    Note over Grant,State: Recorded as stale, so access stays revoked
+    participant Receipt
+    participant Latest as Payment p1's latest status
+    participant Grant as Access grant for m3
+    Receipt->>Latest: m3, payment.succeeded, rank 02: latest
+    Note over Grant: Retrying a throttled write
+    Receipt->>Latest: m4, refund.created, rank 03: latest
+    Grant->>Latest: Grant access if m3 is the latest
+    Latest-->>Grant: Refused, m4 is the latest
+    Note over Grant,Latest: Recorded as stale, so no access is granted
 ```
 
-The grant finishes last, but its rank is lower, so it cannot restore access after the refund. The diagram shows only the precedence part of each rank.
+The grant runs after the refund was received, so it cannot grant access the refund reversed. The diagram shows only the precedence part of each rank.
 
 ## Failures
 
@@ -92,16 +84,16 @@ Each error declares whether it is `retryable`; see [Errors](code-structure.md#er
 
 ## Durable workflows
 
-Once business effects exist, the worker loads each event, chooses its business action, such as `GrantSubscription` or `RevokeAccess`, and starts a [Lambda durable function](https://docs.aws.amazon.com/lambda/latest/dg/durable-functions.html) for it. Until then, it calls each gateway adapter directly. Durable functions checkpoint each step, retry failed steps, and suspend during waits without compute charges, which suits business work that calls other services and may need hours to recover.
+The worker loads each event, calls its gateway adapter, and starts a [Lambda durable function](https://docs.aws.amazon.com/lambda/latest/dg/durable-functions.html) for each business action the event calls for, such as `wf_subscription_grant_access` for a succeeded payment. It passes each workflow a business contract built from the event, so workflows never read webhook storage. Durable functions checkpoint each step, retry failed steps, and suspend during waits without compute charges, which suits business work that calls other services and may need hours to recover. Each workflow is a [durable use case](code-structure.md#durable-use-cases) that defines its own steps.
 
-- **Starts are idempotent.** The execution name is a digest of the provider, the event ID, and the action, and the input is the event identity alone. Lambda treats a start with an existing name and the same input as the same execution, so a repeated delivery never runs an action twice; see [Idempotency](https://docs.aws.amazon.com/lambda/latest/dg/durable-execution-idempotency.html). SQS event source mappings cannot pass an execution name, so the worker acts as the dispatcher AWS recommends for this.
-- **Steps run at least once.** A step can repeat after an interruption, so each one writes with its effect's idempotency key and its rank condition.
+- **Starts are idempotent.** The execution name is a digest of the workflow and its input, and the input names its causing event, so the same event always yields the same name and input. Lambda treats a start with an existing name and the same input as the same execution, so a repeated delivery never runs an action twice; see [Idempotency](https://docs.aws.amazon.com/lambda/latest/dg/durable-execution-idempotency.html). SQS event source mappings cannot pass an execution name, so the worker acts as the dispatcher AWS recommends for this.
+- **Steps run at least once.** A step can repeat after an interruption, so each one rewrites the same items and checks its event's latest status.
 - **Each failure has one owner.** The worker's processing attempts cover starting the workflow, and the execution's status covers the business result.
 
 | Failure | Handled by | Recovery |
 |---|---|---|
 | The workflow could not start | The worker and SQS | Retried in place, up to 5 receives about 3 minutes apart, then the dead-letter queue |
-| A business step failed after the start | The workflow | Step retries with backoff, which outlast a two-hour downstream outage; a failed execution stays visible with what completed and what remains |
+| A business step failed after the start | The workflow | Step retries with backoff for about 2 to 4 hours, which outlast a two-hour downstream outage; a failed execution stays visible with what completed and what remains |
 
 ## Throughput and concurrency
 
@@ -117,7 +109,7 @@ Message groups do not affect cost: SQS charges per request, with no charge per g
 
 | Scenario | Behavior |
 |---|---|
-| A refund arrives before its payment | Receipt ranks the refund higher, and the payment arrives outdated. Its grant step fails the rank condition, so no access is granted, while the payment's amount is still recorded |
+| A refund arrives before its payment | Receipt ranks the refund higher, and the payment arrives outdated. A grant that checks the payment's latest status finds the refund and grants no access; the grant does not check yet, see [Access grants](access-grants.md#subscription-storage) |
 | A malformed or invalid message | It is parked at once in the dead-letter queue, which raises an alarm; the rest of its batch and its group continue |
 | A defect fails every event of one type | Each event retries 5 times, over about 15 minutes, then reaches the dead-letter queue. After the fix, operators redrive it, and the rank keeps the late events from overwriting newer outcomes |
 | A downstream service is down for two hours | The workflows have started; their steps keep retrying with backoff and complete when the service returns, without operators |
@@ -131,6 +123,7 @@ Message groups do not affect cost: SQS charges per request, with no charge per g
 |---|---|
 | One message group per provider | A failure would stall a whole gateway, messages waiting behind it would spend their receives and could reach the dead-letter queue unattempted, and the number of providers would cap concurrency |
 | Queue order as the only order guarantee | Receipt order is not occurrence order, and workflows finish in any order |
+| Storing the rank each effect applied, on a state item of its own | It ranks again the events receipt already ranks, sharing the precedence table between receipt and processing, while checking receipt's latest status in the effect's transaction gives the same guarantee |
 | Every failure straight to the dead-letter queue | Every short failure, such as a moment of DynamoDB throttling, would need an operator to redrive it |
 | A separate, delayed retry queue | A failed message would leave its group at once, but the extra queue, its own dead-letter queue, and the retry history it needs meet no requirement that retrying in place misses |
 
@@ -145,8 +138,8 @@ Message groups do not affect cost: SQS charges per request, with no charge per g
 
 | Requirement | Met by |
 |---|---|
-| Correct final state regardless of arrival order | Rank conditions on every state change |
-| An older event never reverses a newer outcome | Rank conditions, and state derived from applied ranks |
+| Correct final state regardless of arrival order | Latest-status conditions on every state change |
+| An older event never reverses a newer outcome | Latest-status conditions on every state change |
 | Failing or invalid events do not block unrelated ones | One message group per subject, and invalid messages parked at once |
 | One gateway's failures do not block another | Message groups never span gateways |
 | Automatic recovery from transient failures and a two-hour outage | Retries in place for short failures, and the workflows' step retries for long outages |

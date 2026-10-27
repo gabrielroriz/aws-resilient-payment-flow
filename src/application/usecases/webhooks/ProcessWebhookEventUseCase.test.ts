@@ -1,3 +1,4 @@
+import type { SubscriptionGrantAccess, WorkflowName } from "@application/contracts/Workflows";
 import { ErrorWebhookEventNotFound } from "@application/errors/application/webhooks/ErrorWebhookEventNotFound";
 import { ErrorWebhookMalformedEvent } from "@application/errors/application/webhooks/ErrorWebhookMalformedEvent";
 import { ErrorWebhookProviderNotFound } from "@application/errors/application/webhooks/ErrorWebhookProviderNotFound";
@@ -7,6 +8,7 @@ import { InvocationContext } from "@application/ports/InvocationContext";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProvider } from "@application/ports/webhooks/WebhookProvider";
 import { WebhookProviderRegistry } from "@application/ports/webhooks/WebhookProviderRegistry";
+import { WorkflowStarter } from "@application/ports/workflows/WorkflowStarter";
 import { ProcessWebhookEventUseCase } from "@application/usecases/webhooks/ProcessWebhookEventUseCase";
 import { expect, test, vi } from "vitest";
 
@@ -78,12 +80,15 @@ function setup(
   const providerRegistry: WebhookProviderRegistry = {
     find: (name) => providers.find((candidate) => candidate.name === name),
   };
+  const start = vi.fn(async (_workflow: WorkflowName, _input: SubscriptionGrantAccess) => {});
+  const workflows: WorkflowStarter = { start };
   const now = vi.fn().mockReturnValueOnce(startedAt).mockReturnValueOnce(finishedAt);
   const clock: Clock = { now };
   return {
     useCase: new ProcessWebhookEventUseCase(
       events,
       providerRegistry,
+      workflows,
       clock,
       deployment,
       invocationContext,
@@ -91,8 +96,17 @@ function setup(
     get,
     startAttempt,
     finishAttempt,
+    start,
   };
 }
+
+// A succeeded payment that names the subscription it bills.
+const succeededPayment: WebhookEventRepository.Event = {
+  ...stored,
+  subject: { type: "payment", id: "pay_1" },
+  subscriptionId: "sub_1",
+  status: "succeeded",
+};
 
 test.each(["gatewayGlobal", "gatewayBrazil"])(
   "process loads the stored %s event and hands it to only its provider without authenticating again",
@@ -259,4 +273,52 @@ test("process propagates repository failures so the queue can retry", async () =
   await expect(starting.useCase.execute(id)).rejects.toBe(failure);
 
   expect(process).not.toHaveBeenCalled();
+});
+
+test("process starts subscription_grant_access for a succeeded payment, inside its attempt", async () => {
+  const target = provider(stored.provider);
+  const process = vi.spyOn(target, "process");
+  const { useCase, start, finishAttempt } = setup([target], succeededPayment);
+
+  await useCase.execute(id);
+
+  // The input names the payment and subscription, and the event only as its cause.
+  expect(start).toHaveBeenCalledExactlyOnceWith("subscription_grant_access", {
+    provider: "gatewayGlobal",
+    subscriptionId: "sub_1",
+    paymentId: "pay_1",
+    metadata: { eventId: "evt_1", receivedAt: stored.receivedAt },
+  });
+  expect(process.mock.invocationCallOrder[0]).toBeLessThan(start.mock.invocationCallOrder[0]);
+  expect(start.mock.invocationCallOrder[0]).toBeLessThan(finishAttempt.mock.invocationCallOrder[0]);
+  expect(finishAttempt.mock.calls[0][1].outcome).toBe("succeeded");
+});
+
+test.each<[string, Partial<WebhookEventRepository.Event>]>([
+  ["a payment that is not succeeded", { status: "refunded" }],
+  ["a succeeded payment without a subscription", { subscriptionId: undefined }],
+  ["an event without a subject", { subject: undefined, status: undefined }],
+])("process starts no workflow for %s", async (_name, changes) => {
+  const { useCase, start, finishAttempt } = setup([provider(stored.provider)], {
+    ...succeededPayment,
+    ...changes,
+  });
+
+  await useCase.execute(id);
+
+  expect(start).not.toHaveBeenCalled();
+  expect(finishAttempt.mock.calls[0][1].outcome).toBe("succeeded");
+});
+
+test("process fails the attempt when the workflow cannot start, so the queue retries", async () => {
+  const failure = new Error("throttled");
+  const { useCase, start, finishAttempt } = setup([provider(stored.provider)], succeededPayment);
+  start.mockRejectedValueOnce(failure);
+
+  await expect(useCase.execute(id)).rejects.toBe(failure);
+
+  expect(finishAttempt.mock.calls[0][1]).toMatchObject({
+    outcome: "failed",
+    errorCode: "INTERNAL_SERVER_ERROR",
+  });
 });

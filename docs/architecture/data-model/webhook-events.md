@@ -110,7 +110,7 @@ A payment event after receipt, with the binary `payload` shown as shortened base
 | Attribute | Type | Description |
 |---|---|---|
 | `effect` | String | Name of the business effect, such as recording the payment or granting access |
-| `status` | String | `completed` or `failed` |
+| `status` | String | `completed`, `stale` when another event of the subject outranks the event, or `failed` |
 | `business_key` | String | Idempotency key of the business write, linking the effect to the record it changed |
 | `updated_at` | String | When `status` last changed |
 | `expires_at` | Number | TTL in epoch seconds |

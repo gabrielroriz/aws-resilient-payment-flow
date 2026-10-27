@@ -80,8 +80,16 @@ terraform -chdir="$PROJECT_ROOT/terraform" plan -input=false -out="$WORK_DIR/loc
   -var="lambdasVersion=local" -var-file=secrets.local.tfvars >/dev/null
 terraform -chdir="$PROJECT_ROOT/terraform" show -json "$WORK_DIR/local.tfplan" >"$WORK_DIR/local.json"
 
+# Functions start durable workflows through SAM's Lambda invocation server.
+# It listens on the Compose network's gateway, which containers and the host reach.
+DEV_LAMBDA_HOST="$(docker network inspect "$DOCKER_NETWORK" \
+  --format '{{(index .IPAM.Config 0).Gateway}}')"
+DEV_LAMBDA_PORT="${DEV_LAMBDA_PORT:-3002}"
+DEV_LAMBDA_ENDPOINT="http://$DEV_LAMBDA_HOST:$DEV_LAMBDA_PORT"
+
 # Create the planned tables and queues locally and build the Lambdas' SAM template.
-node "$PROJECT_ROOT/scripts/dev/prepare.mts" "$WORK_DIR/local.json" "$WORK_DIR/template.json"
+node "$PROJECT_ROOT/scripts/dev/prepare.mts" "$WORK_DIR/local.json" "$WORK_DIR/template.json" \
+  "$DEV_LAMBDA_ENDPOINT"
 
 if [[ -n "${DEV_DEBUG:-}" ]]; then
   # The VS Code debug task waits for this line before attaching.
@@ -90,11 +98,12 @@ if [[ -n "${DEV_DEBUG:-}" ]]; then
 fi
 
 # SAM only exposes invocation; a local consumer feeds it SQS batches from ElasticMQ.
-DEV_LAMBDA_PORT="${DEV_LAMBDA_PORT:-3002}"
+# Durable functions also run their workflows in SAM's durable execution emulator.
 sam local start-lambda --template "$WORK_DIR/template.json" --docker-network "$DOCKER_NETWORK" \
-  --region us-east-1 --port "$DEV_LAMBDA_PORT" ${DEV_DEBUG:+--debug-port "$DEBUG_PORT_QUEUE"} &
+  --region us-east-1 --host "$DEV_LAMBDA_HOST" --port "$DEV_LAMBDA_PORT" \
+  ${DEV_DEBUG:+--debug-port "$DEBUG_PORT_QUEUE"} &
 DEV_PIDS+=("$!")
-node "$PROJECT_ROOT/scripts/dev/poll-sqs.mts" "$WORK_DIR/local.json" "http://127.0.0.1:$DEV_LAMBDA_PORT" &
+node "$PROJECT_ROOT/scripts/dev/poll-sqs.mts" "$WORK_DIR/local.json" "$DEV_LAMBDA_ENDPOINT" &
 DEV_PIDS+=("$!")
 
 # Extra arguments, such as --port, pass through to the HTTP server only.

@@ -83,7 +83,7 @@ export namespace WebhookEventRepository {
     "failed",
   ] as const;
   export const ATTEMPT_OUTCOMES = ["succeeded", "failed"] as const;
-  export const EFFECT_STATUSES = ["completed", "failed"] as const;
+  export const EFFECT_STATUSES = ["completed", "stale", "failed"] as const;
 
   // Identifies an event; providers are namespaced so their event IDs never collide.
   export type EventId = {
@@ -109,6 +109,10 @@ export namespace WebhookEventRepository {
   export type ProcessingStatus = (typeof PROCESSING_STATUSES)[number];
 
   export type AttemptOutcome = (typeof ATTEMPT_OUTCOMES)[number];
+
+  // `completed`: the business write was applied.
+  // `stale`: a newer event of the subject outranked the event, so nothing changed.
+  // `failed`: the business write cannot be applied.
   export type EffectStatus = (typeof EFFECT_STATUSES)[number];
 
   export type Event = EventId & {

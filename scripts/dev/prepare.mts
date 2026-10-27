@@ -9,9 +9,11 @@ import { queuesFromPlan, syncQueue } from './sqs-queues.mts';
 // Prepares a local run from a Terraform plan, read as `terraform show -json` output.
 // Creates the planned tables in DynamoDB Local and the planned queues in ElasticMQ.
 // Writes the SAM template that runs the planned Lambdas.
-const [planFile, templateFile] = process.argv.slice(2);
-if (!planFile || !templateFile) {
-  throw new Error('Usage: node scripts/dev/prepare.mts <plan.json> <template.json>');
+const [planFile, templateFile, lambdaEndpoint] = process.argv.slice(2);
+if (!planFile || !templateFile || !lambdaEndpoint) {
+  throw new Error(
+    'Usage: node scripts/dev/prepare.mts <plan.json> <template.json> <local-lambda-endpoint>',
+  );
 }
 
 // Must match the DynamoDB Local and ElasticMQ services in Docker Compose.
@@ -48,9 +50,11 @@ for (const queue of queuesFromPlan(plan)) {
 const template = samTemplateFromPlan(plan, {
   bundlesDir: fileURLToPath(new URL('../../dist/bundles/', import.meta.url)),
   // The AWS SDK calls these instead of AWS, so handlers need no local-only code.
+  // SAM points durable functions' own Lambda calls at its emulator instead.
   environment: {
     AWS_ENDPOINT_URL_DYNAMODB: ENDPOINT_DYNAMODB_LAMBDA,
     AWS_ENDPOINT_URL_SQS: ENDPOINT_SQS_LAMBDA,
+    AWS_ENDPOINT_URL_LAMBDA: lambdaEndpoint,
   },
 });
 await writeFile(templateFile, JSON.stringify(template, null, 2));

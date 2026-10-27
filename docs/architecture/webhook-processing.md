@@ -1,6 +1,6 @@
 # Webhook processing
 
-The `webhook_worker` Lambda consumes `webhook_events.fifo` and hands each queued event identity to the process use case. The use case loads the original event from DynamoDB, selects its payment gateway through the shared provider registry's `find` method, and awaits the provider's `process` method inside a recorded [processing attempt](#processing-attempts). A message that can never succeed is parked in the [dead-letter queue](#dead-letter-queue) at once; SQS retries other failures and moves a message there once it keeps failing. The worker has no HTTP route and needs no webhook authentication credentials. [Webhook receipt](webhook-receipt.md) uses the registry's `find` method to select those same provider classes for authentication and parsing.
+The `webhook_worker` Lambda consumes `webhook_events.fifo` and hands each queued event identity to the process use case. The use case loads the original event from DynamoDB, selects its payment gateway through the shared provider registry's `find` method, and awaits the provider's `process` method inside a recorded [processing attempt](#processing-attempts). Within the same attempt, it starts the durable workflows of the event's business effects, such as [granting access](access-grants.md) for a succeeded payment. A message that can never succeed is parked in the [dead-letter queue](#dead-letter-queue) at once; SQS retries other failures and moves a message there once it keeps failing. The worker has no HTTP route and needs no webhook authentication credentials. [Webhook receipt](webhook-receipt.md) uses the registry's `find` method to select those same provider classes for authentication and parsing.
 
 ## How it works
 
@@ -15,6 +15,7 @@ sequenceDiagram
     participant Process as Process use case
     participant Registry as Provider registry
     participant Gateway as Gateway adapter
+    participant Workflow as Durable workflow
     Provider->>Entry: Webhook
     Entry->>Registry: find(provider)
     Registry-->>Entry: Provider adapter
@@ -35,10 +36,13 @@ sequenceDiagram
     Process->>Gateway: Await process(event)
     alt Processing succeeds
         Gateway-->>Process: Complete
+        opt The event calls for a business effect
+            Process->>Workflow: Start with the effect's business contract
+        end
         Process->>Store: Finish attempt: succeeded, event to processed
         Process-->>Worker: Complete
         Worker-->>Queue: Acknowledge successful records
-    else Storage or processor failure
+    else Storage, processor, or workflow start failure
         Process->>Store: Finish attempt: failed, event to failed
         Worker-->>Queue: Failed message IDs and the later ones of their groups
         Note over Queue: Retry after visibility timeout, DLQ after 5 receives
@@ -54,6 +58,7 @@ sequenceDiagram
 | Dead-letter queue adapter | Send a parked message to the dead-letter queue in its message group, with the error code and receive count as message attributes |
 | Worker controller | Declare its message schema, with `provider` and `providerEventId` as strings that are not blank, and await the process use case with that identity |
 | Process use case | Load the stored event, select its provider, and await `process` inside a recorded attempt, rejecting missing events and unknown providers and propagating failures |
+| Workflow starter | Starts each business effect's durable workflow through its function's alias, with a business contract built from the event; see [Access grants](access-grants.md#contract) |
 | Provider registry | `find` selects providers for both receipt and processing; registrations must be unique |
 | Gateway adapters | One class per gateway exposes `authenticate`, `parse`, and `process`; each Lambda calls only the methods of its stage |
 
@@ -69,7 +74,7 @@ Sharing provider classes also shares their constructor dependencies, including t
 | Concurrency | At most 50 concurrent invocations, capped on the event source mapping; see [Throughput and concurrency](ordering-and-retries.md#throughput-and-concurrency) |
 | Visibility timeout | 180 seconds, derived from six times the worker's 30-second timeout |
 | Redrive | After 5 receives, SQS moves a failing message to the FIFO dead-letter queue |
-| Permissions | Consume only the webhook queue, park messages in its dead-letter queue, read events and record attempts and statuses in the webhook events table, and write execution logs |
+| Permissions | Consume only the webhook queue, park messages in its dead-letter queue, read events and record attempts and statuses in the webhook events table, start workflows through their aliases, and write execution logs |
 | Code version | `CODE_VERSION` names the deployed code; see [Deployment](../guides/deployment.md#how-it-works) |
 | Attempt deadline | The runtime's remaining execution time fixes one deadline for every attempt in the invocation; see [Invocation timing](code-structure.md#invocation-timing) |
 | Local delivery | A poller reads the same Terraform mapping settings, invokes the worker through SAM, and deletes only completed records; see [Development](../guides/development.md#local-functions) |
@@ -85,7 +90,7 @@ Failures caught during delivery use the shared [error log fields](code-structure
 | `WEBHOOK_PROVIDER_NOT_FOUND` | `webhooks` | No, parked | No registered adapter matches the stored event's provider; receipt shares this error but treats unknown public paths as expected |
 | `WEBHOOK_EVENT_NOT_FOUND` | `webhooks` | No, parked | The queued identity has no stored event; receipt stores events before dispatching them, and the worker reads them consistently |
 | `WEBHOOK_EVENT_IN_PROGRESS` | `webhooks` | Yes | Another attempt holds the event and has not reached its deadline; since the queue delivers each subject's events one at a time, this should not happen |
-| `INTERNAL_SERVER_ERROR` | Unspecified | Yes | An unclassified repository or provider failure |
+| `INTERNAL_SERVER_ERROR` | Unspecified | Yes | An unclassified repository, provider, or workflow start failure |
 
 The shared registry raises `WEBHOOK_PROVIDER_ALREADY_REGISTERED` if two adapters have the same name. This is an unexpected initialization failure in either Lambda, so it stops startup before requests or batches are handled.
 
@@ -119,8 +124,8 @@ After 5 receives, SQS moves a failing message to `webhook_events_dlq.fifo`, whic
 
 ## Current scope
 
-The gateway classes currently emit `webhook_routed` logs containing the provider, event ID, and event type. Successful routing acknowledges the queue message; it does not mean a payment, subscription, or financial effect has been applied. The original event remains in DynamoDB for its configured retention period.
+The gateway classes emit `webhook_routed` logs containing the provider, event ID, and event type. The original event remains in DynamoDB for its configured retention period.
 
-Business effects and business idempotency are not implemented. A later delivery of the same event can be processed again, so future effects must be safe to repeat. FIFO preserves receipt order, not the provider's occurrence order; receipt records which event reports each payment's [latest status](webhook-receipt.md#out-of-order-events) and the subscription each payment bills, but processing reads neither yet, and nothing derives a subscription's status from its payments. See [Adding a provider](../guides/adding-a-provider.md) for extending both receipt and processing.
+Granting a subscription's access is the only business effect: the worker starts its workflow for each succeeded payment that names its subscription, with a contract naming the subscription, the payment, and the event; see [Access grants](access-grants.md). A `processed` event means its routing and its workflow starts succeeded, not that its workflows did. Subscriptions are not stored yet, and revoking access, payment and financial records, and notifications are not built. See [Adding a provider](../guides/adding-a-provider.md) for extending both receipt and processing.
 
 [Event ordering and retries](ordering-and-retries.md) states the rules for message groups, retries, and the order of business effects, and the reason for each.

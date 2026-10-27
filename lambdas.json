@@ -18,5 +18,13 @@
     "role": "webhook_worker",
     "memory_size": 512,
     "timeout": 30
+  },
+  "wf_subscription_grant_access": {
+    "entry": "src/main/functions/subscriptions/subscriptionGrantAccess.ts",
+    "trigger": "durable",
+    "execution_timeout": 86400,
+    "role": "subscription_grant_access",
+    "memory_size": 512,
+    "timeout": 30
   }
 }

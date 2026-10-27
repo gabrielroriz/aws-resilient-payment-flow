@@ -7,3 +7,24 @@ export function parseJson(text: string): unknown {
     return undefined;
   }
 }
+
+// Renames object keys from camelCase to snake_case at every depth.
+// Values other than plain objects and arrays, such as dates, stay as they are.
+export function snakeCaseKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(snakeCaseKeys);
+  }
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Object.getPrototypeOf(value) !== Object.prototype
+  ) {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+      key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`),
+      snakeCaseKeys(item),
+    ]),
+  );
+}

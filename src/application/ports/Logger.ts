@@ -23,8 +23,16 @@ export namespace Logger {
     | "queue_message_parked"
     // The message could not be parked, so SQS delivers it again.
     | "queue_message_park_failed"
+    // A succeeded payment granted its subscription access.
+    | "subscription_access_granted"
+    // A newer event of the payment outranked the grant, so nothing changed.
+    | "subscription_access_grant_stale"
     // The worker handed a stored event to its gateway adapter.
-    | "webhook_routed";
+    | "webhook_routed"
+    // A workflow's input does not match its schema, so its execution fails.
+    | "workflow_input_error"
+    // A workflow step failed; it retries unless its error is not retryable.
+    | "workflow_step_error";
 
   // JSON values, never payloads, credentials, or card data.
   // The entry's own keys are reserved.

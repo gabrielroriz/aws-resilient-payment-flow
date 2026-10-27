@@ -1,3 +1,4 @@
+import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import { SystemClock } from "@infra/clock/SystemClock";
 import { AppConfig } from "@infra/config/AppConfig";
 import { DynamoClient } from "@infra/dynamodb/DynamoClient";
@@ -221,4 +222,44 @@ test("a storage failure is never parked, so SQS delivers it again", async () => 
   ).resolves.toEqual({ batchItemFailures: [{ itemIdentifier: "message-0" }] });
 
   expect(park).not.toHaveBeenCalled();
+});
+
+test("a succeeded payment that bills a subscription starts subscription_grant_access", async () => {
+  captureLogs();
+  vi.spyOn(DynamoClient.prototype, "updateIf").mockResolvedValue(true);
+  vi.spyOn(DynamoClient.prototype, "put").mockResolvedValue();
+  vi.spyOn(DynamoClient.prototype, "get").mockResolvedValue({
+    PK: "gatewayBrazil#evt_1",
+    SK: "META",
+    provider: "gatewayBrazil",
+    provider_event_id: "evt_1",
+    event_type: "PAYMENT_RECEIVED",
+    occurred_at: "2026-10-10T10:00:00.000Z",
+    received_at: "2026-10-10T10:00:01.000Z",
+    subject_type: "payment",
+    subject_id: "pay_1",
+    subscription_id: "sub_1",
+    status: "succeeded",
+    payload: gzipSync("{}"),
+    processing_status: "enqueued",
+  });
+  const send = vi.spyOn(LambdaClient.prototype, "send").mockResolvedValue({} as never);
+
+  await expect(
+    handler(sqsEvent({ provider: "gatewayBrazil", providerEventId: "evt_1" }), lambdaContext()),
+  ).resolves.toEqual({ batchItemFailures: [] });
+
+  const [command] = send.mock.calls[0] as unknown as [InvokeCommand];
+  expect(command).toBeInstanceOf(InvokeCommand);
+  expect(command.input).toMatchObject({
+    FunctionName: "wf_subscription_grant_access:live",
+    InvocationType: "Event",
+  });
+  // The workflow receives the business contract, and the event only as its cause.
+  expect(JSON.parse(String(command.input.Payload))).toEqual({
+    provider: "gatewayBrazil",
+    subscription_id: "sub_1",
+    payment_id: "pay_1",
+    metadata: { event_id: "evt_1", received_at: "2026-10-10T10:00:01.000Z" },
+  });
 });

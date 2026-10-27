@@ -42,7 +42,7 @@ Each test sits next to the module it covers and shares its name, such as `<modul
 
 ## Infrastructure checks
 
-The tests under `terraform/tests/` use a mocked AWS provider to check worker triggers, their concurrency cap, the queue's high-throughput mode, HTTP isolation, visibility timeout, local mapping and redrive settings, the dead-letter queue alarm, the dead-letter queue the worker parks messages in, the table each webhook function reads, and that every function can write JSON logs, without creating AWS resources. They require Terraform with its provider initialized and the local archives that `npm run dev` packages. After that setup, run:
+The tests under `terraform/tests/` use a mocked AWS provider to check worker triggers, their concurrency cap, the queue's high-throughput mode, HTTP isolation, visibility timeout, local mapping and redrive settings, the dead-letter queue alarm, the dead-letter queue the worker parks messages in, the table each webhook function reads, the durable function's configuration, alias, and permissions, and that every function can write JSON logs, without creating AWS resources. They require Terraform with its provider initialized and the local archives that `npm run dev` packages. After that setup, run:
 
 ```bash
 terraform -chdir=terraform validate
@@ -78,6 +78,7 @@ A comment test checks every comment in the repository against the [comment rule]
 | Test a use case by passing fake ports to its constructor, without the registry | The test covers business rules only and does not depend on adapters |
 | Test an adapter by replacing the layer directly below it: SDK calls for a shared client, the shared client's methods for a repository | The test checks the requests sent without AWS, Docker, or network access |
 | Replace dependencies with `vi.spyOn`, not module mocks | `restoreMocks` undoes each spy after its test, so replacements never leak |
+| Run durable functions with the durable execution SDK's local test runner, with time skipping on | Executions, checkpoints, and step retries run in process, and retry delays pass at once |
 | Set environment variables with `vi.stubEnv` | `unstubEnvs` restores them after each test, so a configured or missing variable never leaks |
 | Declare the classes a DI test registers inside that test | The registry is shared by every test in the file |
 | Use fixed dates and values instead of the current time | Results stay deterministic; code that needs the time receives it through the clock port |

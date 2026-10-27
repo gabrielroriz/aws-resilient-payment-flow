@@ -38,6 +38,7 @@ export function samTemplateFromPlan(plan: TerraformPlan, options: SamTemplateOpt
           Variables: { ...values.environment?.[0]?.variables, ...options.environment },
         },
         Events: {},
+        ...durableConfigOf(values),
       },
     };
     functionsByKey.set(index, resources[logicalId]);
@@ -65,6 +66,18 @@ export function samTemplateFromPlan(plan: TerraformPlan, options: SamTemplateOpt
     AWSTemplateFormatVersion: '2010-09-09',
     Transform: 'AWS::Serverless-2016-10-31',
     Resources: resources,
+  };
+}
+
+// SAM runs a function with this setting as a durable function, like Lambda does.
+function durableConfigOf({ durable_config }: FunctionValues) {
+  const config = durable_config?.[0];
+  if (!config) return {};
+  return {
+    DurableConfig: {
+      ExecutionTimeout: config.execution_timeout,
+      ...(config.retention_period != null && { RetentionPeriodInDays: config.retention_period }),
+    },
   };
 }
 

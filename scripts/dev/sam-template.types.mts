@@ -16,6 +16,8 @@ export type SamFunction = {
     Timeout: number;
     Environment: { Variables: Record<string, string> };
     Events: Record<string, { Type: 'HttpApi'; Properties: { Method: string; Path: string } }>;
+    // Present only for durable functions.
+    DurableConfig?: { ExecutionTimeout: number; RetentionPeriodInDays?: number };
   };
 };
 
@@ -27,6 +29,7 @@ export type FunctionValues = {
   memory_size: number;
   timeout: number;
   environment?: { variables?: Record<string, string> | null }[] | null;
+  durable_config?: { execution_timeout: number; retention_period?: number | null }[] | null;
 };
 export type RouteValues = { route_key: string };
 

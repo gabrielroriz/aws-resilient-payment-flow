@@ -8,7 +8,7 @@ Driving adapters turn platform events into calls on the core. Whenever the core 
 
 ![Hexagonal architecture: use cases in the center, ports in the middle ring, adapters in the outer ring, and external systems outside](images/hexagonal-architecture.drawio.svg)
 
-The two inner rings live in `src/application`; the outer ring is split between `src/main/adapters` on the driving side and `src/infra` on the driven side. `lambdaHttpAdapter` uses the `Controller` contract and `lambdaSqsAdapter` uses `MessageHandler`; these contracts are the driving ports. The abstract classes in `application/ports/` are the driven ports. Gray italic segments are examples of port categories rather than existing classes.
+The two inner rings live in `src/application`; the outer ring is split between `src/main/adapters` on the driving side and `src/infra` on the driven side. `lambdaHttpAdapter` uses the `Controller` contract, and `lambdaSqsAdapter` and `lambdaDurableAdapter` use `MessageHandler`; these contracts are the driving ports. The abstract classes in `application/ports/` are the driven ports. Gray italic segments are examples of port categories rather than existing classes.
 
 A request travels from the platform event through the core to the outside world:
 
@@ -16,9 +16,11 @@ A request travels from the platform event through the core to the outside world:
 flowchart TD
     Event["API Gateway event"]
     QueueEvent["SQS batch"]
+    WorkflowEvent["Durable execution"]
     subgraph Driving["Driving side: src/main/adapters"]
         HttpAdapter["lambdaHttpAdapter"]
         SqsAdapter["lambdaSqsAdapter"]
+        DurableAdapter["lambdaDurableAdapter"]
     end
     subgraph Core["Application core: src/application"]
         Controller["Controller / MessageHandler"] --> UseCase["Use case"]
@@ -34,6 +36,8 @@ flowchart TD
     HttpAdapter --> Controller
     QueueEvent --> SqsAdapter
     SqsAdapter --> Controller
+    WorkflowEvent --> DurableAdapter
+    DurableAdapter --> Controller
     Port -. implemented by .-> Adapter
     Adapter --> External
     Entry -. binds port to adapter .-> Adapter
@@ -54,16 +58,16 @@ Imports use the `tsconfig.json` path aliases `@application/*`, `@infra/*`, `@ker
 
 | Path | Responsibility |
 |---|---|
-| `application/usecases/<area>/` | One business operation per class; depends on ports and other application code |
+| `application/usecases/<area>/` | One business operation per class; depends on ports and other application code. Use cases that run as durable workflows are named `DurableUseCase<Action>`; see [Durable use cases](#durable-use-cases) |
 | `application/ports/` | Abstract classes describing what the core needs from outside, such as time, storage, or providers; ports of one area share a folder, such as `ports/webhooks/` |
 | `application/controller/<area>/` | Declares the schema of its request body or queue message and calls a use case, or a port directly when that port performs the whole operation |
-| `application/contracts/` | Shapes shared across layers, such as `Controller` and `MessageHandler` |
-| `application/errors/` | Error codes and the base classes mapped to responses |
+| `application/contracts/` | Shapes shared across layers, such as `Controller`, `MessageHandler`, and the workflows' input contracts |
+| `application/errors/` | Error codes, the base classes mapped to responses, and the error fields every adapter logs |
 | `infra/<concern>/` | Adapter classes implementing ports, grouped by concern, such as `infra/clock/`, `infra/logging/`, `infra/webhooks/`, or `infra/repositories/<entity>/` |
-| `infra/<service>/` | Shared clients and helpers for one external service, such as `infra/dynamodb/`; they implement no port and are reused by adapters |
+| `infra/<service>/` | Shared clients and helpers for one external service, such as `infra/dynamodb/` or `infra/sql/`; they implement no port and are reused by adapters |
 | `infra/config/` | `AppConfig` and its environment schema; see [Configuration](#configuration) |
-| `main/adapters/` | Converts Lambda events into controller calls, validating payloads against the handler's schema, and maps results and errors to HTTP responses or SQS batch failures |
-| `main/factories/` | Binds the shared runtime ports, then resolves a controller, logger, and invocation context, plus a dead-letter queue for SQS, and supplies them to the driving adapter |
+| `main/adapters/` | Converts Lambda events into controller calls, validating payloads against the handler's schema, and maps results and errors to HTTP responses, SQS batch failures, or durable execution outcomes |
+| `main/factories/` | Binds the shared runtime ports, then resolves a controller and logger, plus the invocation context and a dead-letter queue for SQS, the invocation context for HTTP, or the durable execution for durable functions, and supplies them to the driving adapter |
 | `main/utils/` | Helpers shared by driving adapters, such as parsing request bodies and building responses |
 | `main/functions/` | One entry per Lambda: binds ports to adapters and exports `handler`; entries of one area share a folder, such as `functions/webhooks/` |
 | `main/bindings/` | Groups of port bindings that several entries share, one module per group; see [Binding several ports](#binding-several-ports) |
@@ -171,7 +175,7 @@ registry.bind(WebhookEventDispatcher, SqsWebhookEventDispatcher);
 export const handler = createHttpHandler(registry, WebhookEntryPointController);
 ```
 
-`createHttpHandler` and `createSqsHandler` call `bindRuntime(registry)` before resolving the controller, `Logger`, and `InvocationContext` once during initialization. The factories select the shared clock, invocation context, and logger implementations, replacing any previous bindings for those ports. Entries supply their function-specific bindings before calling a factory and leave dependency resolution to it. Adapters receive explicit dependencies so tests can supply fakes directly.
+`createHttpHandler`, `createSqsHandler`, and `createDurableHandler` call `bindRuntime(registry)` before resolving the controller and `Logger` once during initialization; the HTTP and SQS factories also resolve `InvocationContext`, and `createDurableHandler` binds `DurableExecution` instead. The factories select the shared clock, invocation context, and logger implementations, replacing any previous bindings for those ports. Entries supply their function-specific bindings before calling a factory and leave dependency resolution to it. Adapters receive explicit dependencies so tests can supply fakes directly.
 
 `resolve` builds the graph depth first and caches every instance:
 
@@ -270,9 +274,25 @@ Adapters read environment variables through `AppConfig`, injected like any other
 
 ## Invocation timing
 
-`InvocationContext` provides `startedAt()` and `deadline()` for the current invocation. Both driving adapters initialize it at handler entry, using `Clock.now()` and the runtime's `getRemainingTimeInMillis()` to capture a fixed deadline. Every message in an SQS batch shares these timestamps, while `Clock.now()` still gives the current time for individual attempts and logs. The function's timeout comes from Lambda's runtime context.
+`InvocationContext` provides `startedAt()` and `deadline()` for the current invocation. The HTTP and SQS adapters initialize it at handler entry, using `Clock.now()` and the runtime's `getRemainingTimeInMillis()` to capture a fixed deadline. Every message in an SQS batch shares these timestamps, while `Clock.now()` still gives the current time for individual attempts and logs. The function's timeout comes from Lambda's runtime context. Durable functions have no invocation timing: one execution spans many invocations, so a single invocation's deadline bounds nothing, and the durable execution SDK checkpoints and resumes steps across invocations instead.
 
 The context adapter uses `AsyncLocalStorage`, so its shared instance keeps timing separate across overlapping invocations and refreshes it for every warm invocation. Returned dates cannot mutate the stored timing. Reading timing outside an invocation fails instead of reusing an old timestamp. Tests that invoke a Lambda handler supply a runtime context with the remaining execution time.
+
+## Durable use cases
+
+A use case that runs as a [Lambda durable function](https://docs.aws.amazon.com/lambda/latest/dg/durable-functions.html) is named `DurableUseCase<Action>`, such as `DurableUseCaseSubscriptionGrantAccess`, and owns its workflow: it receives the `DurableExecution` port and runs each piece of work in a named step. Lambda checkpoints each step's result and retries failed steps, and an execution that resumes replays the use case, returning completed steps' results without running them again. [Granting access](../../src/application/usecases/subscriptions/DurableUseCaseSubscriptionGrantAccess.ts) is the reference example.
+
+| Rule | Reason |
+|---|---|
+| Put every read and write in a step | Code outside steps runs again on every resumption, so it must be deterministic and free of side effects |
+| Make each step safe to run twice | A step that is interrupted before its checkpoint runs again |
+| Return only JSON from a step | Its result is stored as JSON, so dates and class instances would come back as plain values |
+| Throw a non-`retryable` error for a failure no retry can fix | The step then fails the execution at once instead of retrying for hours |
+| Keep the controller to checking its input | The driving adapter validates the input against the controller's schema before the use case runs |
+
+`LambdaDurableExecution` implements the port. Like the invocation context, it keeps the current execution's durable context in `AsyncLocalStorage`, which the durable driving adapter fills at handler entry, so its shared instance never mixes executions. It runs each step with the same retry policy, delays from 5 seconds doubling to a 10-minute cap and shortened by up to half, for 32 attempts over about 2 to 4 hours, and logs each failed attempt as `workflow_step_error`. Use case tests pass a fake `DurableExecution` that runs each step at once; adapter tests run real executions in process with the durable execution SDK's local test runner, which skips retry delays.
+
+A workflow's input is a business contract, declared with the other workflow inputs in `application/contracts/` and sent as snake_case JSON; its controller's schema converts it for the use case, so no workflow reads the event that caused it. A caller starts a workflow through the `WorkflowStarter` port, which invokes the function `wf_<workflow>` through its `live` alias and names the execution after the workflow and its input, so a repeated start returns the existing execution; see [Access grants](access-grants.md#contract).
 
 ## Logging
 
@@ -292,9 +312,10 @@ Lambda code logs only through the `Logger` port, never `console`, so every funct
 
 | Context field | Added by | Value |
 |---|---|---|
-| `lambdaRequestId` | Both driving adapters | The invocation's Lambda request ID, which Lambda's own records of the invocation, such as its report, also carry |
+| `lambdaRequestId` | Every driving adapter | The invocation's Lambda request ID, which Lambda's own records of the invocation, such as its report, also carry |
 | `requestId`, `route` | `lambdaHttpAdapter` | API Gateway request ID and route key |
 | `messageId`, `messageGroupId`, `receiveCount`, `eventSourceARN` | `lambdaSqsAdapter` | The SQS message being handled: its ID, group, receive count, and source queue |
+| `durableExecutionArn` | `lambdaDurableAdapter` | The durable execution the invocation runs, shared by every invocation that resumes it |
 
 Context follows the async call chain, so code below the driving adapters, such as a gateway adapter, has its entries correlated without receiving the request, and concurrent invocations never share fields. Only entries logged through the same `JsonLogger` see a context, which holds because the registry builds one instance and injects it everywhere. Terraform gives every function Lambda's JSON log format: Lambda passes the lines through unchanged, writes its own records as JSON too, and sends only entries at `INFO` and above to CloudWatch.
 
@@ -308,7 +329,7 @@ Tests read entries with `captureLogs` from the logger's fixtures, which silences
 
 ## Errors
 
-HTTP errors follow the mapping below. Both driving adapters log the same error metadata. The FIFO SQS adapter adds message ID, group, receive count, and queue ARN, then returns failed and unprocessed records of the failed group for retry regardless of the error's status or kind, unless the error is not `retryable`: such a record is parked in the dead-letter queue at once; see [Webhook processing](webhook-processing.md#delivery-and-failures).
+HTTP errors follow the mapping below. Every driving adapter logs the same error metadata. The FIFO SQS adapter adds message ID, group, receive count, and queue ARN, then returns failed and unprocessed records of the failed group for retry regardless of the error's status or kind, unless the error is not `retryable`: such a record is parked in the dead-letter queue at once; see [Webhook processing](webhook-processing.md#delivery-and-failures).
 
 `lambdaHttpAdapter` parses JSON request bodies, validates them against the controller's schema, and returns JSON responses. Errors become `{ "success": false, "error": { "code", "message" } }`:
 
@@ -318,7 +339,7 @@ HTTP errors follow the mapping below. Both driving adapters log the same error m
 | `ApplicationError` subclass | Failures raised from the controller down, such as a business rule a use case enforces | Its `statusCode`, code, and message |
 | Anything else | Failures nobody anticipated, such as a storage outage or a defect | `500` with `INTERNAL_SERVER_ERROR`; details only in logs |
 
-All defined errors extend `BaseError`, which sets `name` from the class name. HTTP transport errors extend `HttpError`, which sets the `http` category; queue transport errors live under `errors/queue/` and use the `queue` category. Errors raised from controllers, use cases, or domain adapters extend `ApplicationError` and belong in their area folder, such as `errors/application/webhooks/`:
+All defined errors extend `BaseError`, which sets `name` from the class name. HTTP transport errors extend `HttpError`, which sets the `http` category; queue transport errors live under `errors/queue/` and use the `queue` category, and workflow input errors live under `errors/workflow/` and use the `workflow` category. Errors raised from controllers, use cases, or domain adapters extend `ApplicationError` and belong in their area folder, such as `errors/application/webhooks/`:
 
 | Detail | Meaning |
 |---|---|
@@ -326,7 +347,7 @@ All defined errors extend `BaseError`, which sets `name` from the class name. HT
 | `code` | Stable machine-readable code, from the `ErrorCode` enum |
 | `category` | Area the error belongs to, from the `ErrorCategory` enum, such as `webhooks`, `http`, or `queue` |
 | `kind` | `expected` when the error is part of normal operation, such as a forged webhook; `unexpected` when it needs attention, such as an event a supported provider sent that cannot be read |
-| `retryable` | `true` unless the same message can never succeed, such as one that is not valid JSON; the SQS adapter parks a non-retryable failure at once instead of retrying it; ignored by HTTP |
+| `retryable` | `true` unless the same message can never succeed, such as one that is not valid JSON; the SQS adapter parks a non-retryable failure at once instead of retrying it, and a durable step fails at once; ignored by HTTP |
 
 Errors are named after their domain first, so codes and classes of one area sort together:
 
@@ -339,11 +360,11 @@ Errors are named after their domain first, so codes and classes of one area sort
 
 An error can be shared across receipt and processing while its kind varies by context. `ErrorWebhookProviderNotFound` defaults to expected for public requests; the registry's routing operation marks it unexpected because an accepted event should have a registered provider. Codes identify failures, while kinds describe whether they need investigation.
 
-Every error caught by a driving adapter is logged as one `ERROR` entry, so monitoring can count errors by category, kind, and code. Errors during dependency initialization are reported by the Lambda runtime before the adapter runs.
+Every error caught by a driving adapter, and every failed durable step attempt, is logged as one `ERROR` entry, so monitoring can count errors by category, kind, and code. Errors during dependency initialization are reported by the Lambda runtime before the adapter runs.
 
 | Field | Value |
 |---|---|
-| `message` | `application_error` for HTTP; `queue_message_error` for SQS |
+| `message` | `application_error` for HTTP; `queue_message_error` for SQS; `workflow_input_error` for durable function input; `workflow_step_error`, with the step's name in `step`, for a failed step attempt |
 | `category` | The error's category; absent for errors the application does not define, which the route and function still identify |
 | `errorKind` | The error's kind; `unexpected` for errors the application does not define |
 | `errorCode` | The error's code; `INTERNAL_SERVER_ERROR` for errors the application does not define |

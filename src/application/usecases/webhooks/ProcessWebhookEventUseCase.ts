@@ -1,3 +1,4 @@
+import type { SubscriptionGrantAccess } from "@application/contracts/Workflows";
 import { BaseError } from "@application/errors/BaseError";
 import { ErrorWebhookEventInProgress } from "@application/errors/application/webhooks/ErrorWebhookEventInProgress";
 import { ErrorWebhookEventNotFound } from "@application/errors/application/webhooks/ErrorWebhookEventNotFound";
@@ -9,16 +10,26 @@ import { Deployment } from "@application/ports/Deployment";
 import { InvocationContext } from "@application/ports/InvocationContext";
 import { WebhookEventRepository } from "@application/ports/webhooks/WebhookEventRepository";
 import { WebhookProviderRegistry } from "@application/ports/webhooks/WebhookProviderRegistry";
+import { WorkflowStarter } from "@application/ports/workflows/WorkflowStarter";
 import { Injectable } from "@kernel/decorators/injectable";
 import { randomId } from "@kernel/utils/crypto";
 
 // Hands a queued event, exactly as receipt stored it, to its gateway adapter.
+// It then starts the durable workflows that apply the event's business effects.
 // Each run is recorded as an attempt that moves the event's processing status.
-@Injectable(WebhookEventRepository, WebhookProviderRegistry, Clock, Deployment, InvocationContext)
+@Injectable(
+  WebhookEventRepository,
+  WebhookProviderRegistry,
+  WorkflowStarter,
+  Clock,
+  Deployment,
+  InvocationContext,
+)
 export class ProcessWebhookEventUseCase {
   constructor(
     private readonly events: WebhookEventRepository,
     private readonly providerRegistry: WebhookProviderRegistry,
+    private readonly workflows: WorkflowStarter,
     private readonly clock: Clock,
     private readonly deployment: Deployment,
     private readonly invocationContext: InvocationContext,
@@ -57,6 +68,11 @@ export class ProcessWebhookEventUseCase {
 
     try {
       await provider.process(event);
+      // The attempt covers starting the workflow; the workflow owns its result.
+      const grantAccessInput = this.subscriptionGrantIfPaid(event);
+      if (grantAccessInput) {
+        await this.workflows.start("subscription_grant_access", grantAccessInput);
+      }
     } catch (error) {
       await this.events.finishAttempt(event, {
         ...attempt,
@@ -71,6 +87,21 @@ export class ProcessWebhookEventUseCase {
       finishedAt: this.clock.now(),
       outcome: "succeeded",
     });
+  }
+
+  // A succeeded payment grants access to the subscription it bills.
+  private subscriptionGrantIfPaid(
+    event: WebhookEventRepository.Event,
+  ): SubscriptionGrantAccess | undefined {
+    if (event.status !== "succeeded" || !event.subject || !event.subscriptionId) {
+      return undefined;
+    }
+    return {
+      provider: event.provider,
+      subscriptionId: event.subscriptionId,
+      paymentId: event.subject.id,
+      metadata: { eventId: event.providerEventId, receivedAt: event.receivedAt },
+    };
   }
 }
 
