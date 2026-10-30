@@ -108,7 +108,7 @@ function parseSignature(
     .filter(([key, value]) => key === "v1" && value)
     .map(([, value]) => value);
 
-  // Timestamp must be a string of digits, and at least one signature must be present.
+  // The timestamp must be digits, and at least one signature must be present.
   if (!timestamp || !/^\d+$/.test(timestamp) || signatures.length === 0) {
     return undefined;
   }
