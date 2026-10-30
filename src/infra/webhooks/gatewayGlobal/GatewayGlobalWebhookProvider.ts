@@ -101,11 +101,14 @@ export namespace GatewayGlobalWebhookProvider {
 function parseSignature(
   header: string | undefined,
 ): { timestamp: number; signatures: string[] } | undefined {
+  // Parsing is lenient: extra whitespace and unknown keys are ignored.
   const pairs = (header ?? "").split(",").map((pair) => pair.trim().split("="));
   const timestamp = pairs.find(([key]) => key === "t")?.[1];
   const signatures = pairs
     .filter(([key, value]) => key === "v1" && value)
     .map(([, value]) => value);
+
+  // Timestamp must be a string of digits, and at least one signature must be present.
   if (!timestamp || !/^\d+$/.test(timestamp) || signatures.length === 0) {
     return undefined;
   }
