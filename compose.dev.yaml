@@ -37,6 +37,25 @@ services:
       dynamodb:
         condition: service_healthy
 
+  # The history database, with the major version Aurora runs.
+  postgres:
+    image: postgres:16.14
+    environment:
+      # Local-only credentials, which the functions' local configuration repeats.
+      POSTGRES_DB: history
+      POSTGRES_USER: history_admin
+      POSTGRES_PASSWORD: local-admin-password
+    ports:
+      # A host port of its own, since other projects often take 5432.
+      - "127.0.0.1:5435:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U history_admin -d history"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
   # SQS-compatible queues.
   # Starts without queues; npm run dev creates the ones Terraform defines.
   sqs:
@@ -71,6 +90,7 @@ services:
 
 volumes:
   dynamodb-data:
+  postgres-data:
 
 networks:
   default:

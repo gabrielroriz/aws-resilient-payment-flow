@@ -8,9 +8,15 @@ import type { LambdaRegistry } from './lambdas.mts';
 // The esbuild externals end in `*` and match by prefix, such as `@aws-sdk/*`.
 const runtimePackagePrefixes = options.external.map((pattern) => pattern.replace(/\*$/, ''));
 
-function isRuntimeProvided(specifier: string): boolean {
+// pg requires its native bindings only when code reads `pg.native`, which none does.
+// esbuild leaves that optional require external because it sits in a try block.
+const unusedOptionalPackages = ['pg-native'];
+
+function isAllowedExternal(specifier: string): boolean {
   return (
-    isBuiltin(specifier) || runtimePackagePrefixes.some((prefix) => specifier.startsWith(prefix))
+    isBuiltin(specifier) ||
+    runtimePackagePrefixes.some((prefix) => specifier.startsWith(prefix)) ||
+    unusedOptionalPackages.includes(specifier)
   );
 }
 
@@ -56,13 +62,13 @@ export async function bundleLambdas(
     }
 
     // Deployment ships only index.js.
-    // Only Node built-ins and runtime-provided packages may remain external.
+    // Only built-ins, runtime-provided, and unused optional packages stay external.
     const outputs = Object.values(result.metafile.outputs);
     if (
       result.outputFiles.length !== 1 ||
       result.outputFiles[0].path !== outfile ||
       outputs.some((output) =>
-        output.imports.some((item) => item.external && !isRuntimeProvided(item.path)),
+        output.imports.some((item) => item.external && !isAllowedExternal(item.path)),
       )
     ) {
       throw new Error(

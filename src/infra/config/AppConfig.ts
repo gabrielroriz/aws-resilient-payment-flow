@@ -30,6 +30,16 @@ export class AppConfig {
     return { webhookEvents: { name: env.WEBHOOK_EVENTS_TABLE_NAME } };
   }
 
+  get historyDatabase(): AppConfig.HistoryDatabase {
+    const env = this.parseGroup("historyDatabase", envSchema.historyDatabase);
+    return {
+      host: env.HISTORY_DB_HOST,
+      database: env.HISTORY_DB_NAME,
+      user: env.HISTORY_DB_USER,
+      password: env.HISTORY_DB_PASSWORD,
+    };
+  }
+
   get deployment(): AppConfig.Deployment {
     const env = this.parseGroup("deployment", envSchema.deployment);
     return { codeVersion: env.CODE_VERSION };
@@ -79,6 +89,17 @@ export namespace AppConfig {
   export type Tables = {
     // Table of received webhook events and their history.
     webhookEvents: { name: string };
+  };
+
+  // The PostgreSQL database that keeps the webhook events' long-term history.
+  export type HistoryDatabase = {
+    // Host name of the database server.
+    host: string;
+    // Name of the database on that server.
+    database: string;
+    // Database role the function connects as, which decides what it may change.
+    user: string;
+    password: string;
   };
 
   // What the deployment says about the code the function runs.

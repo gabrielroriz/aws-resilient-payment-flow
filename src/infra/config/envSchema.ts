@@ -16,6 +16,12 @@ export const envSchema = {
   tables: z.object({
     WEBHOOK_EVENTS_TABLE_NAME: z.string().check(z.minLength(1)),
   }),
+  historyDatabase: z.object({
+    HISTORY_DB_HOST: z.string().check(z.minLength(1)),
+    HISTORY_DB_NAME: z.string().check(z.minLength(1)),
+    HISTORY_DB_USER: z.string().check(z.minLength(1)),
+    HISTORY_DB_PASSWORD: z.string().check(z.minLength(1)),
+  }),
   deployment: z.object({
     CODE_VERSION: z.string().check(z.minLength(1)),
   }),

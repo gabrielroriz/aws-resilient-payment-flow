@@ -142,6 +142,28 @@ test('a missing dependency stops bundling instead of leaving a broken runtime im
   expect(result.stderr).toMatch(/Could not resolve "missing-dependency"/);
 });
 
+test('only the optional pg-native require may stay outside the bundle', async () => {
+  // esbuild leaves a require in a try block external instead of failing.
+  const optionalRequire = (name: string) =>
+    `let native; try { native = require("${name}"); } catch {} export const handler = () => native;`;
+  const root = await fixture(
+    { 'src/pg.ts': optionalRequire('pg-native'), 'src/other.ts': optionalRequire('other-native') },
+    { pg: { entry: 'src/pg.ts' } },
+  );
+  execFileSync(process.execPath, [path.join(root, 'build/index.mts')]);
+  expect(await readdir(path.join(root, 'dist/bundles/pg'))).toEqual(['index.js']);
+
+  await writeFile(
+    path.join(root, 'lambdas.json'),
+    JSON.stringify({ other: { entry: 'src/other.ts' } }),
+  );
+  const result = spawnSync(process.execPath, [path.join(root, 'build/index.mts')], {
+    encoding: 'utf8',
+  });
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toMatch(/other requires files outside index\.js/);
+});
+
 test('a computed import stops bundling, since index.js cannot include its module', async () => {
   const root = await fixture(
     {

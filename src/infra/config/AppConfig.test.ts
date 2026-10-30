@@ -31,6 +31,20 @@ test("AppConfig reads the table names", () => {
   expect(new AppConfig().tables).toEqual({ webhookEvents: { name: "webhook_events" } });
 });
 
+test("AppConfig reads the history database connection settings", () => {
+  vi.stubEnv("HISTORY_DB_HOST", "postgres");
+  vi.stubEnv("HISTORY_DB_NAME", "history");
+  vi.stubEnv("HISTORY_DB_USER", "history_writer");
+  vi.stubEnv("HISTORY_DB_PASSWORD", "writer-password");
+
+  expect(new AppConfig().historyDatabase).toEqual({
+    host: "postgres",
+    database: "history",
+    user: "history_writer",
+    password: "writer-password",
+  });
+});
+
 test("AppConfig reads the deployed code version", () => {
   vi.stubEnv("CODE_VERSION", "20261017110316-339fc51a2130");
 
