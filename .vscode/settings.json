@@ -3,6 +3,8 @@
   "hediet.vscode-drawio.svgAppearance": "light",
   // Format code with the project's Prettier on save, matching the CI check.
   // Other file types, such as Markdown, keep their own formatting.
+  // Prettier stays on here even when user settings turn it off globally.
+  "prettier.enable": true,
   "[typescript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true
