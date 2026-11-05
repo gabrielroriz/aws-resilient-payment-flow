@@ -9,11 +9,16 @@ BEGIN
 END
 $$;
 
+-- The writer reaches only the history schema, not the platform's other concerns.
+GRANT USAGE ON SCHEMA history TO history_writer;
+
 -- Conflict checks read rows, so every grant includes selecting.
 -- These tables hold each item's latest state, which upserts replace.
 GRANT SELECT, INSERT, UPDATE
-  ON webhook_events, webhook_event_attempts, webhook_event_effects
+  ON history.webhook_events, history.webhook_event_attempts, history.webhook_event_effects
   TO history_writer;
 
 -- These tables only grow, so the writer cannot rewrite a recorded row.
-GRANT SELECT, INSERT ON webhook_event_deliveries, webhook_event_changes TO history_writer;
+GRANT SELECT, INSERT
+  ON history.webhook_event_deliveries, history.webhook_event_changes
+  TO history_writer;

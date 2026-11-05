@@ -1,10 +1,13 @@
 -- The long-term history of webhook events, projected from the webhook events table.
+-- Its own schema keeps it apart from the platform's other concerns.
 -- Each table mirrors one item type, keyed like the item within its event.
 -- Statuses stay plain text, so a new status never stops the projection.
 -- No foreign keys: streams order changes only per item, so a child may come first.
 
+CREATE SCHEMA history;
+
 -- Each event's latest state, replaced whenever the event changes.
-CREATE TABLE webhook_events (
+CREATE TABLE history.webhook_events (
   provider text NOT NULL,
   provider_event_id text NOT NULL,
   event_type text NOT NULL,
@@ -26,13 +29,13 @@ CREATE TABLE webhook_events (
 );
 
 -- Events received in a time interval.
-CREATE INDEX webhook_events_received_at ON webhook_events (received_at);
+CREATE INDEX webhook_events_received_at ON history.webhook_events (received_at);
 
 -- Events of one payment or subscription in the order they occurred.
 CREATE INDEX webhook_events_subject
-  ON webhook_events (provider, subject_type, subject_id, occurred_at);
+  ON history.webhook_events (provider, subject_type, subject_id, occurred_at);
 
-CREATE TABLE webhook_event_attempts (
+CREATE TABLE history.webhook_event_attempts (
   provider text NOT NULL,
   provider_event_id text NOT NULL,
   attempt_id text NOT NULL,
@@ -45,7 +48,7 @@ CREATE TABLE webhook_event_attempts (
   PRIMARY KEY (provider, provider_event_id, attempt_id)
 );
 
-CREATE TABLE webhook_event_deliveries (
+CREATE TABLE history.webhook_event_deliveries (
   provider text NOT NULL,
   provider_event_id text NOT NULL,
   request_id text NOT NULL,
@@ -53,7 +56,7 @@ CREATE TABLE webhook_event_deliveries (
   PRIMARY KEY (provider, provider_event_id, request_id)
 );
 
-CREATE TABLE webhook_event_effects (
+CREATE TABLE history.webhook_event_effects (
   provider text NOT NULL,
   provider_event_id text NOT NULL,
   effect text NOT NULL,
@@ -65,7 +68,7 @@ CREATE TABLE webhook_event_effects (
 
 -- Every change to an event, appended in stream order and never rewritten.
 -- The event table keeps only the latest status, so this ledger keeps the rest.
-CREATE TABLE webhook_event_changes (
+CREATE TABLE history.webhook_event_changes (
   provider text NOT NULL,
   provider_event_id text NOT NULL,
   -- Orders the event's changes, and makes a replayed stream record a no-op.

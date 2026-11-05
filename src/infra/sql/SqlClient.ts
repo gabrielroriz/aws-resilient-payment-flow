@@ -2,7 +2,7 @@ import { AppConfig } from "@infra/config/AppConfig";
 import { Injectable } from "@kernel/decorators/injectable";
 import { Client } from "pg";
 
-// Must match the port of the history database in Terraform and Docker Compose.
+// Must match the port of the platform database in Terraform and Docker Compose.
 const PORT = 5432;
 // A paused Aurora Serverless instance takes up to about 30 seconds to resume.
 const CONNECT_TIMEOUT_MS = 45_000;
@@ -30,7 +30,7 @@ export class SqlClient {
 
   // Builds the driver's connection, which tests replace to run without a server.
   open(): SqlClient.DriverConnection {
-    const { host, database, user, password } = this.config.historyDatabase;
+    const { host, database, user, password } = this.config.database;
     return new Client({
       host,
       port: PORT,

@@ -30,13 +30,13 @@ export class AppConfig {
     return { webhookEvents: { name: env.WEBHOOK_EVENTS_TABLE_NAME } };
   }
 
-  get historyDatabase(): AppConfig.HistoryDatabase {
-    const env = this.parseGroup("historyDatabase", envSchema.historyDatabase);
+  get database(): AppConfig.Database {
+    const env = this.parseGroup("database", envSchema.database);
     return {
-      host: env.HISTORY_DB_HOST,
-      database: env.HISTORY_DB_NAME,
-      user: env.HISTORY_DB_USER,
-      password: env.HISTORY_DB_PASSWORD,
+      host: env.DATABASE_HOST,
+      database: env.DATABASE_NAME,
+      user: env.DATABASE_USER,
+      password: env.DATABASE_PASSWORD,
     };
   }
 
@@ -91,8 +91,8 @@ export namespace AppConfig {
     webhookEvents: { name: string };
   };
 
-  // The PostgreSQL database that keeps the webhook events' long-term history.
-  export type HistoryDatabase = {
+  // The platform's PostgreSQL database, with one schema per concern.
+  export type Database = {
     // Host name of the database server.
     host: string;
     // Name of the database on that server.

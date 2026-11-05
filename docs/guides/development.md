@@ -68,7 +68,7 @@ flowchart TD
     Poller -->|"delete completed messages"| SQS
 ```
 
-1. The build bundles each function. Docker Compose starts DynamoDB Local without tables and [ElasticMQ](https://github.com/softwaremill/elasticmq), an SQS-compatible server, without queues, each with its web UI, and PostgreSQL with an empty `history` database.
+1. The build bundles each function. Docker Compose starts DynamoDB Local without tables and [ElasticMQ](https://github.com/softwaremill/elasticmq), an SQS-compatible server, without queues, each with its web UI, and PostgreSQL with an empty `platform` database.
 2. Terraform plans with local archive names and local secrets, and exports the plan as JSON. The plan is **never applied**: it only serves as a machine-readable description of the tables, queues, functions, and routes defined in `terraform/`.
 3. A script creates the planned tables in DynamoDB Local and the planned queues in ElasticMQ, and generates a SAM template for the planned functions and routes. See [Local tables](#local-tables), [Local queues](#local-queues), and [Local functions](#local-functions).
 4. SAM serves HTTP routes and a separate Lambda invocation endpoint, running functions in containers attached to the Compose network. A local poller consumes ElasticMQ and invokes workers through that endpoint, and functions start durable workflows through it, which SAM runs with its durable execution emulator. The template is temporary, so no SAM template is maintained.
@@ -95,7 +95,7 @@ npm run dev
 | Replay the delivery scenarios | `npm run simulate` in another terminal; see [Simulated gateways](simulated-gateways.md#usage) |
 | Query DynamoDB Local from the host | Add `--endpoint-url http://localhost:8000` to AWS CLI commands, such as `aws dynamodb scan --table-name <table> --endpoint-url http://localhost:8000` |
 | Browse queues and their messages | Open <http://localhost:9325>; the message counts refresh live, and receiving a message counts toward its queue's redrive limit |
-| Query the history database | `docker compose -f compose.dev.yaml exec postgres psql -U history_admin history`, or connect a client to `localhost:5435` with the local credentials in [`compose.dev.yaml`](../../compose.dev.yaml) |
+| Query the platform database | `docker compose -f compose.dev.yaml exec postgres psql -U platform_admin platform`, or connect a client to `localhost:5435` with the local credentials in [`compose.dev.yaml`](../../compose.dev.yaml) |
 | Query ElasticMQ from the host | Add `--endpoint-url http://localhost:9324` to AWS CLI commands, such as `aws sqs list-queues --endpoint-url http://localhost:9324` |
 | Stop the local services | `docker compose -f compose.dev.yaml down`; queued messages are lost |
 | Erase the local tables and items | `npm run dev:reset-db`, then rerun `npm run dev` to create the tables again |

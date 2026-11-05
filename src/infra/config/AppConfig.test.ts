@@ -31,15 +31,15 @@ test("AppConfig reads the table names", () => {
   expect(new AppConfig().tables).toEqual({ webhookEvents: { name: "webhook_events" } });
 });
 
-test("AppConfig reads the history database connection settings", () => {
-  vi.stubEnv("HISTORY_DB_HOST", "postgres");
-  vi.stubEnv("HISTORY_DB_NAME", "history");
-  vi.stubEnv("HISTORY_DB_USER", "history_writer");
-  vi.stubEnv("HISTORY_DB_PASSWORD", "writer-password");
+test("AppConfig reads the platform database connection settings", () => {
+  vi.stubEnv("DATABASE_HOST", "postgres");
+  vi.stubEnv("DATABASE_NAME", "platform");
+  vi.stubEnv("DATABASE_USER", "history_writer");
+  vi.stubEnv("DATABASE_PASSWORD", "writer-password");
 
-  expect(new AppConfig().historyDatabase).toEqual({
+  expect(new AppConfig().database).toEqual({
     host: "postgres",
-    database: "history",
+    database: "platform",
     user: "history_writer",
     password: "writer-password",
   });

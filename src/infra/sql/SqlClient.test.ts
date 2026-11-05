@@ -80,11 +80,11 @@ test("withConnection runs no work when the connection cannot open", async () => 
   expect(work).not.toHaveBeenCalled();
 });
 
-test("open configures the driver from the history database settings", () => {
-  vi.stubEnv("HISTORY_DB_HOST", "postgres");
-  vi.stubEnv("HISTORY_DB_NAME", "history");
-  vi.stubEnv("HISTORY_DB_USER", "history_writer");
-  vi.stubEnv("HISTORY_DB_PASSWORD", "writer-password");
+test("open configures the driver from the platform database settings", () => {
+  vi.stubEnv("DATABASE_HOST", "postgres");
+  vi.stubEnv("DATABASE_NAME", "platform");
+  vi.stubEnv("DATABASE_USER", "history_writer");
+  vi.stubEnv("DATABASE_PASSWORD", "writer-password");
 
   const connection = new SqlClient(new AppConfig()).open();
 
@@ -92,7 +92,7 @@ test("open configures the driver from the history database settings", () => {
   expect(connection).toMatchObject({
     host: "postgres",
     port: 5432,
-    database: "history",
+    database: "platform",
     user: "history_writer",
   });
 });

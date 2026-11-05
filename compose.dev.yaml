@@ -37,13 +37,13 @@ services:
       dynamodb:
         condition: service_healthy
 
-  # The history database, with the major version Aurora runs.
+  # The platform database, with the major version Aurora runs.
   postgres:
     image: postgres:16.14
     environment:
       # Local-only credentials, which the functions' local configuration repeats.
-      POSTGRES_DB: history
-      POSTGRES_USER: history_admin
+      POSTGRES_DB: platform
+      POSTGRES_USER: platform_admin
       POSTGRES_PASSWORD: local-admin-password
     ports:
       # A host port of its own, since other projects often take 5432.
@@ -51,7 +51,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U history_admin -d history"]
+      test: ["CMD-SHELL", "pg_isready -U platform_admin -d platform"]
       interval: 2s
       timeout: 2s
       retries: 15
