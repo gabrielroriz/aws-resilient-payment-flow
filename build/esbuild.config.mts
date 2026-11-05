@@ -16,6 +16,8 @@ export default {
   target: 'node24',
   format: 'cjs',
   treeShaking: true,
+  // Database migrations are SQL files that the bundle includes as strings.
+  loader: { '.sql': 'text' },
   // Let the bundling step inspect dependencies before accepting the output on disk.
   metafile: true,
   write: false,

@@ -62,6 +62,7 @@ These checks do not validate permissions against a live AWS account. See [Deploy
 | `typecheck` | Checks `*.test-d.ts` files with `tsc` instead of executing them |
 | `restoreMocks` | Restores `vi.spyOn` replacements after each test |
 | `unstubEnvs` | Restores environment variables set with `vi.stubEnv` after each test |
+| SQL text plugin | Imports `.sql` files as strings, as the esbuild text loader does in the bundles |
 
 Vitest's type testing is experimental and may change outside SemVer, so `vitest` is pinned to an exact version in `package.json`.
 
@@ -78,6 +79,7 @@ A comment test checks every comment in the repository against the [comment rule]
 | Test a use case by passing fake ports to its constructor, without the registry | The test covers business rules only and does not depend on adapters |
 | Test an adapter by replacing the layer directly below it: SDK calls for a shared client, the shared client's methods for a repository | The test checks the requests sent without AWS, Docker, or network access |
 | Replace dependencies with `vi.spyOn`, not module mocks | `restoreMocks` undoes each spy after its test, so replacements never leak |
+| Run SQL adapters and migrations against the in-memory PostgreSQL that `testConnection` opens with [PGlite](https://pglite.dev/) | Statements, constraints, and grants run in a real PostgreSQL without Docker; PGlite runs a newer major version than Aurora, so the migrations are also applied by `npm run dev` |
 | Run durable functions with the durable execution SDK's local test runner, with time skipping on | Executions, checkpoints, and step retries run in process, and retry delays pass at once |
 | Set environment variables with `vi.stubEnv` | `unstubEnvs` restores them after each test, so a configured or missing variable never leaks |
 | Declare the classes a DI test registers inside that test | The registry is shared by every test in the file |
@@ -89,4 +91,4 @@ A comment test checks every comment in the repository against the [comment rule]
 
 ## Limitations
 
-Tests replace AWS services and the Lambda runtime, so they do not exercise API Gateway, DynamoDB, or SQS. The [delivery simulator](simulated-gateways.md) checks webhook receipt end to end against a [local](development.md) or deployed API, and [TODO](../../TODO.md) lists planned coverage.
+Tests replace AWS services and the Lambda runtime, so they do not exercise API Gateway, DynamoDB, SQS, or Aurora. The [delivery simulator](simulated-gateways.md) checks webhook receipt end to end against a [local](development.md) or deployed API, and [TODO](../../TODO.md) lists planned coverage.

@@ -27,6 +27,12 @@ test('a sentence continued on the next line fails on the line it breaks', () => 
   expect(reasons('src/a.ts', text)).toEqual(['1: does not end its sentence']);
 });
 
+test('SQL line comments follow the same rule', () => {
+  expect(reasons('src/a.sql', '-- Stores each event once, and a repeat')).toEqual([
+    '1: does not end its sentence',
+  ]);
+});
+
 test('a line holding two sentences fails', () => {
   expect(reasons('src/a.ts', '// Stores each event once. A repeat returns it.')).toEqual([
     '1: holds more than one sentence',
@@ -46,9 +52,14 @@ test('a line wider than the limit fails, indentation included, unless it holds a
 test.each([
   ['scripts/dev/index.sh', '#!/usr/bin/env bash\n# Runs the API.'],
   ['src/a.ts', '//\n  #private = 1;'],
+  ['src/a.ts', '/// <reference types="emscripten" />'],
   ['compose.dev.yaml', '# Local services.'],
   ['terraform/main.tf', '// Creates the table.\n# Creates the queue.'],
+  ['src/a.sql', '-- Creates the table.\nCREATE TABLE a (id int); -- trailing'],
   ['docs/guide.md', '# Heading without a period'],
-])('%s: shebangs, empty comments, code, and unchecked file types pass', (path, text) => {
-  expect(reasons(path, text)).toEqual([]);
-});
+])(
+  '%s: shebangs, directives, empty comments, code, and unchecked file types pass',
+  (path, text) => {
+    expect(reasons(path, text)).toEqual([]);
+  },
+);

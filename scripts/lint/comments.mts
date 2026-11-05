@@ -10,6 +10,7 @@ const MARKERS: [RegExp, readonly string[]][] = [
   [/\.(ts|mts|mjs|json)$/, ['//']],
   [/\.(tf|hcl)$/, ['//', '#']],
   [/\.(sh|ya?ml|tfvars|tfvars\.example)$|(^|\/)\.gitignore$/, ['#']],
+  [/\.sql$/, ['--']],
 ];
 
 // A sentence ends with its punctuation, possibly inside closing brackets or quotes.
@@ -33,8 +34,13 @@ export function commentViolations(path: string, text: string): Violation[] {
   const violations: Violation[] = [];
   text.split('\n').forEach((line, index) => {
     const comment = commentText(line, markers);
-    // Shebangs and empty separator comments hold no sentence.
-    if (comment === undefined || comment === '' || line.startsWith('#!')) {
+    // Shebangs, triple-slash directives, and empty comments hold no sentence.
+    if (
+      comment === undefined ||
+      comment === '' ||
+      line.startsWith('#!') ||
+      line.trimStart().startsWith('/// <')
+    ) {
       return;
     }
     const at = { path, line: index + 1 };

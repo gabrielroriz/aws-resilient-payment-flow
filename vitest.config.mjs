@@ -25,9 +25,18 @@ const esbuildTypeScript = {
   },
 };
 
+// Imports SQL files as strings, as the esbuild text loader does in bundles.
+const sqlText = {
+  name: 'sql-text',
+  transform(code, id) {
+    if (!id.endsWith('.sql')) return null;
+    return { code: `export default ${JSON.stringify(code)};`, map: null };
+  },
+};
+
 export default defineConfig({
   oxc: false,
-  plugins: [esbuildTypeScript],
+  plugins: [esbuildTypeScript, sqlText],
   // Resolve the @application, @infra, @kernel, and @main aliases from tsconfig.json.
   resolve: { tsconfigPaths: true },
   test: {
