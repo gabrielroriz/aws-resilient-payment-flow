@@ -35,9 +35,10 @@ The architecture diagram in the README adds its own rules:
 
 | Convention | Detail |
 |---|---|
-| Scope | What is built, nothing planned; update the diagram when the architecture changes |
-| Layout | One lane per stage inside the AWS Cloud group, receipt above processing, with shapes aligned on shared columns and rows |
-| Labels | Above the icons in the receipt lane and below them in the processing lane, so arrows between the lanes never cross text |
+| Scope | What is built, plus the planned parts it is being built toward. Planned shapes are faded to 40% opacity and labeled *planned*, planned arrows and their badges are gray (`#879196`) and dashed, and their legend steps start with *Planned:*. Restyle a part as built when it ships, and update the diagram when the architecture changes |
+| Layout | Payment providers sit above the AWS Cloud group, so events enter from the top. Inside it, one lane per stage sits on the left, receipt above processing above workflows, and a state column on the right holds the data stores, so data flows toward and down that column; shapes align on shared columns and rows |
+| Labels | On a side of the icon no arrow uses: above or below it in the lanes, and right of it in the state column. Lane and column titles carry only their names, so arrows entering from the top never cross text |
+| Legend | A separate image shown below the diagram, so both stay readable at the README's width. It explains each numbered step under its stage's name and description, followed by one row of boxes listing the failures and protections each part handles. Edit both images when a step changes |
 
 ## Usage
 
