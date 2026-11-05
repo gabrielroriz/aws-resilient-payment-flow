@@ -5,6 +5,7 @@ variables {
   CODE_VERSION                  = "test-version"
   GATEWAY_GLOBAL_SIGNING_SECRET = "test-secret"
   GATEWAY_BRAZIL_ACCESS_TOKEN   = "test-token"
+  DATABASE_ADMIN_PASSWORD       = "test-admin-password"
 }
 
 run "subscription_grant_access_workflow" {

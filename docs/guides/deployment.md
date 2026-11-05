@@ -18,7 +18,7 @@ Build every registered function and deploy it to AWS, with its HTTP routes, Dyna
 1. Install the tools above and configure credentials for the target AWS account.
 2. Review the state backend, provider region, and resource names in the Terraform configuration in `terraform/`.
 3. Ensure the backend bucket exists before initialization. The configuration also manages this bucket, so an existing bucket must be tracked in this Terraform state before applying.
-4. Set the values of the functions' environment variables that Terraform declares without a default, such as provider credentials; `npm run deploy` sets `CODE_VERSION` itself. Planning fails while one is missing, and Terraform state stores the values in plain text. Keep them: every deployment must use the same ones, and the [delivery simulator](simulated-gateways.md) needs them to reach a deployed API. Generate secrets with `openssl rand -hex 32`.
+4. Set the values of the functions' environment variables that Terraform declares without a default, such as provider credentials; `npm run deploy` sets `CODE_VERSION` itself. Planning fails while one is missing, and Terraform state stores the values in plain text. Keep them: every deployment must use the same ones, and the [delivery simulator](simulated-gateways.md) needs them to reach a deployed API. Generate secrets with `openssl rand -hex 32`; the database admin password allows at most 41 characters, so use `openssl rand -hex 20` for it.
 
    | Option | How |
    |---|---|
@@ -78,6 +78,7 @@ To review the infrastructure changes first, run `terraform -chdir=terraform plan
 | SQS queues | The webhook events FIFO queue, in high-throughput mode, and its dead-letter queue; see the [processing queue](../architecture/webhook-receipt.md#processing-queue) |
 | Dead-letter queue alarm | Enters `ALARM` when CloudWatch reports visible messages; see [Webhook processing](../architecture/webhook-processing.md#dead-letter-queue) |
 | SQS event source mappings | Invoke the webhook worker with partial batch responses and a concurrency cap; its role permits queue consumption, parking messages in the dead-letter queue, stored event reads, starting workflows, and execution logs |
+| Platform database | An Aurora PostgreSQL Serverless v2 cluster in the default VPC, scaling from 0 to 2 ACUs and pausing after 5 idle minutes; encrypted, protected from deletion, with 7 days of backups and a final snapshot. Only functions in its client security group can reach it |
 | State bucket | The S3 bucket holding the Terraform state, managed by the same configuration |
 
 Terraform uploads each archive directly to Lambda and tracks its content hash, so only changed functions are updated.

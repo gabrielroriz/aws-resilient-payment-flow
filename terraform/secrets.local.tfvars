@@ -4,5 +4,8 @@
 GATEWAY_GLOBAL_SIGNING_SECRET = "local-gateway-global-secret"
 GATEWAY_BRAZIL_ACCESS_TOKEN   = "local-gateway-brazil-token"
 
+# Must match the admin password of the local PostgreSQL container.
+DATABASE_ADMIN_PASSWORD = "local-admin-password"
+
 # Local runs never pass for a deployed commit.
 CODE_VERSION = "local"
